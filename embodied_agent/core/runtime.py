@@ -137,6 +137,7 @@ class RecoveryPolicy:
                         and ledger.can_adjust_place(eid)
                         and ledger.can_retry_object(eid)):
                     return "recover_retry_place"
+                # Object already released but placement failed: replan to try different slot
                 if ledger.can_replan():
                     return "replan_unstable"
                 return "fail_step"
