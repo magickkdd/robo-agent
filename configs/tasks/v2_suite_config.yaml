@@ -1,0 +1,96 @@
+# TabletopOrganize-v2 Task Suite Configuration
+# W2.5: v2 benchmark for S2 acceptance
+#
+# Subsets:
+# - v2-clean: 90 episodes (3/4/5 objects, shared targets, fixed seed)
+# - v2-capacity: 45 episodes (capacity constraints)
+# - v2-interference: 45 episodes (placed objects block slots/paths)
+# - v2-fault: 90 episodes (grasp miss, target full, place unstable, state uncertain)
+# - v2-negative: >=15 cases (illegal targets, unreachable slots, etc.)
+
+schema_version: "1"
+suite_name: "TabletopOrganize-v2"
+
+# Scene configuration
+scene:
+  scene_id: tabletop_s2
+  backend: pybullet
+  robot: franka_panda
+  camera: fixed_overhead
+
+# Object definitions
+objects:
+  - id: red_cube
+    shape: box
+    dims: [0.025, 0.025, 0.025]
+    color: red
+    attributes: {color: "red", shape: "cube"}
+  
+  - id: blue_cube
+    shape: box
+    dims: [0.025, 0.025, 0.025]
+    color: blue
+    attributes: {color: "blue", shape: "cube"}
+  
+  - id: green_cube
+    shape: box
+    dims: [0.025, 0.025, 0.025]
+    color: green
+    attributes: {color: "green", shape: "cube"}
+  
+  - id: yellow_cuboid
+    shape: box
+    dims: [0.032, 0.022, 0.040]
+    color: yellow
+    attributes: {color: "yellow", shape: "cuboid"}
+  
+  - id: cyan_cylinder
+    shape: cylinder
+    dims: [0.026, 0.045]
+    color: cyan
+    attributes: {color: "cyan", shape: "cylinder"}
+
+# Target regions
+targets:
+  - id: tray_left
+    label: "left tray"
+    center: [0.66, -0.32, 0.6]
+    inner_half: 0.135
+    floor_top: 0.608
+    accepts: ["cube", "cuboid", "cylinder"]
+  
+  - id: tray_middle
+    label: "middle tray"
+    center: [0.66, 0.0, 0.6]
+    inner_half: 0.135
+    floor_top: 0.608
+    accepts: ["cube", "cuboid", "cylinder"]
+  
+  - id: tray_right
+    label: "right tray"
+    center: [0.66, 0.32, 0.6]
+    inner_half: 0.135
+    floor_top: 0.608
+    accepts: ["cube", "cuboid", "cylinder"]
+
+# Budget configuration (S2)
+budgets:
+  per_object_extra_attempts: 2
+  max_global_replans: 5
+  max_skill_calls: 50
+  max_model_requests: 15
+  wall_clock_s: 900
+  per_skill_sim_timeout_s: 30
+  max_consecutive_no_progress: 3
+  max_slot_changes_per_target: 3
+  max_place_adjustments_per_object: 2
+
+# Verification tolerances
+evaluation:
+  tolerance_version: "v2"
+  stable_time_s: 0.5
+  speed_tol_mps: 0.02
+  ang_speed_tol_rps: 0.2
+  support_height_tol_m: 0.015
+  footprint_margin_m: 0.005
+  lift_gain_min_m: 0.03

@@ -1,0 +1,346 @@
+# TabletopOrganize-v2-clean: 90 episodes
+# 3/4/5 objects, shared targets, fixed seed
+#
+# Structure:
+# - 3-object: 10 seeds x 3 runs = 30 episodes
+# - 4-object: 10 seeds x 3 runs = 30 episodes
+# - 5-object: 10 seeds x 3 runs = 30 episodes
+
+schema_version: "1"
+subset: "v2-clean"
+total_episodes: 90
+
+# Task definitions
+tasks:
+  # 3-object tasks (10 seeds)
+  - task_id: v2_clean_3obj_s1001
+    seed: 1001
+    object_count: 3
+    objects: [red_cube, blue_cube, green_cube]
+    instruction: "把红色方块放到左边托盘，蓝色方块放到右边托盘，绿色方块放到中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+  
+  - task_id: v2_clean_3obj_s1002
+    seed: 1002
+    object_count: 3
+    objects: [red_cube, blue_cube, green_cube]
+    instruction: "红色放左边，蓝色放右边，其余放中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+  
+  - task_id: v2_clean_3obj_s1003
+    seed: 1003
+    object_count: 3
+    objects: [red_cube, blue_cube, yellow_cuboid]
+    instruction: "把红色物体放到左边，蓝色物体放到右边，黄色物体放到中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      yellow_cuboid: tray_middle
+  
+  - task_id: v2_clean_3obj_s1004
+    seed: 1004
+    object_count: 3
+    objects: [red_cube, green_cube, cyan_cylinder]
+    instruction: "红色放左边，绿色放中间，蓝色圆柱放右边。"
+    assignments:
+      red_cube: tray_left
+      green_cube: tray_middle
+      cyan_cylinder: tray_right
+  
+  - task_id: v2_clean_3obj_s1005
+    seed: 1005
+    object_count: 3
+    objects: [blue_cube, green_cube, yellow_cuboid]
+    instruction: "把蓝色放右边，绿色放左边，黄色放中间。"
+    assignments:
+      blue_cube: tray_right
+      green_cube: tray_left
+      yellow_cuboid: tray_middle
+  
+  - task_id: v2_clean_3obj_s1006
+    seed: 1006
+    object_count: 3
+    objects: [red_cube, blue_cube, cyan_cylinder]
+    instruction: "红色方块放左边，蓝色方块放中间，圆柱放右边。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_middle
+      cyan_cylinder: tray_right
+  
+  - task_id: v2_clean_3obj_s1007
+    seed: 1007
+    object_count: 3
+    objects: [green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "绿色放左边，黄色放中间，蓝色放右边。"
+    assignments:
+      green_cube: tray_left
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_right
+  
+  - task_id: v2_clean_3obj_s1008
+    seed: 1008
+    object_count: 3
+    objects: [red_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "把红色物体放到左边托盘，其余两个放到中间和右边。"
+    assignments:
+      red_cube: tray_left
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_right
+  
+  - task_id: v2_clean_3obj_s1009
+    seed: 1009
+    object_count: 3
+    objects: [blue_cube, green_cube, cyan_cylinder]
+    instruction: "蓝色放右边，绿色和圆柱放左边和中间。"
+    assignments:
+      blue_cube: tray_right
+      green_cube: tray_left
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_3obj_s1010
+    seed: 1010
+    object_count: 3
+    objects: [red_cube, blue_cube, green_cube]
+    instruction: "整理：红色左边，蓝色右边，绿色中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+
+  # 4-object tasks (10 seeds)
+  - task_id: v2_clean_4obj_s2001
+    seed: 2001
+    object_count: 4
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid]
+    instruction: "红色放左边，蓝色放右边，绿色和黄色放中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+      yellow_cuboid: tray_middle
+  
+  - task_id: v2_clean_4obj_s2002
+    seed: 2002
+    object_count: 4
+    objects: [red_cube, blue_cube, green_cube, cyan_cylinder]
+    instruction: "把红色和蓝色放到左边，绿色放到中间，圆柱放到右边。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_left
+      green_cube: tray_middle
+      cyan_cylinder: tray_right
+  
+  - task_id: v2_clean_4obj_s2003
+    seed: 2003
+    object_count: 4
+    objects: [red_cube, blue_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色物体放左边，蓝色物体放右边，其余放中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_4obj_s2004
+    seed: 2004
+    object_count: 4
+    objects: [red_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色左边，绿色右边，黄色和蓝色中间。"
+    assignments:
+      red_cube: tray_left
+      green_cube: tray_right
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_4obj_s2005
+    seed: 2005
+    object_count: 4
+    objects: [blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "蓝色放左边，绿色放右边，其余放中间。"
+    assignments:
+      blue_cube: tray_left
+      green_cube: tray_right
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_4obj_s2006
+    seed: 2006
+    object_count: 4
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid]
+    instruction: "把红色和绿色放到左边，蓝色放到右边，黄色放到中间。"
+    assignments:
+      red_cube: tray_left
+      green_cube: tray_left
+      blue_cube: tray_right
+      yellow_cuboid: tray_middle
+  
+  - task_id: v2_clean_4obj_s2007
+    seed: 2007
+    object_count: 4
+    objects: [red_cube, blue_cube, green_cube, cyan_cylinder]
+    instruction: "红色左边，蓝色和绿色中间，圆柱右边。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_middle
+      green_cube: tray_middle
+      cyan_cylinder: tray_right
+  
+  - task_id: v2_clean_4obj_s2008
+    seed: 2008
+    object_count: 4
+    objects: [red_cube, blue_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色和黄色放左边，蓝色放右边，圆柱放中间。"
+    assignments:
+      red_cube: tray_left
+      yellow_cuboid: tray_left
+      blue_cube: tray_right
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_4obj_s2009
+    seed: 2009
+    object_count: 4
+    objects: [red_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色左边，绿色和蓝色中间，黄色右边。"
+    assignments:
+      red_cube: tray_left
+      green_cube: tray_middle
+      cyan_cylinder: tray_middle
+      yellow_cuboid: tray_right
+  
+  - task_id: v2_clean_4obj_s2010
+    seed: 2010
+    object_count: 4
+    objects: [blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "蓝色和黄色放左边，绿色放中间，其余放右边。"
+    assignments:
+      blue_cube: tray_left
+      yellow_cuboid: tray_left
+      green_cube: tray_middle
+      cyan_cylinder: tray_right
+
+  # 5-object tasks (10 seeds)
+  - task_id: v2_clean_5obj_s3001
+    seed: 3001
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色放左边，蓝色放右边，绿色、黄色和圆柱放中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_5obj_s3002
+    seed: 3002
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色和蓝色放左边，绿色放右边，其余放中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_left
+      green_cube: tray_right
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_5obj_s3003
+    seed: 3003
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色左边，蓝色右边，绿色、黄色和圆柱随机分配到剩余位置。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+      yellow_cuboid: tray_left
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_5obj_s3004
+    seed: 3004
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "把所有红色和绿色物体放左边，蓝色放右边，其余放中间。"
+    assignments:
+      red_cube: tray_left
+      green_cube: tray_left
+      blue_cube: tray_right
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_5obj_s3005
+    seed: 3005
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色和黄色放左边，蓝色和绿色放右边，圆柱放中间。"
+    assignments:
+      red_cube: tray_left
+      yellow_cuboid: tray_left
+      blue_cube: tray_right
+      green_cube: tray_right
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_5obj_s3006
+    seed: 3006
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色左边，蓝色右边，绿色中间，黄色和圆柱分配到剩余位置。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+      yellow_cuboid: tray_left
+      cyan_cylinder: tray_right
+  
+  - task_id: v2_clean_5obj_s3007
+    seed: 3007
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色和蓝色放左边，绿色和黄色放右边，圆柱放中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_left
+      green_cube: tray_right
+      yellow_cuboid: tray_right
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_5obj_s3008
+    seed: 3008
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "把红色放到左边，蓝色放到右边，其余放到中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_5obj_s3009
+    seed: 3009
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "红色左边，蓝色右边，其余放中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_middle
+  
+  - task_id: v2_clean_5obj_s3010
+    seed: 3010
+    object_count: 5
+    objects: [red_cube, blue_cube, green_cube, yellow_cuboid, cyan_cylinder]
+    instruction: "整理所有物体：红色左边，蓝色右边，其余中间。"
+    assignments:
+      red_cube: tray_left
+      blue_cube: tray_right
+      green_cube: tray_middle
+      yellow_cuboid: tray_middle
+      cyan_cylinder: tray_middle
