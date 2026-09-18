@@ -44,6 +44,8 @@ class BudgetExceeded(Exception):
 
 
 class BudgetLedger:
+    """Track all budgets for a single episode (spec 10.4, 7.3)."""
+    
     def __init__(self, budgets: Budgets, n_objects: int):
         self.b = budgets
         self.n_objects = n_objects
@@ -54,6 +56,12 @@ class BudgetLedger:
         self.retries = 0
         self.per_object_attempts: dict[str, int] = {}
         self.t_start_wall = time.time()
+        
+        # S2 budgets (spec 7.3)
+        self.slot_changes: dict[str, int] = {}  # target_id -> count
+        self.place_adjustments: dict[str, int] = {}  # object_id -> count
+        self.max_slot_changes_per_target = 3
+        self.max_place_adjustments_per_object = 2
 
     def can_skill_call(self) -> bool:
         return self.skill_calls < self.b.max_skill_calls
@@ -63,14 +71,36 @@ class BudgetLedger:
 
     def can_retry_object(self, eid: str) -> bool:
         return self.per_object_attempts.get(eid, 0) < self.b.per_object_extra_attempts
+    
+    def can_change_slot(self, target_id: str) -> bool:
+        """S2: Each target max 3 slot changes (spec 7.3)."""
+        return self.slot_changes.get(target_id, 0) < self.max_slot_changes_per_target
+    
+    def can_adjust_place(self, object_id: str) -> bool:
+        """S2: Each object max 2 place adjustments (spec 7.3)."""
+        return self.place_adjustments.get(object_id, 0) < self.max_place_adjustments_per_object
+    
+    def record_slot_change(self, target_id: str):
+        self.slot_changes[target_id] = self.slot_changes.get(target_id, 0) + 1
+    
+    def record_place_adjustment(self, object_id: str):
+        self.place_adjustments[object_id] = self.place_adjustments.get(object_id, 0) + 1
 
     def wall_remaining(self) -> float:
         return self.b.wall_clock_s - (time.time() - self.t_start_wall)
 
 
 class RecoveryPolicy:
-    """Deterministic S1 recovery: GRASP_MISS -> re-observe, safe_retreat, retry
-    with the next grasp candidate. Everything else is reported, not recovered."""
+    """Deterministic S2 recovery with expanded failure handling (spec 7.1).
+    
+    Recovery actions:
+    - GRASP_MISS: re-observe, safe_retreat, retry with next candidate
+    - TARGET_FULL: replan with different slot/target (spec 7.1)
+    - PLACE_UNSTABLE: adjust height/slot and retry (spec 7.1)
+    - PLACE_COLLISION: abandon slot, replan (spec 7.1)
+    - STATE_UNCERTAIN: stop, observe, no blind retry (spec 7.1)
+    - Others: report, bounded exit
+    """
 
     def __init__(self, enabled: bool = True):
         self.enabled = enabled
@@ -80,19 +110,47 @@ class RecoveryPolicy:
             return "continue"
         if not self.enabled:
             return "fail_step"
+        
+        # --- Pick failures ---
         if result.failure_code == FailureCode.GRASP_MISS.value:
             if ledger.can_retry_object(eid):
                 return "recover_retry"
             return "fail_step"
-        if (
-            skill == "place"
-            and result.failure_code in (FailureCode.IK_UNREACHABLE.value, FailureCode.VERIFY_FAILED.value)
-            and result.held_state == eid
-            and ledger.can_retry_object(eid)
-        ):
-            return "recover_retry_place"  # still holding: bounded re-attempt of the place
-        if result.failure_code == FailureCode.TARGET_FULL.value:
-            return "fail_step"  # never blind-place (spec 11.3)
+        
+        # --- Place failures (spec 7.1) ---
+        if skill == "place":
+            # Still holding object: bounded re-attempt
+            if (result.failure_code in (FailureCode.IK_UNREACHABLE.value, FailureCode.PLACE_COLLISION.value)
+                    and result.held_state == eid
+                    and ledger.can_retry_object(eid)):
+                return "recover_retry_place"
+            
+            # TARGET_FULL: try different slot or target (spec 7.1)
+            if result.failure_code == FailureCode.TARGET_FULL.value:
+                if ledger.can_replan():
+                    return "replan_target_full"
+                return "fail_step"
+            
+            # PLACE_UNSTABLE: adjust and retry (spec 7.1)
+            if result.failure_code == FailureCode.PLACE_UNSTABLE.value:
+                if (result.held_state == eid 
+                        and ledger.can_adjust_place(eid)
+                        and ledger.can_retry_object(eid)):
+                    return "recover_retry_place"
+                if ledger.can_replan():
+                    return "replan_unstable"
+                return "fail_step"
+            
+            # VERIFY_FAILED: still holding, retry place
+            if (result.failure_code == FailureCode.VERIFY_FAILED.value
+                    and result.held_state == eid
+                    and ledger.can_retry_object(eid)):
+                return "recover_retry_place"
+        
+        # --- STATE_UNCERTAIN: stop, observe, no blind retry (spec 7.1) ---
+        if result.failure_code == FailureCode.STATE_UNCERTAIN.value:
+            return "fail_step"
+        
         return "fail_step"
 
 
@@ -277,6 +335,7 @@ class Runtime:
                 if step.skill == "pick":
                     ledger.per_object_attempts[eid] = 0
                 continue
+            
             if decision in ("recover_retry", "recover_retry_place"):
                 ledger.recoveries += 1
                 ledger.retries += 1
@@ -287,6 +346,8 @@ class Runtime:
                     retry_args["candidate_index"] = str(attempt)
                     self._safe_retreat(ledger, store)  # retreat + re-observe before regrasp
                     self.bump_state()
+                if decision == "recover_retry_place":
+                    ledger.record_place_adjustment(eid)
                 store.log("recovery", type=decision, object=eid, attempt=attempt)
                 retry_call = SkillCall(
                     plan_id=plan.plan_id, step_id=step.id, skill=step.skill,
@@ -311,6 +372,17 @@ class Runtime:
                         continue
                 store.log("recovery_exhausted", object=eid)
                 return self._map_failure(retry), True
+            
+            # S2: replan decisions (spec 7.1, 7.2)
+            if decision in ("replan_target_full", "replan_unstable"):
+                # Record slot change for budget tracking
+                if step.skill == "place" and "target_id" in step.args:
+                    ledger.record_slot_change(step.args["target_id"])
+                # Return to caller to trigger replan (spec 7.2)
+                store.log("replan_triggered", type=decision, object=eid, 
+                         target=step.args.get("target_id"))
+                return self._map_failure(result), False  # Not terminal, triggers replan
+            
             return self._map_failure(result), not recovery_enabled
 
         return None, False
