@@ -1,0 +1,304 @@
+"""Skill layer (spec section 9).
+
+Exposed skills: observe / pick / place / safe_retreat. Low-level motion
+primitives (reach, open_gripper, descend, close_gripper, lift, transfer) live
+inside the skill executors and are NOT part of the LLM-facing skill catalogue.
+`verify` is forced by the Runtime after each skill; skills never declare task
+success themselves (they only report their own execution outcome).
+"""
+from __future__ import annotations
+
+import math
+
+import numpy as np
+
+from .contracts import (
+    FailureCode,
+    Pose,
+    SkillCall,
+    SkillResult,
+    SkillStatus,
+    Source,
+    EntityState,
+    TargetRegion,
+    Vec3,
+    WorldState,
+)
+from .scene import EE_LINK  # noqa: F401  (dependency marker; skills drive scene only)
+
+APPROACH_CLEARANCE = 0.14
+LIFT_HEIGHT = 0.09
+# empirically calibrated: grasp at the object center gives the most stable
+# pad grip across all three shapes (see work/grasp_offset_calibration)
+# at the object's mid-height by lifting the grasp target 20mm above its center
+GRASP_Z_OFFSET = 0.0
+DOWN_ORN = None  # computed lazily via scene helper
+
+
+def _down_orn():
+    import pybullet as pbl
+
+    return pbl.getQuaternionFromEuler([math.pi, 0, 0])
+
+
+class SkillRegistry:
+    """Catalogue shown to the planner, with pre/postconditions (spec 8.3)."""
+
+    CATALOGUE = {
+        "observe": {
+            "pre": ["robot in observable state"],
+            "post": ["WorldState refreshed with time+source"],
+            "args": {},
+        },
+        "pick": {
+            "pre": ["object locatable", "gripper idle", "grasp candidate reachable"],
+            "post": ["object lifted and stably following the end effector"],
+            "args": {"object_id": "str", "candidate_index": "int(default 0)"},
+        },
+        "place": {
+            "pre": ["holding object_id", "target exists with a free interior slot"],
+            "post": ["object inside target region, supported, not held"],
+            "args": {"object_id": "str", "target_id": "str"},
+        },
+        "safe_retreat": {
+            "pre": ["current pose and held state known or conservatively treatable"],
+            "post": ["no new collisions, recoverable posture"],
+            "args": {},
+        },
+    }
+
+
+class SkillExecutor:
+    def __init__(self, scene, world_provider, grasp_lateral_step: float = 0.008):
+        self.scene = scene
+        self.world_provider = world_provider  # callable -> WorldState (current)
+        self.grasp_lateral_step = grasp_lateral_step
+
+    # ---------- helpers ----------
+    def _snapshot_world(self) -> WorldState:
+        return self.world_provider()
+
+    def _result(self, call: SkillCall, status: SkillStatus, t0, stages, **kw) -> SkillResult:
+        return SkillResult(
+            call_id=call.call_id,
+            status=status,
+            t_start=t0,
+            t_end=self.scene.sim_time,
+            stages_executed=stages,
+            held_state=self._held_state(),
+            **kw,
+        )
+
+    def _held_state(self):
+        held_bodies = self.scene.held_bodies()
+        if not held_bodies:
+            return None
+        eids = [self.scene.entity_by_body(b) for b in held_bodies]
+        eids = [e for e in eids if e]
+        return eids[0] if len(eids) == 1 else "unknown"
+
+    # ---------- skills ----------
+    def execute(self, call: SkillCall) -> SkillResult:
+        t0 = self.scene.sim_time
+        try:
+            fn = getattr(self, f"_do_{call.skill}")
+            return fn(call, t0)
+        except Exception as e:  # noqa: BLE001 - skill-level guard: report, never crash runtime
+            r = self._result(call, SkillStatus.failed, t0, [f"exception:{type(e).__name__}"])
+            r.failure_code = FailureCode.ANOMALOUS_CONTACT.value
+            r.remaining_action_hint = f"exception: {e}"
+            return r
+
+    def _do_observe(self, call, t0):
+        w = self._snapshot_world()
+        return self._result(call, SkillStatus.completed, t0, ["read_channels"], post_observation_ref=w.observation_ref)
+
+    def _do_pick(self, call, t0):
+        oid = call.args["object_id"]
+        cand_idx = int(call.args.get("candidate_index", 0))
+        try:
+            self.scene.objects[oid]
+        except KeyError:
+            r = self._result(call, SkillStatus.failed, t0, ["precondition"])
+            r.failure_code = FailureCode.INVALID_PLAN.value
+            return r
+        held = self._held_state()
+        if held == "unknown":
+            # spec 11.3: unconfirmed held state -> stop, observe, decide
+            self.scene.settle(0.3)
+            held = self._held_state()
+            if held == "unknown":
+                orn0 = _down_orn()
+                cur0, _ = self.scene.ee_pose()
+                self.scene.move_ee([cur0[0], cur0[1], 0.90], orn0, timeout_s=1.5)
+                self.scene.settle(0.3)
+                held = self._held_state()
+            if held == "unknown":
+                r = self._result(call, SkillStatus.failed, t0, ["precondition"])
+                r.failure_code = FailureCode.ANOMALOUS_CONTACT.value
+                r.remaining_action_hint = "held state still unknown after re-observation; bounded exit"
+                return r
+        if held is not None and held != oid:
+            # gripper not idle (spec 9 pick precondition): report, never blind-release
+            r = self._result(call, SkillStatus.failed, t0, ["precondition"])
+            r.failure_code = FailureCode.INVALID_PLAN.value
+            r.remaining_action_hint = f"gripper holds {held}; place or retreat first"
+            return r
+        pos0, _ = self.scene.object_pose(oid)
+        support_z = float(pos0[2])
+        cands = self.scene.grasp_candidates(oid)
+        if cand_idx >= len(cands):
+            cand_idx = 0
+        center = cands[cand_idx]
+        center[2] += GRASP_Z_OFFSET  # pads at object mid-height, tips clear of the table
+        grasp = center.copy()
+        if "grasp_offset" in call.args:  # fault injection hook: frozen offset on first grasp
+            off = np.array([float(v) for v in call.args["grasp_offset"].split(",")])
+            grasp = grasp + off  # perturbs ONLY the final descent target (spec 4.4)
+        orn = _down_orn()
+        stages = ["approach", "open_gripper", "descend", "close_gripper", "lift", "grasp_check"]
+
+        if held != oid:
+            self.scene.reset_arm()  # only when the gripper is free (never teleport a held object)
+            self.scene.open_gripper()
+        # if already holding the requested object, never release it mid-air:
+        # just re-verify the grasp below (spec 9: no unconditional release)
+        # approach in two stages: first to a staging height above the object
+        # (keeps the joint-interpolated path clear of tabletop obstacles, spec
+        # 6.2: collision-checked approach-lift-transfer-descend), then descend
+        # to the clean pre-grasp pose above the true object center
+        stage_z = max(center[2] + APPROACH_CLEARANCE, 0.82)
+        if not self.scene.move_ee([center[0], center[1], stage_z], orn, timeout_s=2.5):
+            r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.IK_UNREACHABLE.value)
+            return r
+        if not self.scene.move_ee([center[0], center[1], center[2] + APPROACH_CLEARANCE], orn, timeout_s=1.5):
+            r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.IK_UNREACHABLE.value)
+            return r
+        # descend stepwise; stop as soon as the fingertips touch the object so
+        # slightly nudged bodies (±2cm) are still grasped robustly
+        z = center[2] + APPROACH_CLEARANCE
+        while z > grasp[2] + 0.002:
+            z = max(z - 0.01, grasp[2])
+            blocked = not self.scene.move_ee([grasp[0], grasp[1], z], orn, timeout_s=1.0, tol=8e-3, tcp_tol=0.03)
+            if self.scene.held_bodies() or blocked:
+                break
+        self.scene.close_gripper()
+        self.scene.settle(0.25)
+        lift_xyz = [grasp[0], grasp[1], grasp[2] + LIFT_HEIGHT]
+        if not self.scene.move_ee(lift_xyz, orn, timeout_s=2.0):
+            r = self._result(call, SkillStatus.failed, t0, stages[:4], failure_code=FailureCode.IK_UNREACHABLE.value)
+            return r
+
+        # grasp check: lifted + follows lateral motion + contact (spec 11.2)
+        pos1, _ = self.scene.object_pose(oid)
+        lift_gain = float(pos1[2] - support_z)
+        ex, ey, _ = self.scene.ee_pose()[0]
+        self.scene.move_ee([ex + 0.05, ey - 0.04, lift_xyz[2]], orn, timeout_s=1.2)
+        pos2, _ = self.scene.object_pose(oid)
+        follow_err = float(np.linalg.norm(pos2[:2] - self.scene.ee_pose()[0][:2]))
+        in_contact = self.scene.objects[oid]["body"] in self.scene.held_bodies()
+        meas = {"lift_gain_m": lift_gain, "follow_err_m": follow_err, "in_contact": float(in_contact)}
+        if lift_gain <= 0.03 or follow_err > 0.03 or not in_contact:
+            r = self._result(
+                call, SkillStatus.failed, t0, stages,
+                measurements=meas,
+                failure_code=FailureCode.GRASP_MISS.value,
+            )
+            r.remaining_action_hint = "safe_retreat then retry with next grasp candidate"
+            return r
+        return self._result(call, SkillStatus.completed, t0, stages, measurements=meas)
+
+    def _do_place(self, call, t0):
+        oid = call.args["object_id"]
+        tid = call.args["target_id"]
+        stages = ["precondition", "transfer", "descend", "release", "retreat", "settle"]
+        held = self._held_state()
+        if held != oid:
+            r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.VERIFY_FAILED.value)
+            r.remaining_action_hint = "object not held; re-observe before retry"
+            return r
+        if tid not in self.scene.trays:
+            r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.INVALID_PLAN.value)
+            return r
+        slot = self._free_slot(tid)
+        if slot is None:
+            r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.TARGET_FULL.value)
+            r.remaining_action_hint = "target has no free slot; report infeasible"
+            return r
+        cx, cy = slot
+        tray = self.scene.trays[tid]
+        half_h = self.scene.objects[oid]["half_h"]
+        orn = _down_orn()
+        fence_z = 0.78  # open-scene transfer: lift - clear - descend (spec 6.2)
+        cur, _ = self.scene.ee_pose()
+        if not self.scene.move_ee([cur[0], cur[1], fence_z], orn, timeout_s=2.0):
+            return self._result(call, SkillStatus.failed, t0, stages[:2], failure_code=FailureCode.IK_UNREACHABLE.value)
+        if not self.scene.move_ee([cx, cy, fence_z], orn, timeout_s=3.0):
+            return self._result(call, SkillStatus.failed, t0, stages[:2], failure_code=FailureCode.IK_UNREACHABLE.value)
+        # adaptive descent: descend until the object is at its seated height on
+        # the tray floor (never jam it into the floor, never drop it from
+        # height). Height threshold only: a swinging object keeps constant z
+        # while pendulating, so z-stability is NOT a valid seated signal.
+        z = fence_z
+        seated = False
+        seat_z = tray["floor_top"] + half_h + 0.010
+        while z > tray["floor_top"] + half_h - 0.008:
+            z -= 0.005
+            self.scene.move_ee([cx, cy, z], orn, timeout_s=0.8, tol=6e-3)
+            if self._seated(oid, tray, seat_z):
+                seated = True
+                break
+        self.scene.open_gripper()
+        self.scene.wait_until_rest(oid, max_s=2.5)  # release bounce/spin must die down before verification
+        self.scene.move_ee([cx, cy, z + 0.10], orn, timeout_s=1.5)
+        self.scene.settle(0.4)
+        if not seated and not self._seated(oid, tray):
+            r = self._result(call, SkillStatus.failed, t0, stages[:4], failure_code=FailureCode.VERIFY_FAILED.value)
+            r.remaining_action_hint = "object did not seat in target"
+            return r
+        return self._result(call, SkillStatus.completed, t0, stages)
+
+    def _seated(self, oid, tray, seat_z=None):
+        pos, _ = self.scene.object_pose(oid)
+        if seat_z is None:
+            seat_z = tray["floor_top"] + self.scene.objects[oid]["half_h"] + 0.010
+        return float(pos[2]) <= seat_z
+
+    def _free_slot(self, tid):
+        """Deterministic geometric slot selection inside the tray interior.
+        5-slot pattern (center + 4 offsets); occupied ones (by any resting
+        object inside the tray) are skipped. S1 does not stack."""
+        tray = self.scene.trays[tid]
+        # robot-side slots first: the far side of the tray is outside the
+        # workspace at transfer height; y offsets point toward the table centre
+        dy = -1.0 if tray["center"][1] > 0 else (1.0 if tray["center"][1] < 0 else 0.0)
+        if dy == 0.0:  # middle tray: symmetric slots
+            pattern = [(0.0, 0.0), (-0.09, 0.0), (0.0, 0.09), (0.0, -0.09)]
+        else:          # side trays: bias slots toward the table centre (reachable side)
+            pattern = [(0.0, 0.0), (0.0, dy * 0.09), (-0.09, 0.0), (-0.09, dy * 0.09)]
+        occupied = []
+        for eid, d in self.scene.objects.items():
+            pos, _ = self.scene.object_pose(eid)
+            if (
+                abs(pos[0] - tray["center"][0]) < tray["inner_half"]
+                and abs(pos[1] - tray["center"][1]) < tray["inner_half"]
+                and abs(pos[2] - (tray["floor_top"] + d["half_h"])) < 0.02
+            ):
+                occupied.append((pos[0], pos[1]))
+        for dx, dy in pattern:
+            sx, sy = tray["center"][0] + dx, tray["center"][1] + dy
+            if all((sx - ox) ** 2 + (sy - oy) ** 2 > 0.085**2 for ox, oy in occupied):
+                return (sx, sy)
+        return None
+
+    def _do_safe_retreat(self, call, t0):
+        stages = ["assess_held", "move_safe"]
+        held = self._held_state()
+        orn = _down_orn()
+        cur, _ = self.scene.ee_pose()
+        # Never release blindly: keep holding any object; just lift to a clear pose.
+        self.scene.move_ee([cur[0], cur[1], max(cur[2], 0.80)], orn, timeout_s=1.5)
+        self.scene.move_joints(self.scene.ik([0.45, 0.0, 0.80], orn), timeout_s=2.0)
+        r = self._result(call, SkillStatus.completed, t0, stages)
+        r.held_state = held
+        return r

@@ -1,0 +1,12 @@
+schema_version: "1"
+provider: deepseek
+api_key_env: DEEPSEEK_API_KEY
+base_url: https://api.deepseek.com
+model: deepseek-chat
+prompt_version: s1-plan-v1
+temperature: 0.2
+timeout_s: 60
+max_retries: 2
+json_mode: true
+# proxy: ""            # "__direct__"(默认,读取时替换)绕过系统代理直连;
+                        # 填 URL 则强制走该代理;留空 null 则遵循环境变量

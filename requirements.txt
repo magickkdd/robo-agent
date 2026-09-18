@@ -1,0 +1,6 @@
+numpy==2.4.6
+pillow==12.3.0
+pybullet==3.2.7
+pydantic==2.13.5
+pydantic_core==2.46.5
+pytest==9.1.1

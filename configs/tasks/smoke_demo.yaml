@@ -1,0 +1,18 @@
+schema_version: "1"
+task_id: organize_demo_001
+seed: 31003
+instruction: "把红色物体放到左边区域，蓝色物体放到右边，其余放到中间。"
+scene:
+  scene_id: tabletop_s1
+  object_count: 3
+  objects:
+    - {id: red_cube, shape: box, color: red}
+    - {id: blue_block, shape: box, color: blue}
+    - {id: green_cube, shape: box, color: green}
+evaluation:
+  assignments:
+    red_cube: tray_left
+    blue_block: tray_right
+    green_cube: tray_middle
+  stable_time_s: 0.5
+faults: []
