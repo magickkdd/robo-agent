@@ -25,6 +25,7 @@ from .contracts import (
     WorldState,
 )
 from .scene import EE_LINK  # noqa: F401  (dependency marker; skills drive scene only)
+from .placement_planner import PlacementPlanner, TraySlot
 
 APPROACH_CLEARANCE = 0.14
 LIFT_HEIGHT = 0.09
@@ -73,6 +74,7 @@ class SkillExecutor:
         self.scene = scene
         self.world_provider = world_provider  # callable -> WorldState (current)
         self.grasp_lateral_step = grasp_lateral_step
+        self.placement_planner = PlacementPlanner(scene)
 
     # ---------- helpers ----------
     def _snapshot_world(self) -> WorldState:
@@ -220,7 +222,7 @@ class SkillExecutor:
         if tid not in self.scene.trays:
             r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.INVALID_PLAN.value)
             return r
-        slot = self._free_slot(tid)
+        slot = self._free_slot(tid, oid)
         if slot is None:
             r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.TARGET_FULL.value)
             r.remaining_action_hint = "target has no free slot; report infeasible"
@@ -264,31 +266,25 @@ class SkillExecutor:
             seat_z = tray["floor_top"] + self.scene.objects[oid]["half_h"] + 0.010
         return float(pos[2]) <= seat_z
 
-    def _free_slot(self, tid):
-        """Deterministic geometric slot selection inside the tray interior.
-        5-slot pattern (center + 4 offsets); occupied ones (by any resting
-        object inside the tray) are skipped. S1 does not stack."""
-        tray = self.scene.trays[tid]
-        # robot-side slots first: the far side of the tray is outside the
-        # workspace at transfer height; y offsets point toward the table centre
-        dy = -1.0 if tray["center"][1] > 0 else (1.0 if tray["center"][1] < 0 else 0.0)
-        if dy == 0.0:  # middle tray: symmetric slots
-            pattern = [(0.0, 0.0), (-0.09, 0.0), (0.0, 0.09), (0.0, -0.09)]
-        else:          # side trays: bias slots toward the table centre (reachable side)
-            pattern = [(0.0, 0.0), (0.0, dy * 0.09), (-0.09, 0.0), (-0.09, dy * 0.09)]
-        occupied = []
-        for eid, d in self.scene.objects.items():
-            pos, _ = self.scene.object_pose(eid)
-            if (
-                abs(pos[0] - tray["center"][0]) < tray["inner_half"]
-                and abs(pos[1] - tray["center"][1]) < tray["inner_half"]
-                and abs(pos[2] - (tray["floor_top"] + d["half_h"])) < 0.02
-            ):
-                occupied.append((pos[0], pos[1]))
-        for dx, dy in pattern:
-            sx, sy = tray["center"][0] + dx, tray["center"][1] + dy
-            if all((sx - ox) ** 2 + (sy - oy) ** 2 > 0.085**2 for ox, oy in occupied):
-                return (sx, sy)
+    def _free_slot(self, tid, object_id=None):
+        """Find a free slot in the tray using PlacementPlanner.
+        
+        Uses footprint-based slot generation with obstacle awareness:
+        1. Computes object footprint geometry
+        2. Checks clearance from already-placed objects
+        3. Validates descent path is clear
+        
+        Falls back to simple center lookup if object_id not provided
+        (for backward compatibility with existing code).
+        """
+        if object_id is None:
+            # Fallback: return tray center (for code that doesn't pass object_id)
+            tray = self.scene.trays[tid]
+            return (tray["center"][0], tray["center"][1])
+        
+        slot = self.placement_planner.find_slot_for_object(tid, object_id)
+        if slot is not None:
+            return (float(slot.position[0]), float(slot.position[1]))
         return None
 
     def _do_safe_retreat(self, call, t0):

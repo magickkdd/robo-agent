@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from .contracts import GoalSpec, Plan, PlanStep, WorldState
 from .scene import PhysicsScene
+from .placement_planner import PlacementPlanner
 
 
 class PlanValidator:
@@ -120,3 +121,52 @@ class RulePlanner:
             steps=steps,
         )
         return p
+    
+    def validate_placement_feasibility(
+        self, 
+        goal: GoalSpec, 
+        world: WorldState
+    ) -> tuple[bool, list[str]]:
+        """Validate that placement is geometrically feasible using PlacementPlanner.
+        
+        Returns:
+            (is_feasible, list_of_errors)
+        """
+        placement_planner = PlacementPlanner(self.scene)
+        errors = []
+        
+        # Group objects by target
+        target_objects: dict[str, list[str]] = {}
+        for a in goal.assignments:
+            eid = a.entity.entity_id or self._bind(a.entity, world)
+            if eid is None:
+                continue
+            if a.target_id not in target_objects:
+                target_objects[a.target_id] = []
+            target_objects[a.target_id].append(eid)
+        
+        # Check each target's capacity
+        for target_id, object_ids in target_objects.items():
+            if target_id not in self.scene.trays:
+                errors.append(f"Unknown target: {target_id}")
+                continue
+            
+            # Check capacity
+            half_heights = []
+            for oid in object_ids:
+                if oid in self.scene.objects:
+                    half_heights.append(self.scene.objects[oid]["half_h"])
+            
+            capacity = placement_planner.get_capacity(target_id, half_heights)
+            if len(object_ids) > capacity:
+                errors.append(
+                    f"Target {target_id} capacity exceeded: "
+                    f"{len(object_ids)} objects > {capacity} capacity"
+                )
+            
+            # Check if each object can find a valid slot
+            plan = placement_planner.plan_placement(target_id, object_ids)
+            if not plan.capacity_ok:
+                errors.append(f"Placement infeasible for {target_id}: {plan.error}")
+        
+        return len(errors) == 0, errors
