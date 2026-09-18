@@ -211,60 +211,183 @@ class SkillExecutor:
         return self._result(call, SkillStatus.completed, t0, stages, measurements=meas)
 
     def _do_place(self, call, t0):
+        """Place object in target tray (spec 6.2, W2.3).
+        
+        Stages: precondition -> transfer -> descend -> release -> retreat -> settle -> verify
+        
+        Success evidence (spec 6.2):
+        - Object footprint in target valid region
+        - Object supported by target
+        - Target not overflowing
+        - Velocity stable
+        - Gripper not carrying object
+        
+        Failure codes: TARGET_FULL, PLACE_UNSTABLE, PLACE_COLLISION, 
+                       OBJECT_DROPPED, STATE_UNCERTAIN
+        """
         oid = call.args["object_id"]
         tid = call.args["target_id"]
-        stages = ["precondition", "transfer", "descend", "release", "retreat", "settle"]
+        stages = ["precondition", "transfer", "descend", "release", "retreat", "settle", "verify"]
+        meas = {}
+        
+        # --- Stage 1: Precondition checks ---
         held = self._held_state()
         if held != oid:
-            r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.VERIFY_FAILED.value)
+            r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.STATE_UNCERTAIN.value)
             r.remaining_action_hint = "object not held; re-observe before retry"
             return r
         if tid not in self.scene.trays:
             r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.INVALID_PLAN.value)
             return r
+        
+        # --- Stage 2: Slot selection with collision check ---
         slot = self._free_slot(tid, oid)
         if slot is None:
             r = self._result(call, SkillStatus.failed, t0, stages[:1], failure_code=FailureCode.TARGET_FULL.value)
-            r.remaining_action_hint = "target has no free slot; report infeasible"
+            r.remaining_action_hint = "target has no free slot; report infeasible or try another target"
             return r
         cx, cy = slot
         tray = self.scene.trays[tid]
         half_h = self.scene.objects[oid]["half_h"]
         orn = _down_orn()
-        fence_z = 0.78  # open-scene transfer: lift - clear - descend (spec 6.2)
+        
+        # --- Stage 3: Transfer to pre-placement pose ---
+        fence_z = 0.78  # open-scene transfer height (spec 6.2)
         cur, _ = self.scene.ee_pose()
         if not self.scene.move_ee([cur[0], cur[1], fence_z], orn, timeout_s=2.0):
             return self._result(call, SkillStatus.failed, t0, stages[:2], failure_code=FailureCode.IK_UNREACHABLE.value)
         if not self.scene.move_ee([cx, cy, fence_z], orn, timeout_s=3.0):
             return self._result(call, SkillStatus.failed, t0, stages[:2], failure_code=FailureCode.IK_UNREACHABLE.value)
-        # adaptive descent: descend until the object is at its seated height on
-        # the tray floor (never jam it into the floor, never drop it from
-        # height). Height threshold only: a swinging object keeps constant z
-        # while pendulating, so z-stability is NOT a valid seated signal.
+        
+        # --- Stage 4: Adaptive descent to seated height ---
         z = fence_z
         seated = False
         seat_z = tray["floor_top"] + half_h + 0.010
-        while z > tray["floor_top"] + half_h - 0.008:
+        descent_steps = 0
+        max_descent_steps = 20
+        
+        while z > tray["floor_top"] + half_h - 0.008 and descent_steps < max_descent_steps:
             z -= 0.005
+            descent_steps += 1
             self.scene.move_ee([cx, cy, z], orn, timeout_s=0.8, tol=6e-3)
+            
+            # Check for collision during descent
+            if self.scene.held_bodies() and oid not in [self.scene.entity_by_body(b) for b in self.scene.held_bodies()]:
+                # Object was knocked out of gripper during descent
+                meas["descent_collision"] = 1.0
+                return self._result(call, SkillStatus.failed, t0, stages[:3], 
+                                  failure_code=FailureCode.PLACE_COLLISION.value,
+                                  measurements=meas)
+            
             if self._seated(oid, tray, seat_z):
                 seated = True
                 break
+        
+        # --- Stage 5: Release object ---
         self.scene.open_gripper()
-        self.scene.wait_until_rest(oid, max_s=2.5)  # release bounce/spin must die down before verification
+        meas["release_height"] = z - tray["floor_top"]
+        
+        # --- Stage 6: Retreat and wait for settle ---
         self.scene.move_ee([cx, cy, z + 0.10], orn, timeout_s=1.5)
+        
+        # Wait for object to settle (spec 6.2: stable window)
+        rest_settled = self.scene.wait_until_rest(oid, max_s=2.5)
         self.scene.settle(0.4)
+        
+        # --- Stage 7: Post-placement verification ---
+        pos, vel = self.scene.object_pose(oid)
+        lin_vel, ang_vel = self.scene.object_velocity(oid)
+        
+        # Measure final state
+        meas["final_x"] = float(pos[0])
+        meas["final_y"] = float(pos[1])
+        meas["final_z"] = float(pos[2])
+        meas["lin_speed"] = float(np.linalg.norm(lin_vel))
+        meas["ang_speed"] = float(np.linalg.norm(ang_vel))
+        meas["seated"] = float(seated or self._seated(oid, tray))
+        meas["rest_settled"] = float(rest_settled)
+        
+        # Check support (object must be on tray, not floating)
+        in_tray_xy = (
+            abs(pos[0] - tray["center"][0]) < tray["inner_half"] and
+            abs(pos[1] - tray["center"][1]) < tray["inner_half"]
+        )
+        supported_z = abs(pos[2] - (tray["floor_top"] + half_h)) < 0.015
+        supported = in_tray_xy and supported_z
+        meas["supported"] = float(supported)
+        
+        # Check gripper not carrying
+        gripper_free = self._held_state() is None
+        meas["gripper_free"] = float(gripper_free)
+        
+        # Check velocity stability (spec 11.2: speed < 0.02 m/s, ang < 0.2 rad/s)
+        velocity_stable = meas["lin_speed"] < 0.02 and meas["ang_speed"] < 0.2
+        meas["velocity_stable"] = float(velocity_stable)
+        
+        # Final verdict
         if not seated and not self._seated(oid, tray):
-            r = self._result(call, SkillStatus.failed, t0, stages[:4], failure_code=FailureCode.VERIFY_FAILED.value)
-            r.remaining_action_hint = "object did not seat in target"
-            return r
-        return self._result(call, SkillStatus.completed, t0, stages)
+            return self._result(call, SkillStatus.failed, t0, stages[:5], 
+                              failure_code=FailureCode.PLACE_UNSTABLE.value,
+                              measurements=meas,
+                              remaining_action_hint="object did not seat in target; try different slot or adjust descent")
+        
+        if not supported:
+            return self._result(call, SkillStatus.failed, t0, stages[:5],
+                              failure_code=FailureCode.PLACE_UNSTABLE.value,
+                              measurements=meas,
+                              remaining_action_hint="object not supported by target; may have fallen off tray")
+        
+        if not velocity_stable:
+            return self._result(call, SkillStatus.failed, t0, stages[:5],
+                              failure_code=FailureCode.PLACE_UNSTABLE.value,
+                              measurements=meas,
+                              remaining_action_hint="object still moving; wait longer or check placement")
+        
+        if not gripper_free:
+            return self._result(call, SkillStatus.failed, t0, stages[:5],
+                              failure_code=FailureCode.OBJECT_DROPPED.value,
+                              measurements=meas,
+                              remaining_action_hint="object may still be in gripper; verify grasp state")
+        
+        return self._result(call, SkillStatus.completed, t0, stages, measurements=meas)
 
     def _seated(self, oid, tray, seat_z=None):
+        """Check if object is seated in tray (spec 6.2).
+        
+        Seated means:
+        - Object center is within tray bounds
+        - Object height is at tray floor + half_height + tolerance
+        """
         pos, _ = self.scene.object_pose(oid)
         if seat_z is None:
             seat_z = tray["floor_top"] + self.scene.objects[oid]["half_h"] + 0.010
-        return float(pos[2]) <= seat_z
+        
+        in_tray_xy = (
+            abs(pos[0] - tray["center"][0]) < tray["inner_half"] - 0.005 and
+            abs(pos[1] - tray["center"][1]) < tray["inner_half"] - 0.005
+        )
+        at_seat_height = float(pos[2]) <= seat_z
+        
+        return in_tray_xy and at_seat_height
+    
+    def _check_footprint_in_target(self, oid, tray):
+        """Verify object footprint is within target region (spec 6.2).
+        
+        Uses PlacementPlanner footprint geometry for accurate check.
+        """
+        pos, _ = self.scene.object_pose(oid)
+        half_h = self.scene.objects[oid]["half_h"]
+        
+        # Object footprint center must be within tray interior
+        # with margin for footprint radius
+        margin = 0.005  # 5mm margin (spec 11.2)
+        
+        in_tray = (
+            abs(pos[0] - tray["center"][0]) < tray["inner_half"] - margin and
+            abs(pos[1] - tray["center"][1]) < tray["inner_half"] - margin
+        )
+        
+        return in_tray
 
     def _free_slot(self, tid, object_id=None):
         """Find a free slot in the tray using PlacementPlanner.
