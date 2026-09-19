@@ -1,0 +1,53 @@
+{
+ "rubric_id": "blind-review-v1",
+ "spec_ref": "11.4",
+ "registered_before_any_p3_run": true,
+ "purpose": "判分口径自动定不了的那些行为条目：'合理下一步'有多解，或某个读数只是'没匹配上标签'而非'被判定为错'。这些条目由人按本准则盲审，分歧原样保留。",
+ "prohibitions": [
+  "不得由被试模型自评，也不得用模型生成的判定充当人审（SPEC 11.4）。记分为 model 的记录一律拒收。",
+  "不得为让比率好看而事后改本准则的判据、抽样集合或分母定义；要改只能改下一版 rubric_id 并重跑。",
+  "不得把 divided（两名审阅人分歧）条目折中、平均或由第三人推翻：分歧本身就是要报告的结果。",
+  "不得把未审条目当作 0 或当作'合理'：未审就是未审，分母必须点名。"
+ ],
+ "unit": "一条 item = 一个上下文里的一次决策。表上给出的证据是产物里真实存在的那些记录，不是它们的转述：kind 1 给该轮 `decision_context` 日志行（progress 三值与证据、被报价的候选、尝试摘要、剩余预算）+ 该决策本身 + 紧随其后的 `execution_feedback`；kind 2 给该 fork 的 `shown_to_the_policy`（诊断当场按被试自己的 `feedback_depth` 生成的模型可见载荷）+ 该回答。",
+ "reviewers": {"count": 2, "independence": "两份表各自独立填写，都录完之后才允许讨论；讨论不产生第二条记录，只允许追加一条带署名的 note 字段", "who_may_not_review": "产生该决策的策略的作者，以及被试模型本身"},
+ "blinding": {
+  "how": "item_key = sha256(\"|\".join([rubric_id, kind, episode_id 或 pair_id:arm, sequence 或 context_id]))[:12]；表按该 key 排序；episode_id、case_id、mode、planner、subset 一律不出现在表上（载荷里同名字段一并剥掉），且生成表时对每条证据做子串检查：出现 'episode_id'、\"mode\"、'policy_label' 任一关键字即整表报错，不静默出表",
+  "withheld": ["mode / 实验臂（A|B|C，即 one-shot、continuous、recovery 哪一臂）", "planner 与被试模型名", "case_id 与子集", "hidden EvalSpec 与容差", "该 item 在自动口径下的 fit / miss_kind 结论"],
+  "kept": "状态分叉那一臂（kind 2 的 `arm`，如 held/released、as_planned/displaced）保留：它是被展示的那个世界的形状，不是被试的身份；问题本身就要求'相对该回答所处的那一状态'来判断。同一理由保留 pair_id、difference、provenance 与 synthetic。",
+  "why": "模式与提示版本是这些条目要测的东西；审阅人一旦知道'这是 one-shot 那一臂'就会去挑他想看到的缺陷"
+ },
+ "items": [
+  {
+   "kind": "place_of_already_satisfied",
+   "emitted_by": "evaluation/report.py behaviour_metrics -> needs_blind_review",
+   "automatic_reading": "被执行的 place，其 object->target 在该决策自己看到的上下文里已经是 true —— 自动记作一次'不必要地重做已满足目标'",
+   "why_contestable": "该谓词为 true 并不等于这一放置无意义：物体可能被事件推到区域内但贴着墙、落座姿态与后续物体冲突，或者策略刚观察到一次新测量而旧 true 已过期。自动口径看得见谓词，看不见'为什么再放一次'",
+   "question": "只看表上给出的该轮上下文记录：把该物体再放进该区域，是有理由的下一步、是多余动作，还是信息不足判断不了？",
+   "scale": ["reasonable", "redundant", "cannot_tell"],
+   "adverse_value": "redundant"
+  },
+  {
+   "kind": "fork_answer_outside_both_label_sets",
+   "emitted_by": "evaluation/state_utilization.py score_fork -> labels == []",
+   "automatic_reading": "状态分叉诊断里，该回答没有携带任何一个冻结标签，于是既不在 accept 也不在 reject，`fit` 因'没匹配上'而判 false",
+   "why_contestable": "冻结标签集是本规格事先写的枚举，不可能穷尽一个真实策略会做的所有合理动作。'标签集没覆盖'与'动作不合理'共用一个 false，是这套口径已知的形状；把它算进能力分数之前必须有人确认它到底属于哪一种",
+   "question": "只看该回答当场被给出的那份模型可见载荷与它的两臂差异说明：这一回答相对它所处的那一臂是合理的、不合理的，还是判断不了？",
+   "scale": ["reasonable", "unreasonable", "cannot_tell"],
+   "adverse_value": "unreasonable"
+  }
+ ],
+ "rate_definition": {
+  "adverse": "一条 item 只有在两名审阅人都给出 adverse 值（kind 1 = redundant，kind 2 = unreasonable）时才算 adverse",
+  "divided": "两人给出不同 adverse/合理判定的，记为 divided，逐条列出两名审阅人的原始判定",
+  "cannot_tell": "任一人给 cannot_tell 即记为 cannot_tell，从分母移出并单独计数",
+  "headline": "同时报两个数：仅已审且两人一致的条目为分母的比率，以及把 divided 计入分母（按 adverse 处理）的比率。两者之差就是这条读数对'分歧如何处理'的敏感度假如多大",
+  "unreviewed": "点名列出，绝不并入任何一侧"
+ },
+ "sampling": "100%：产物里 `needs_blind_review` 指名的每一条都要审，不是抽样；指针缺失（无证据可看）的条目记为 not_reviewable 并如实报告",
+ "record_schema": {
+  "one_row_per": "(item_key, reviewer_id)",
+  "fields": {"item_key": "str", "reviewer_id": "str", "reviewer_kind": "human", "verdict": "该 item 的 scale 之一", "note": "可选，自由文本", "rubric_sha256": "必须是本文件的 sha256，否则该记录拒收"},
+  "refused": ["reviewer_kind != human", "verdict 不在该 kind 的 scale 内", "同一 (item_key, reviewer_id) 出现两条", "引用了表上不存在的 item_key"]
+ }
+}

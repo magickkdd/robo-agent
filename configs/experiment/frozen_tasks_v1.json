@@ -1,0 +1,7493 @@
+{
+ "constants": {
+  "grasp_offset": [
+   0.05,
+   0.05,
+   0.0
+  ],
+  "impulse_pin_to_wall": [
+   -0.07,
+   0.0
+  ],
+  "impulse_shift_inside": [
+   -0.03,
+   0.0
+  ],
+  "impulse_table": [
+   0.0,
+   0.055
+  ],
+  "max_objects_per_region": 3,
+  "release_offset_high": [
+   0.0,
+   0.0,
+   0.055
+  ],
+  "release_offset_lateral": [
+   -0.05,
+   0.0,
+   0.0
+  ]
+ },
+ "protocol_harness": [
+  {
+   "asserts": "place while the gripper holds another entity is rejected before physics",
+   "name": "h_hold_state_conflict"
+  },
+  {
+   "asserts": "a decision missing a required argument is rejected as INVALID_DECISION",
+   "name": "h_missing_argument"
+  },
+  {
+   "asserts": "a candidate id never offered in this episode returns CANDIDATE_STALE",
+   "name": "h_stale_candidate"
+  },
+  {
+   "asserts": "a named candidate failing re-check is rejected while the object stays held",
+   "name": "h_infeasible_candidate"
+  },
+  {
+   "asserts": "held/support/at_rest unknown propagate as unknown, not as satisfied",
+   "name": "h_unknown_predicate"
+  },
+  {
+   "asserts": "finish with unsatisfied goals is refused and bounded",
+   "name": "h_false_finish"
+  },
+  {
+   "asserts": "the identical invalid action under an unchanged world terminates the episode",
+   "name": "h_repeated_invalid"
+  },
+  {
+   "asserts": "rejections beyond max_semantic_repairs terminate instead of looping",
+   "name": "h_semantic_repair_limit"
+  },
+  {
+   "asserts": "an empty model payload is a MODEL_ERROR outcome, not a crash",
+   "name": "h_empty_model_response"
+  },
+  {
+   "asserts": "a schema-invalid Decision is rejected with structured reasons",
+   "name": "h_schema_error"
+  },
+  {
+   "asserts": "a transport timeout charges the request ledger and stays bounded",
+   "name": "h_api_timeout"
+  }
+ ],
+ "schema_version": "1",
+ "sets": {
+  "dev": [
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-dev_c1",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 101,
+    "subset": "dev",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3"
+    ],
+    "task_id": "dev_c1",
+    "utterance": "把绿色的圆柱放到左边托盘，把蓝色的方块放到右边托盘，把黄色的长方体放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 2,
+      "entity_id": "obj_blue_1",
+      "event_id": "dev_c2-displace-tray_middle-obj_blue_1-m2",
+      "impulse_xy": [
+       -0.07,
+       0.0
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_middle",
+      "trigger": "after_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_middle"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-dev_c2",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 102,
+    "subset": "dev",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3"
+    ],
+    "task_id": "dev_c2",
+    "utterance": "把蓝色的方块放到中间托盘，把黄色的长方体放到中间托盘，把紫色的圆柱放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "grasp_calibration",
+      "at_match": 1,
+      "entity_id": "obj_yellow_1",
+      "event_id": "dev_c3-grasp_calibration-obj_yellow_1-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       0.05,
+       0.05,
+       0.0
+      ],
+      "once": true,
+      "skill": "pick",
+      "target_id": null,
+      "trigger": "before_skill",
+      "when_entity_id": "obj_yellow_1",
+      "when_target_id": null
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_green_4",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-dev_c3",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cube"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_green_4",
+      "shape": "cuboid",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 103,
+    "subset": "dev",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3",
+     "obj_green_4"
+    ],
+    "task_id": "dev_c3",
+    "utterance": "把黄色的长方体放到中间托盘，把紫色的圆柱放到左边托盘，把红色的方块放到左边托盘，把绿色的长方体放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "place_calibration",
+      "at_match": 1,
+      "entity_id": null,
+      "event_id": "dev_c4-place_calibration-tray_left-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       0.0,
+       0.0,
+       0.055
+      ],
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_left",
+      "trigger": "before_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_left"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_purple_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_green_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_blue_4",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-dev_c4",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cube"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_red_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_green_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_4",
+      "shape": "cylinder",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 104,
+    "subset": "dev",
+    "targets": [
+     "obj_purple_1",
+     "obj_red_2",
+     "obj_green_3",
+     "obj_blue_4"
+    ],
+    "task_id": "dev_c4",
+    "utterance": "把紫色的圆柱放到左边托盘，把红色的方块放到左边托盘，把绿色的长方体放到左边托盘，把蓝色的圆柱放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_red_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_green_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_blue_3",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_4",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_5",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-dev_c5",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 5,
+    "objects": [
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cube"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_red_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_green_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_4",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_5",
+      "shape": "cuboid",
+      "xy": [
+       0.445,
+       0.0
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 105,
+    "subset": "dev",
+    "targets": [
+     "obj_red_1",
+     "obj_green_2",
+     "obj_blue_3",
+     "obj_yellow_4",
+     "obj_purple_5"
+    ],
+    "task_id": "dev_c5",
+    "utterance": "把红色物体放入右边托盘，把绿色物体放入中间托盘，把蓝色物体放入右边托盘，把黄色物体放入中间托盘，其余放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "place_calibration",
+      "at_match": 1,
+      "entity_id": null,
+      "event_id": "dev_c6-place_calibration-tray_right-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       -0.05,
+       0.0,
+       0.0
+      ],
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_right",
+      "trigger": "before_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_right"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_purple_4",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_5",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-dev_c6",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 5,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_4",
+      "shape": "cuboid",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_5",
+      "shape": "cylinder",
+      "xy": [
+       0.445,
+       0.0
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 106,
+    "subset": "dev",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3",
+     "obj_purple_4",
+     "obj_red_5"
+    ],
+    "task_id": "dev_c6",
+    "utterance": "把绿色的长方体放到右边托盘，把蓝色的圆柱放到右边托盘，把黄色的方块放到右边托盘，把紫色的长方体放到左边托盘，把红色的圆柱放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_yellow_2",
+      "event_id": "dev_c7-displace-tray_right-obj_yellow_2-m1",
+      "impulse_xy": [
+       -0.03,
+       0.0
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_right",
+      "trigger": "after_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_right"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-dev_c7",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 107,
+    "subset": "dev",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3"
+    ],
+    "task_id": "dev_c7",
+    "utterance": "把蓝色的圆柱放到右边托盘，把黄色的方块放到右边托盘，把紫色的长方体放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_green_4",
+      "event_id": "dev_c8-impulse-obj_green_4",
+      "impulse_xy": [
+       0.0,
+       0.055
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "pick",
+      "target_id": null,
+      "trigger": "after_skill",
+      "when_entity_id": null,
+      "when_target_id": null
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_green_4",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-dev_c8",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_4",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 108,
+    "subset": "dev",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3",
+     "obj_green_4"
+    ],
+    "task_id": "dev_c8",
+    "utterance": "把黄色的方块放到右边托盘，把紫色的长方体放到中间托盘，把红色的圆柱放到左边托盘，把绿色的方块放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   }
+  ],
+  "formal": [
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-clean_c1",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 201,
+    "subset": "clean",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3"
+    ],
+    "task_id": "clean_c1",
+    "utterance": "把绿色的方块放到右边托盘，把蓝色的长方体放到中间托盘，把黄色的圆柱放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-clean_c2",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 202,
+    "subset": "clean",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3"
+    ],
+    "task_id": "clean_c2",
+    "utterance": "把蓝色的长方体放到右边托盘，把黄色的圆柱放到右边托盘，把紫色的方块放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_green_4",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-clean_c3",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_green_4",
+      "shape": "cylinder",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 203,
+    "subset": "clean",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3",
+     "obj_green_4"
+    ],
+    "task_id": "clean_c3",
+    "utterance": "把黄色的圆柱放到左边托盘，把紫色的方块放到左边托盘，把红色的长方体放到左边托盘，把绿色的圆柱放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_purple_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_red_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_green_3",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_blue_4",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-clean_c4",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_red_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_green_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_4",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 204,
+    "subset": "clean",
+    "targets": [
+     "obj_purple_1",
+     "obj_red_2",
+     "obj_green_3",
+     "obj_blue_4"
+    ],
+    "task_id": "clean_c4",
+    "utterance": "把紫色的方块放到右边托盘，把红色的长方体放到右边托盘，把绿色的圆柱放到右边托盘，把蓝色的方块放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_red_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_green_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_blue_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_yellow_4",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_5",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-clean_c5",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 5,
+    "objects": [
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_red_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_green_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_4",
+      "shape": "cuboid",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_5",
+      "shape": "cylinder",
+      "xy": [
+       0.445,
+       0.0
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 205,
+    "subset": "clean",
+    "targets": [
+     "obj_red_1",
+     "obj_green_2",
+     "obj_blue_3",
+     "obj_yellow_4",
+     "obj_purple_5"
+    ],
+    "task_id": "clean_c5",
+    "utterance": "把红色的长方体放到左边托盘，把绿色的圆柱放到右边托盘，把蓝色的方块放到左边托盘，把黄色的长方体放到左边托盘，把紫色的圆柱放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_4",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_red_5",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-clean_c6",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 5,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_4",
+      "shape": "cylinder",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cube"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_red_5",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       0.0
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 206,
+    "subset": "clean",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3",
+     "obj_purple_4",
+     "obj_red_5"
+    ],
+    "task_id": "clean_c6",
+    "utterance": "把绿色的圆柱放到左边托盘，把蓝色的方块放到左边托盘，把黄色的长方体放到左边托盘，把紫色的圆柱放到右边托盘，把红色的方块放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-clean_c7",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 207,
+    "subset": "clean",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3"
+    ],
+    "task_id": "clean_c7",
+    "utterance": "把蓝色的圆柱放到中间托盘，把黄色的圆柱放到左边托盘，把紫色的方块放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_green_4",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-clean_c8",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_4",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 208,
+    "subset": "clean",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3",
+     "obj_green_4"
+    ],
+    "task_id": "clean_c8",
+    "utterance": "把黄色的长方体放到右边托盘，把紫色的长方体放到中间托盘，把红色的圆柱放到中间托盘，把绿色的方块放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_blue_2",
+      "event_id": "sc_c1-displace-tray_right-obj_blue_2-m1",
+      "impulse_xy": [
+       -0.07,
+       0.0
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_right",
+      "trigger": "after_skill",
+      "when_entity_id": "obj_blue_2",
+      "when_target_id": "tray_right"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-sc_c1",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 211,
+    "subset": "state_change",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3"
+    ],
+    "task_id": "sc_c1",
+    "utterance": "把绿色的圆柱放到右边托盘，把蓝色的方块放到右边托盘，把黄色的长方体放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_yellow_2",
+      "event_id": "sc_c2-displace-tray_left-obj_yellow_2-m1",
+      "impulse_xy": [
+       -0.07,
+       0.0
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_left",
+      "trigger": "after_skill",
+      "when_entity_id": "obj_yellow_2",
+      "when_target_id": "tray_left"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-sc_c2",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 212,
+    "subset": "state_change",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3"
+    ],
+    "task_id": "sc_c2",
+    "utterance": "把蓝色的圆柱放到左边托盘，把黄色的方块放到左边托盘，把紫色的长方体放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 2,
+      "entity_id": "obj_yellow_1",
+      "event_id": "sc_c3-displace-tray_middle-obj_yellow_1-m2",
+      "impulse_xy": [
+       -0.07,
+       0.0
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_middle",
+      "trigger": "after_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_middle"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_green_4",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-sc_c3",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_4",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 213,
+    "subset": "state_change",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3",
+     "obj_green_4"
+    ],
+    "task_id": "sc_c3",
+    "utterance": "把黄色的方块放到中间托盘，把紫色的长方体放到中间托盘，把红色的圆柱放到右边托盘，把绿色的方块放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_green_3",
+      "event_id": "sc_c4-displace-tray_right-obj_green_3-m1",
+      "impulse_xy": [
+       -0.03,
+       0.0
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_right",
+      "trigger": "after_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_right"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_purple_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_red_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_green_3",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_blue_4",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-sc_c4",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_4",
+      "shape": "cuboid",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 214,
+    "subset": "state_change",
+    "targets": [
+     "obj_purple_1",
+     "obj_red_2",
+     "obj_green_3",
+     "obj_blue_4"
+    ],
+    "task_id": "sc_c4",
+    "utterance": "把紫色的长方体放到右边托盘，把红色的圆柱放到右边托盘，把绿色的方块放到右边托盘，把蓝色的长方体放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_green_2",
+      "event_id": "sc_c5-displace-tray_left-obj_green_2-m1",
+      "impulse_xy": [
+       -0.07,
+       0.0
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_left",
+      "trigger": "after_skill",
+      "when_entity_id": "obj_green_2",
+      "when_target_id": "tray_left"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_red_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_green_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_blue_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_yellow_4",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_5",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-sc_c5",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 5,
+    "objects": [
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_4",
+      "shape": "cylinder",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_5",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       0.0
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 215,
+    "subset": "state_change",
+    "targets": [
+     "obj_red_1",
+     "obj_green_2",
+     "obj_blue_3",
+     "obj_yellow_4",
+     "obj_purple_5"
+    ],
+    "task_id": "sc_c5",
+    "utterance": "把红色的圆柱放到左边托盘，把绿色的方块放到左边托盘，把蓝色的长方体放到左边托盘，把黄色的圆柱放到中间托盘，把紫色的方块放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_red_5",
+      "event_id": "sc_c6-impulse-obj_red_5",
+      "impulse_xy": [
+       0.0,
+       0.055
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "pick",
+      "target_id": null,
+      "trigger": "after_skill",
+      "when_entity_id": null,
+      "when_target_id": null
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_4",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_red_5",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-sc_c6",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 5,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_4",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_red_5",
+      "shape": "cuboid",
+      "xy": [
+       0.445,
+       0.0
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 216,
+    "subset": "state_change",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3",
+     "obj_purple_4",
+     "obj_red_5"
+    ],
+    "task_id": "sc_c6",
+    "utterance": "把绿色的方块放到中间托盘，把蓝色的长方体放到中间托盘，把黄色的圆柱放到中间托盘，把紫色的方块放到右边托盘，把红色的长方体放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_red_4",
+      "event_id": "sc_c7-impulse-obj_red_4",
+      "impulse_xy": [
+       0.0,
+       0.055
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "pick",
+      "target_id": null,
+      "trigger": "after_skill",
+      "when_entity_id": null,
+      "when_target_id": null
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_4",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-sc_c7",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_red_4",
+      "shape": "cuboid",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 217,
+    "subset": "state_change",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3",
+     "obj_red_4"
+    ],
+    "task_id": "sc_c7",
+    "utterance": "把蓝色的长方体放到中间托盘，把黄色的圆柱放到中间托盘，把紫色的方块放到左边托盘，把红色的长方体放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_purple_2",
+      "event_id": "sc_c8-displace-tray_left-obj_purple_2-m1",
+      "impulse_xy": [
+       -0.07,
+       0.0
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_left",
+      "trigger": "after_skill",
+      "when_entity_id": "obj_purple_2",
+      "when_target_id": "tray_left"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-sc_c8",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 218,
+    "subset": "state_change",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3"
+    ],
+    "task_id": "sc_c8",
+    "utterance": "把黄色的长方体放到左边托盘，把紫色的方块放到左边托盘，把红色的圆柱放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "grasp_calibration",
+      "at_match": 1,
+      "entity_id": "obj_green_1",
+      "event_id": "ed_c1-grasp_calibration-obj_green_1-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       0.05,
+       0.05,
+       0.0
+      ],
+      "once": true,
+      "skill": "pick",
+      "target_id": null,
+      "trigger": "before_skill",
+      "when_entity_id": "obj_green_1",
+      "when_target_id": null
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-ed_c1",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 221,
+    "subset": "execution_deviation",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3"
+    ],
+    "task_id": "ed_c1",
+    "utterance": "把绿色的圆柱放到左边托盘，把蓝色的方块放到右边托盘，把黄色的长方体放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "place_calibration",
+      "at_match": 1,
+      "entity_id": null,
+      "event_id": "ed_c2-place_calibration-tray_middle-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       0.0,
+       0.0,
+       0.055
+      ],
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_middle",
+      "trigger": "before_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_middle"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-ed_c2",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 222,
+    "subset": "execution_deviation",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3"
+    ],
+    "task_id": "ed_c2",
+    "utterance": "把蓝色的方块放到中间托盘，把黄色的长方体放到中间托盘，把紫色的圆柱放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "place_calibration",
+      "at_match": 1,
+      "entity_id": null,
+      "event_id": "ed_c3-place_calibration-tray_left-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       -0.05,
+       0.0,
+       0.0
+      ],
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_left",
+      "trigger": "before_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_left"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_green_4",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-ed_c3",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cube"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_green_4",
+      "shape": "cuboid",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 223,
+    "subset": "execution_deviation",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3",
+     "obj_green_4"
+    ],
+    "task_id": "ed_c3",
+    "utterance": "把黄色的长方体放到左边托盘，把紫色的圆柱放到左边托盘，把红色的方块放到右边托盘，把绿色的长方体放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "grasp_calibration",
+      "at_match": 1,
+      "entity_id": "obj_red_2",
+      "event_id": "ed_c4-grasp_calibration-obj_red_2-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       0.05,
+       0.05,
+       0.0
+      ],
+      "once": true,
+      "skill": "pick",
+      "target_id": null,
+      "trigger": "before_skill",
+      "when_entity_id": "obj_red_2",
+      "when_target_id": null
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_purple_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_green_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_blue_4",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-ed_c4",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cube"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_red_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_green_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_4",
+      "shape": "cylinder",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 224,
+    "subset": "execution_deviation",
+    "targets": [
+     "obj_purple_1",
+     "obj_red_2",
+     "obj_green_3",
+     "obj_blue_4"
+    ],
+    "task_id": "ed_c4",
+    "utterance": "把紫色的圆柱放到左边托盘，把红色的方块放到中间托盘，把绿色的长方体放到左边托盘，把蓝色的圆柱放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "place_calibration",
+      "at_match": 1,
+      "entity_id": null,
+      "event_id": "ed_c5-place_calibration-tray_middle-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       -0.05,
+       0.0,
+       0.0
+      ],
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_middle",
+      "trigger": "before_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_middle"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_red_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_green_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_blue_3",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_yellow_4",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-ed_c5",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 4,
+    "objects": [
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cube"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_red_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_green_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_4",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 225,
+    "subset": "execution_deviation",
+    "targets": [
+     "obj_red_1",
+     "obj_green_2",
+     "obj_blue_3",
+     "obj_yellow_4"
+    ],
+    "task_id": "ed_c5",
+    "utterance": "把红色的方块放到中间托盘，把绿色的长方体放到中间托盘，把蓝色的圆柱放到中间托盘，把黄色的方块放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "place_calibration",
+      "at_match": 1,
+      "entity_id": null,
+      "event_id": "ed_c6-place_calibration-tray_right-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       0.0,
+       0.0,
+       0.055
+      ],
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_right",
+      "trigger": "before_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_right"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_4",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_red_5",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-ed_c6",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 5,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_4",
+      "shape": "cuboid",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_5",
+      "shape": "cylinder",
+      "xy": [
+       0.445,
+       0.0
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 226,
+    "subset": "execution_deviation",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3",
+     "obj_purple_4",
+     "obj_red_5"
+    ],
+    "task_id": "ed_c6",
+    "utterance": "把绿色的长方体放到右边托盘，把蓝色的圆柱放到右边托盘，把黄色的方块放到左边托盘，把紫色的长方体放到中间托盘，把红色的圆柱放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "grasp_calibration",
+      "at_match": 1,
+      "entity_id": "obj_blue_1",
+      "event_id": "ed_c7-grasp_calibration-obj_blue_1-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       0.05,
+       0.05,
+       0.0
+      ],
+      "once": true,
+      "skill": "pick",
+      "target_id": null,
+      "trigger": "before_skill",
+      "when_entity_id": "obj_blue_1",
+      "when_target_id": null
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_red_4",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_green_5",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-ed_c7",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 5,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_4",
+      "shape": "cylinder",
+      "xy": [
+       0.445,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_5",
+      "shape": "cube",
+      "xy": [
+       0.445,
+       0.0
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 227,
+    "subset": "execution_deviation",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3",
+     "obj_red_4",
+     "obj_green_5"
+    ],
+    "task_id": "ed_c7",
+    "utterance": "把蓝色的圆柱放到右边托盘，把黄色的方块放到中间托盘，把紫色的长方体放到右边托盘，把红色的圆柱放到中间托盘，把绿色的方块放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "place_calibration",
+      "at_match": 1,
+      "entity_id": null,
+      "event_id": "ed_c8-place_calibration-tray_middle-m1",
+      "impulse_xy": [
+       0.0,
+       0.0
+      ],
+      "offset": [
+       0.0,
+       0.0,
+       0.055
+      ],
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_middle",
+      "trigger": "before_skill",
+      "when_entity_id": null,
+      "when_target_id": "tray_middle"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-ed_c8",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 228,
+    "subset": "execution_deviation",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3"
+    ],
+    "task_id": "ed_c8",
+    "utterance": "把黄色的方块放到右边托盘，把紫色的长方体放到中间托盘，把红色的圆柱放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   }
+  ],
+  "protocol": [
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "needs_clarification",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-pr_unknown_entity_id",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "clarifies",
+    "seed": 231,
+    "subset": "protocol",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3"
+    ],
+    "task_id": "pr_unknown_entity_id",
+    "utterance": "把 obj_ghost_1 放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "needs_clarification",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-pr_unknown_target",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "clarifies",
+    "seed": 232,
+    "subset": "protocol",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3"
+    ],
+    "task_id": "pr_unknown_target",
+    "utterance": "把红色方块放到抽屉里。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "needs_clarification",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-pr_no_assignment",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "clarifies",
+    "seed": 233,
+    "subset": "protocol",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3"
+    ],
+    "task_id": "pr_no_assignment",
+    "utterance": "开始整理吧。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "needs_clarification",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_purple_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_red_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_green_3",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-pr_partial_binding",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_red_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_green_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "clarifies",
+    "seed": 234,
+    "subset": "protocol",
+    "targets": [
+     "obj_purple_1",
+     "obj_red_2",
+     "obj_green_3"
+    ],
+    "task_id": "pr_partial_binding",
+    "utterance": "把紫色的方块放到右边托盘，把红色的长方体放到右边托盘，把绿色的方块放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "needs_clarification",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-pr_stacking_out_of_scope",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cube"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "clarifies",
+    "seed": 243,
+    "subset": "protocol",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3"
+    ],
+    "task_id": "pr_stacking_out_of_scope",
+    "utterance": "把黄色方块放到紫色长方体上面。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "bounded_exit",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_red_1",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-pr_target_full",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 1,
+    "objects": [
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_red_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "grey",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.45,
+       0.45,
+       0.45,
+       1
+      ],
+      "dims": [
+       0.06,
+       0.06,
+       0.02
+      ],
+      "entity_id": "obj_blocker_1",
+      "shape": "cuboid",
+      "xy": [
+       0.66,
+       0.0
+      ]
+     }
+    ],
+    "probe": "bounded_no_blind_place",
+    "seed": 235,
+    "subset": "protocol",
+    "targets": [
+     "obj_red_1"
+    ],
+    "task_id": "pr_target_full",
+    "utterance": "把红色的长方体放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 4,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "bounded_exit",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-pr_skill_budget",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "bounded_budget_exhausted",
+    "seed": 236,
+    "subset": "protocol",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3"
+    ],
+    "task_id": "pr_skill_budget",
+    "utterance": "把绿色的圆柱放到右边托盘，把蓝色的方块放到中间托盘，把黄色的长方体放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 2,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "bounded_exit",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_right"
+      }
+     ],
+     "eval_id": "eval-pr_round_budget",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "bounded_budget_exhausted",
+    "seed": 237,
+    "subset": "protocol",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3"
+    ],
+    "task_id": "pr_round_budget",
+    "utterance": "把蓝色的方块放到右边托盘，把黄色的长方体放到中间托盘，把紫色的圆柱放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 0.2
+    },
+    "events": [],
+    "expected": "bounded_exit",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_middle"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-pr_wall_budget",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cube"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "bounded_wall_clock",
+    "seed": 238,
+    "subset": "protocol",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3"
+    ],
+    "task_id": "pr_wall_budget",
+    "utterance": "把黄色的长方体放到中间托盘，把紫色的圆柱放到右边托盘，把红色的方块放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 0,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "bounded_exit",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_purple_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_green_3",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-pr_zero_skill_budget",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_purple_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_red_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "bounded_before_action",
+    "seed": 244,
+    "subset": "protocol",
+    "targets": [
+     "obj_purple_1",
+     "obj_red_2",
+     "obj_green_3"
+    ],
+    "task_id": "pr_zero_skill_budget",
+    "utterance": "把紫色的长方体放到左边托盘，把红色的圆柱放到右边托盘，把绿色的方块放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "goal_truth_mismatch",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_purple_1",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-pr_goal_truth_mismatch",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 1,
+    "objects": [
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_purple_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "independent_score_zero",
+    "seed": 239,
+    "subset": "protocol",
+    "targets": [
+     "obj_purple_1"
+    ],
+    "task_id": "pr_goal_truth_mismatch",
+    "utterance": "把紫色的圆柱放到右边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   }
+  ],
+  "smoke": [
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_green_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_blue_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_3",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-smoke_clean",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "green",
+       "shape": "cube"
+      },
+      "color": [
+       0.1,
+       0.7,
+       0.2,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_green_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_2",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_3",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 51,
+    "subset": "smoke",
+    "targets": [
+     "obj_green_1",
+     "obj_blue_2",
+     "obj_yellow_3"
+    ],
+    "task_id": "smoke_clean",
+    "utterance": "把绿色的方块放到左边托盘，把蓝色的长方体放到右边托盘，把黄色的圆柱放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_blue_1",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_yellow_2",
+       "target_id": "tray_right"
+      },
+      {
+       "entity_id": "obj_purple_3",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-smoke_shared",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "blue",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.1,
+       0.2,
+       0.85,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_blue_1",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_2",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_3",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 52,
+    "subset": "smoke",
+    "targets": [
+     "obj_blue_1",
+     "obj_yellow_2",
+     "obj_purple_3"
+    ],
+    "task_id": "smoke_shared",
+    "utterance": "把蓝色的长方体放到右边托盘，把黄色的圆柱放到右边托盘，把紫色的方块放到左边托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [
+     {
+      "action": "impulse",
+      "at_match": 1,
+      "entity_id": "obj_purple_2",
+      "event_id": "smoke_state-displace-tray_left-obj_purple_2-m1",
+      "impulse_xy": [
+       -0.07,
+       0.0
+      ],
+      "offset": null,
+      "once": true,
+      "skill": "place",
+      "target_id": "tray_left",
+      "trigger": "after_skill",
+      "when_entity_id": "obj_purple_2",
+      "when_target_id": "tray_left"
+     }
+    ],
+    "expected": "success",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_yellow_1",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_purple_2",
+       "target_id": "tray_left"
+      },
+      {
+       "entity_id": "obj_red_3",
+       "target_id": "tray_middle"
+      }
+     ],
+     "eval_id": "eval-smoke_state",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 3,
+    "objects": [
+     {
+      "attributes": {
+       "color": "yellow",
+       "shape": "cylinder"
+      },
+      "color": [
+       0.9,
+       0.8,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.023,
+       0.042
+      ],
+      "entity_id": "obj_yellow_1",
+      "shape": "cylinder",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     },
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_2",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       0.0
+      ]
+     },
+     {
+      "attributes": {
+       "color": "red",
+       "shape": "cuboid"
+      },
+      "color": [
+       0.85,
+       0.1,
+       0.1,
+       1
+      ],
+      "dims": [
+       0.027,
+       0.019,
+       0.035
+      ],
+      "entity_id": "obj_red_3",
+      "shape": "cuboid",
+      "xy": [
+       0.38,
+       0.16
+      ]
+     }
+    ],
+    "probe": "",
+    "seed": 53,
+    "subset": "smoke",
+    "targets": [
+     "obj_yellow_1",
+     "obj_purple_2",
+     "obj_red_3"
+    ],
+    "task_id": "smoke_state",
+    "utterance": "把黄色的圆柱放到左边托盘，把紫色的方块放到左边托盘，把红色的长方体放到中间托盘。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   },
+   {
+    "budgets": {
+     "max_decision_rounds": 24,
+     "max_global_replans": 3,
+     "max_http_requests": 32,
+     "max_identical_invalid_attempts": 3,
+     "max_semantic_repairs": 2,
+     "max_skill_calls": 30,
+     "per_action_extra_repeats": 2,
+     "per_skill_sim_timeout_s": 30.0,
+     "wall_clock_s": 900.0
+    },
+    "events": [],
+    "expected": "needs_clarification",
+    "hidden_eval_spec": {
+     "ang_speed_tol_rps": 0.2,
+     "assignments": [
+      {
+       "entity_id": "obj_purple_1",
+       "target_id": "tray_left"
+      }
+     ],
+     "eval_id": "eval-smoke_clarify",
+     "footprint_margin_m": 0.005,
+     "lift_gain_min_m": 0.03,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    },
+    "n_objects": 1,
+    "objects": [
+     {
+      "attributes": {
+       "color": "purple",
+       "shape": "cube"
+      },
+      "color": [
+       0.5,
+       0.2,
+       0.7,
+       1
+      ],
+      "dims": [
+       0.021,
+       0.021,
+       0.021
+      ],
+      "entity_id": "obj_purple_1",
+      "shape": "cube",
+      "xy": [
+       0.38,
+       -0.16
+      ]
+     }
+    ],
+    "probe": "clarifies",
+    "seed": 54,
+    "subset": "smoke",
+    "targets": [
+     "obj_purple_1"
+    ],
+    "task_id": "smoke_clarify",
+    "utterance": "把那个东西收好。",
+    "verify": {
+     "ang_speed_tol_rps": 0.2,
+     "footprint_margin_m": 0.005,
+     "grasp_follow_tol_m": 0.03,
+     "lift_gain_min_m": 0.03,
+     "settle_time_s": 0.5,
+     "speed_tol_mps": 0.02,
+     "support_height_tol_m": 0.012,
+     "tolerance_version": "v2"
+    }
+   }
+  ]
+ },
+ "sha256": "2f1c74f52e910073b1877bb75686c379754ff35ca4abdd32b6408baf7fc75450",
+ "state_pair_specs": [
+  {
+   "accept": {
+    "held": [
+     "place",
+     "safe_retreat"
+    ],
+    "released": [
+     "pick"
+    ]
+   },
+   "base_case": "clean_c2",
+   "difference": "held_vs_released",
+   "note": "same utterance; in one context the object is measurably in the gripper",
+   "pair_id": "sp01",
+   "reject": {
+    "held": [
+     "pick_other"
+    ],
+    "released": [
+     "place"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "held": [
+     "place",
+     "safe_retreat"
+    ],
+    "released": [
+     "pick"
+    ]
+   },
+   "base_case": "clean_c3",
+   "difference": "held_vs_released",
+   "note": "second object of a shared region, so the same choice recurs later",
+   "pair_id": "sp02",
+   "reject": {
+    "held": [
+     "pick_other"
+    ],
+    "released": [
+     "place"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "displaced": [
+     "pick"
+    ],
+    "satisfied": [
+     "advance_to_next_pending"
+    ]
+   },
+   "base_case": "sc_c3",
+   "difference": "satisfied_vs_displaced",
+   "note": "a completed goal measured inside the region, and the same object shoved out of it by the declared environment event (the relation is re-measured false in the following round of the same episode)",
+   "pair_id": "sp03",
+   "reject": {
+    "displaced": [
+     "finish"
+    ],
+    "satisfied": [
+     "re_pick_satisfied"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "displaced": [
+     "pick"
+    ],
+    "satisfied": [
+     "advance_to_next_pending"
+    ]
+   },
+   "base_case": "dev_c2",
+   "difference": "satisfied_vs_displaced",
+   "note": "same difference, second object of a shared region, so the same choice recurs later in a longer episode",
+   "pair_id": "sp04",
+   "reject": {
+    "displaced": [
+     "finish"
+    ],
+    "satisfied": [
+     "re_pick_satisfied"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "free": [
+     "place_with_named_candidate",
+     "place"
+    ],
+    "occupied": [
+     "place",
+     "place_with_other_candidate",
+     "safe_retreat"
+    ]
+   },
+   "base_case": "sc_c4",
+   "difference": "candidate_free_vs_occupied",
+   "note": "one named candidate passes re-check; the same id is offered after the occupant moved onto it",
+   "pair_id": "sp05",
+   "reject": {
+    "occupied": [
+     "place_with_occupied_candidate"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "any": [
+     "place_with_any_feasible_candidate",
+     "place"
+    ]
+   },
+   "base_case": "sc_c4",
+   "difference": "candidate_order_permuted",
+   "note": "identical state, candidate list presented in the opposite order: a model that only picks the first entry is detected here",
+   "pair_id": "sp06",
+   "reject": {
+    "any": [
+     "place_with_infeasible_candidate"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "any": [
+     "pick"
+    ]
+   },
+   "base_case": "sc_c7",
+   "difference": "grasp_point_moved",
+   "note": "the pending object was displaced across the table; the same pick is still legal but its geometry is not what the plan assumed",
+   "pair_id": "sp07",
+   "reject": {
+    "moved": [
+     "place"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "free": [
+     "place",
+     "place_with_named_candidate"
+    ],
+    "full": [
+     "clarify",
+     "blocked",
+     "advance_to_next_pending"
+    ]
+   },
+   "base_case": "pr_target_full",
+   "difference": "region_free_vs_full",
+   "note": "the same place with and without the occupant: no candidate clears the pre-check in the second context",
+   "pair_id": "sp08",
+   "reject": {
+    "full": [
+     "place_with_named_candidate_rejected_last_round"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "known": [
+     "pick",
+     "place"
+    ],
+    "unknown": [
+     "observe",
+     "safe_retreat"
+    ]
+   },
+   "base_case": "ed_c1",
+   "difference": "unknown_vs_known_hold",
+   "note": "held state unresolvable in one context (contact measured on two bodies): the honest move is to take a fresh measurement",
+   "pair_id": "sp09",
+   "reject": {
+    "unknown": [
+     "place"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "completed": [
+     "advance_to_next_pending"
+    ],
+    "failed": [
+     "retry_same",
+     "pick_other",
+     "clarify",
+     "blocked"
+    ]
+   },
+   "base_case": "ed_c1",
+   "difference": "failed_vs_completed_feedback",
+   "note": "the same descent measured once as a grasp miss and once as a completed pick, on the same object",
+   "pair_id": "sp10",
+   "reject": {
+    "completed": [
+     "repeat_just_completed_pick"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "any": [
+     "pick_any_pending"
+    ]
+   },
+   "base_case": "clean_c5",
+   "difference": "pending_order",
+   "note": "two pending assignments swapped in the progress list; order must not be read as priority (SPEC 11.1: multiple legal orders)",
+   "pair_id": "sp11",
+   "reject": {
+    "any": [
+     "pick_already_satisfied"
+    ]
+   }
+  },
+  {
+   "accept": {
+    "all_satisfied": [
+     "finish"
+    ],
+    "one_pending": [
+     "pick",
+     "place"
+    ]
+   },
+   "base_case": "dev_c2",
+   "difference": "all_satisfied_vs_one_pending",
+   "note": "everything done, versus one region member left outside",
+   "pair_id": "sp12",
+   "reject": {
+    "all_satisfied": [
+     "pick"
+    ],
+    "one_pending": [
+     "finish"
+    ]
+   }
+  }
+ ]
+}

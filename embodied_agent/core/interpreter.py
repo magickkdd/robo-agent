@@ -1,10 +1,14 @@
-"""Task interpreter: natural language -> GoalSpec (spec 4.2, 7).
+"""Task interpreter: natural language -> GoalSpec (SPEC 4.2, 7, 13).
 
-Fixes the prototype defect "parser guesses id mapping from co-occurrence":
+Fixes the prototype defect "parser guesses the id mapping from co-occurrence":
 binding is attribute-unique (a colour/shape attribute must match exactly one
-visible entity) or explicit logical id. "剩下的/其余" binds all unassigned
-entities. Unresolvable references make the goal ambiguous -> needs_clarification
-instead of a guessed assignment (spec 4.2).
+visible entity) or an explicit logical id. "剩下的/其余" binds all unassigned
+entities. An unresolvable reference makes the goal ambiguous -> the episode ends
+as needs_clarification instead of a guessed assignment (SPEC 4.2).
+
+Target regions are *resolved against the observed world*, not against a hard-coded
+tray list, so this module (and the runtime behind it) carries no scene-specific
+ids (SPEC 13).
 """
 from __future__ import annotations
 
@@ -12,19 +16,12 @@ import re
 
 from .contracts import EntityRef, GoalAssignment, GoalSpec, TaskInput, WorldState
 
-TARGET_ALIASES = {
-    "左边": "tray_left",
-    "左侧": "tray_left",
-    "左边托盘": "tray_left",
-    "中间": "tray_middle",
-    "中间托盘": "tray_middle",
-    "中间的托盘": "tray_middle",
-    "右边": "tray_right",
-    "右侧": "tray_right",
-    "右边托盘": "tray_right",
-    "left": "tray_left",
-    "middle": "tray_middle",
-    "right": "tray_right",
+# utterance phrase -> spatial token; the token is then matched to a target id
+SIDE_TOKENS = {
+    "左边": "left", "左侧": "left", "左边托盘": "left", "左": "left",
+    "中间": "middle", "中间的托盘": "middle", "中间托盘": "middle", "中": "middle",
+    "右边": "right", "右侧": "right", "右边托盘": "right", "右": "right",
+    "left": "left", "middle": "middle", "right": "right",
 }
 
 SHAPE_WORDS = {"方块": "cube", "正方体": "cube", "长方体": "cuboid", "圆柱": "cylinder", "圆柱体": "cylinder",
@@ -60,11 +57,17 @@ def _match_entity(text: str, world: WorldState) -> tuple[EntityRef | None, str |
 _CLAUSE_SPLIT = re.compile(r"[,，;；。、]|然后|再|并且|全部|都")
 
 
-def _match_target(text: str) -> str | None:
+def _match_target(text: str, world: WorldState) -> str | None:
+    """Resolve a spatial phrase to a target id that actually exists here."""
     text = text.strip()
-    for k in sorted(TARGET_ALIASES, key=len, reverse=True):
-        if k in text:
-            return TARGET_ALIASES[k]
+    for phrase in sorted(SIDE_TOKENS, key=len, reverse=True):
+        if phrase not in text:
+            continue
+        token = SIDE_TOKENS[phrase]
+        candidates = [t.target_id for t in world.targets if token in t.target_id.lower()
+                      or token in t.label.lower()]
+        if len(candidates) == 1:
+            return candidates[0]
     return None
 
 
@@ -87,7 +90,7 @@ def interpret(task: TaskInput, world: WorldState) -> GoalSpec:
         if not clause.strip():
             continue
         if re.search(r"剩下的|其余|others|the rest", clause):
-            tgt = _match_target(clause)
+            tgt = _match_target(clause, world)
             if tgt is None:
                 problems.append(f"clause '{clause}': no target")
                 continue
@@ -97,13 +100,13 @@ def interpret(task: TaskInput, world: WorldState) -> GoalSpec:
         m = re.search(r"(?:(把|将)?\s*([^放扔给]+?)\s*)?(放入|放进|放到|放在|置于|place\s+\w+\s+(?:into|in|on))\s*(.+)", clause)
         if not m:
             txt = clause.strip()
-            if _match_target(txt) is None and any(w in txt for w in {**SHAPE_WORDS, **COLOR_WORDS}):
+            if _match_target(txt, world) is None and any(w in txt for w in {**SHAPE_WORDS, **COLOR_WORDS}):
                 pending.append(txt)  # "A、B、C 全部放入T"
                 continue
             problems.append(f"clause '{clause}': unrecognized")
             continue
         ent_text, tgt_text = m.group(2), m.group(4)
-        tgt = _match_target(tgt_text)
+        tgt = _match_target(tgt_text, world)
         if tgt is None:
             problems.append(f"clause '{clause}': unknown target '{tgt_text}'")
             continue

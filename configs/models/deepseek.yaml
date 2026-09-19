@@ -1,12 +1,21 @@
 schema_version: "1"
 provider: deepseek
-api_key_env: DEEPSEEK_API_KEY
+api_key_env: DEEPSEEK_API_KEY   # 只记录变量名；密钥本身只在环境变量/仓库内 .env（SPEC 7：不记录凭证与环境变量）
 base_url: https://api.deepseek.com
 model: deepseek-chat
-prompt_version: s1-plan-v1
+# 提示版本按请求种类声明。运行清单记的 model.prompt_version 就是这三个值，
+# 每条请求的账本再各自记它实际用的那一个。
+prompts:
+  goal: s2-goal-v1
+  decision: s2-decide-v1
+  plan: s2-plan-v1
 temperature: 0.2
+max_tokens: 1200
 timeout_s: 60
 max_retries: 2
-json_mode: true
+# 进入 DecisionContext 的历史反馈条数（SPEC 5.2 有界历史的展示深度）
+feedback_depth: 3
+# 请求一律带 response_format={"type":"json_object"} 且 stream=false，不作为可配置项；
+# 实际发出的采样参数由运行清单 model.sampling 从适配器本身读取，不从本文件抄写。
 # proxy: ""            # "__direct__"(默认,读取时替换)绕过系统代理直连;
                         # 填 URL 则强制走该代理;留空 null 则遵循环境变量

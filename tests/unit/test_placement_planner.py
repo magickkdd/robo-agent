@@ -1,343 +1,251 @@
-"""Unit tests for PlacementPlanner (W2.2).
+"""Placement candidates on the real scene geometry (SPEC 5.5).
 
-Tests footprint geometry, capacity modeling, obstacle-aware slot generation,
-and path clearance validation.
+Every claim tested here is one the experiment's placements rest on, and every
+number comes from the built PyBullet world — no hand-written `inner_half`, no
+mock tray. A mock that copies the constant it is checking proves only that the
+test and the code were written in the same minute.
+
+The checks split the way the contract splits: a candidate is *geometry* first
+(identity, footprint, seating height) and *claims* second (boundary, occupancy,
+reachability), and an unchecked claim must never read as a proven one.
 """
 import math
 
-import numpy as np
 import pytest
 
+from embodied_agent.core.contracts import CheckVerdict, PlacementCandidate
 from embodied_agent.core.placement_planner import (
-    ObjectFootprint,
-    PlacementPlan,
+    CandidateRegistry,
     PlacementPlanner,
-    TraySlot,
+    candidate_id_for,
 )
+from embodied_agent.core.verify import build_world_state
+from embodied_agent.evaluation.tasks import find_case
 
 
-class MockTray:
-    """Mock tray for testing without PyBullet."""
-    def __init__(self, center, inner_half, floor_top):
-        self._data = {
-            "center": np.array(center),
-            "inner_half": inner_half,
-            "floor_top": floor_top,
-        }
-    
-    def __getitem__(self, key):
-        return self._data[key]
-    
-    def __contains__(self, key):
-        return key in self._data
+@pytest.fixture(scope="module")
+def env():
+    """One real scene + one real measured snapshot, shared by the read-only tests."""
+    scene = None
+    try:
+        scene = _build()
+        case = find_case("smoke_clean")
+        world = build_world_state(scene, 1, "obs_0001", case.verify)
+        yield scene, world, PlacementPlanner(scene, case.verify)
+    finally:
+        if scene is not None:
+            scene.close()
 
 
-class MockObject:
-    """Mock object for testing without PyBullet."""
-    def __init__(self, half_h):
-        self._data = {
-            "half_h": half_h,
-        }
-    
-    def __getitem__(self, key):
-        return self._data[key]
-    
-    def __contains__(self, key):
-        return key in self._data
+def _build():
+    from embodied_agent.core.scene import PhysicsScene
+
+    case = find_case("smoke_clean")
+    return PhysicsScene(seed=case.seed, object_layout=case.objects)
 
 
-class MockScene:
-    """Mock scene for testing without PyBullet."""
-    def __init__(self):
-        self.trays = {
-            "tray_left": MockTray([-0.3, 0.0, 0.6], 0.12, 0.6),
-            "tray_middle": MockTray([0.0, 0.0, 0.6], 0.12, 0.6),
-            "tray_right": MockTray([0.3, 0.0, 0.6], 0.12, 0.6),
-        }
-        self.objects = {
-            "obj_red": MockObject(0.025),
-            "obj_blue": MockObject(0.025),
-            "obj_green": MockObject(0.025),
-        }
-        # Objects are NOT in trays initially (outside tray bounds)
-        self._poses = {
-            "obj_red": (np.array([0.45, -0.10, 0.625]), None),
-            "obj_blue": (np.array([0.45, 0.12, 0.625]), None),
-            "obj_green": (np.array([0.75, -0.05, 0.625]), None),
-        }
-    
-    def object_pose(self, entity_id):
-        return self._poses.get(entity_id, (np.zeros(3), None))
-    
-    def held_bodies(self):
-        return set()
+def objs(scene, world):
+    return [e.entity_id for e in world.entities if e.attributes.get("shape") == "cube"]
 
 
-class TestObjectFootprint:
-    """Test ObjectFootprint geometry calculations."""
-    
-    def test_bounding_radius(self):
-        fp = ObjectFootprint(
-            entity_id="test",
-            center=np.array([0.0, 0.0]),
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        # sqrt(0.025^2 + 0.025^2) + 0.010 ≈ 0.045
-        assert abs(fp.bounding_radius - 0.045) < 0.001
-    
-    def test_intersects_circle_no_overlap(self):
-        fp1 = ObjectFootprint(
-            entity_id="test1",
-            center=np.array([0.0, 0.0]),
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        fp2 = ObjectFootprint(
-            entity_id="test2",
-            center=np.array([0.1, 0.0]),
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        # Distance = 0.1, sum of radii ≈ 0.09, no overlap
-        assert not fp1.intersects_circle(fp2.center, fp2.bounding_radius)
-    
-    def test_intersects_circle_overlap(self):
-        fp1 = ObjectFootprint(
-            entity_id="test1",
-            center=np.array([0.0, 0.0]),
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        fp2 = ObjectFootprint(
-            entity_id="test2",
-            center=np.array([0.05, 0.0]),
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        # Distance = 0.05, sum of radii ≈ 0.09, overlap
-        assert fp1.intersects_circle(fp2.center, fp2.bounding_radius)
-    
-    def test_intersects_rectangle_no_overlap(self):
-        fp = ObjectFootprint(
-            entity_id="test",
-            center=np.array([0.0, 0.0]),
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        other_center = np.array([0.1, 0.0])
-        other_half = np.array([0.025, 0.025])
-        # Distance = 0.1, sum of extents = 0.06, no overlap
-        assert not fp.intersects_rectangle(other_center, other_half)
-    
-    def test_intersects_rectangle_overlap(self):
-        fp = ObjectFootprint(
-            entity_id="test",
-            center=np.array([0.0, 0.0]),
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        other_center = np.array([0.04, 0.0])
-        other_half = np.array([0.025, 0.025])
-        # Distance = 0.04, sum of extents = 0.06, overlap
-        assert fp.intersects_rectangle(other_center, other_half)
+# ------------------------------------------------------------ identity ------
 
 
-class TestPlacementPlanner:
-    """Test PlacementPlanner core functionality."""
-    
-    def test_init(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        assert planner.scene == scene
-    
-    def test_compute_footprint(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        fp = planner.compute_footprint("obj_red")
-        assert fp.entity_id == "obj_red"
-        assert fp.center.shape == (2,)
-        assert fp.half_extents.shape == (2,)
-        assert fp.clearance == 0.010
-    
-    def test_get_tray_interior(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        center, half, floor = planner.get_tray_interior("tray_left")
-        np.testing.assert_array_equal(center, [-0.3, 0.0])
-        assert half == 0.12
-        assert floor == 0.6
-    
-    def test_get_placed_objects_empty_tray(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        placed = planner.get_placed_objects("tray_left")
-        # No objects in tray initially
-        assert len(placed) == 0
-    
-    def test_generate_candidate_slots(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        placed = []
-        slots = planner.generate_candidate_slots("tray_left", "obj_red", placed)
-        
-        # Should have at least one valid slot
-        assert len(slots) > 0
-        assert all(s.is_valid for s in slots)
-    
-    def test_generate_candidate_slots_with_obstacle(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        # Add an obstacle at center
-        obstacle = ObjectFootprint(
-            entity_id="obstacle",
-            center=np.array([-0.3, 0.0]),  # tray_left center
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        placed = [obstacle]
-        
-        slots = planner.generate_candidate_slots("tray_left", "obj_red", placed)
-        
-        # Slots should avoid the obstacle
-        for slot in slots:
-            dist = np.linalg.norm(slot.position - obstacle.center)
-            assert dist > obstacle.bounding_radius + 0.010
-    
-    def test_find_slot_for_object(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        slot = planner.find_slot_for_object("tray_left", "obj_red")
-        assert slot is not None
-        assert slot.is_valid
-    
-    def test_plan_placement_single_object(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        plan = planner.plan_placement("tray_left", ["obj_red"])
-        assert plan.capacity_ok
-        assert len(plan.slots) == 1
-        assert plan.slots[0].is_valid
-    
-    def test_plan_placement_multiple_objects(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        plan = planner.plan_placement("tray_left", ["obj_red", "obj_blue"])
-        assert plan.capacity_ok
-        assert len(plan.slots) == 2
-        
-        # Slots should not overlap
-        fp1 = ObjectFootprint(
-            entity_id="obj_red",
-            center=plan.slots[0].position,
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        fp2 = ObjectFootprint(
-            entity_id="obj_blue",
-            center=plan.slots[1].position,
-            half_extents=np.array([0.025, 0.025]),
-            clearance=0.010,
-        )
-        assert not fp1.intersects_circle(fp2.center, fp2.bounding_radius)
-    
-    def test_plan_placement_capacity_exceeded(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        # Try to place 10 objects in a small tray
-        object_ids = [f"obj_{i}" for i in range(10)]
-        # Mock objects don't exist, so this should fail gracefully
-        plan = planner.plan_placement("tray_left", object_ids)
-        # Should fail because objects don't exist in scene
-        assert not plan.capacity_ok
-    
-    def test_get_capacity(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        # With 25mm half-height objects, should fit ~4 in a 240mm tray
-        capacity = planner.get_capacity("tray_left", [0.025])
-        assert capacity >= 1
-    
-    def test_unknown_target(self):
-        scene = MockScene()
-        planner = PlacementPlanner(scene)
-        
-        plan = planner.plan_placement("tray_unknown", ["obj_red"])
-        assert not plan.capacity_ok
-        assert "Unknown target" in plan.error
+def test_candidate_id_names_the_geometry_not_a_slot_index(env):
+    scene, world, planner = env
+    oid = objs(scene, world)[0]
+    a = planner._make("tray_left", oid, 0.66, 0.0, world)
+    b = planner._make("tray_left", oid, 0.68, 0.0, world)
+    assert a.candidate_id != b.candidate_id
+    assert a.candidate_id == candidate_id_for("tray_left", oid, 0.66, 0.0)
+    assert "x660y0" in a.candidate_id
 
 
-class TestTraySlot:
-    """Test TraySlot properties."""
-    
-    def test_valid_slot(self):
-        slot = TraySlot(
-            position=np.array([0.0, 0.0]),
-            z=0.625,
-            object_id="test",
-            clearance_ok=True,
-            reachability_ok=True,
-        )
-        assert slot.is_valid
-    
-    def test_invalid_slot_clearance(self):
-        slot = TraySlot(
-            position=np.array([0.0, 0.0]),
-            z=0.625,
-            object_id="test",
-            clearance_ok=False,
-            reachability_ok=True,
-        )
-        assert not slot.is_valid
-    
-    def test_invalid_slot_reachability(self):
-        slot = TraySlot(
-            position=np.array([0.0, 0.0]),
-            z=0.625,
-            object_id="test",
-            clearance_ok=True,
-            reachability_ok=False,
-        )
-        assert not slot.is_valid
+def test_regenerating_the_same_option_yields_the_same_id(env):
+    scene, world, planner = env
+    oid = objs(scene, world)[0]
+    first = planner.generate("tray_left", oid, world, limit=4)
+    again = planner.generate("tray_left", oid, world, limit=4)
+    assert [c.candidate_id for c in first] == [c.candidate_id for c in again]
+    assert len({c.candidate_id for c in first}) == len(first)
 
 
-class TestPlacementPlan:
-    """Test PlacementPlan properties."""
-    
-    def test_valid_slots(self):
-        plan = PlacementPlan(target_id="tray_left")
-        plan.slots = [
-            TraySlot(
-                position=np.array([0.0, 0.0]),
-                z=0.625,
-                object_id="obj1",
-                clearance_ok=True,
-                reachability_ok=True,
-            ),
-            TraySlot(
-                position=np.array([0.05, 0.0]),
-                z=0.625,
-                object_id="obj2",
-                clearance_ok=False,
-                reachability_ok=True,
-            ),
-        ]
-        
-        assert plan.num_valid == 1
-        assert len(plan.valid_slots) == 1
-        assert plan.valid_slots[0].object_id == "obj1"
-    
-    def test_empty_plan(self):
-        plan = PlacementPlan(target_id="tray_left")
-        assert plan.num_valid == 0
-        assert len(plan.valid_slots) == 0
+def test_an_id_never_re_points_at_other_geometry(env):
+    """The registry refuses the swap rather than logging a lie (SPEC 5.5)."""
+    scene, world, planner = env
+    oid = objs(scene, world)[0]
+    cand = planner._make("tray_left", oid, 0.66, 0.0, world)
+    impostor = cand.model_copy(update={"position_xy": (0.70, 0.04)})
+    with pytest.raises(ValueError, match="would name a different geometry"):
+        planner.registry.remember(impostor)
+
+
+def test_resolve_only_answers_for_ids_ever_offered(env):
+    scene, world, planner = env
+    oid = objs(scene, world)[0]
+    cand = planner.generate("tray_left", oid, world, limit=1)[0]
+    assert planner.resolve(cand.candidate_id) is cand
+    assert planner.resolve("cand-tray_left-%s-x99y99" % oid) is None
+
+
+# ------------------------------------------------------------- geometry -----
+
+
+def test_circumscribed_radius_is_the_upright_yaw_bound(env):
+    """A cylinder claims its radius, a box its diagonal — the horizontal bound an
+    upright body sweeps, never the vertical half-height it stands at."""
+    scene, world, planner = env
+    for e in world.entities:
+        geom = scene.geometry(e.entity_id)
+        got = planner.circumscribed_radius(e.entity_id)
+        if geom.shape == "cylinder":
+            assert got == pytest.approx(geom.radius)
+            assert got != pytest.approx(geom.half_h_vertical), "the vertical size leaked in"
+        else:
+            assert got == pytest.approx(math.hypot(geom.half_extents.x, geom.half_extents.y))
+
+
+def test_rest_and_hand_off_height_are_the_same_definition_the_descent_uses(env):
+    scene, world, planner = env
+    oid = objs(scene, world)[0]
+    tray = scene.trays["tray_left"]
+    rest = planner.rest_z(oid, "tray_left")
+    assert rest == pytest.approx(tray["floor_top"] + scene.geometry(oid).half_h_vertical)
+    assert planner.hand_off_z(oid, "tray_left") == pytest.approx(
+        rest + PlacementPlanner.HAND_OFF_CLEARANCE_M)
+
+
+def test_generated_candidates_all_fit_the_region_they_are_offered_in(env):
+    scene, world, planner = env
+    tray = scene.trays["tray_left"]
+    limit = tray["inner_half"] - planner.config.footprint_margin_m
+    cx, cy = tray["center"]
+    got = planner.generate("tray_left", objs(scene, world)[0], world, limit=None)
+    assert got, "a real tray with a real cube must offer at least one slot"
+    for c in got:
+        r = planner.circumscribed_radius(c.entity_id)
+        assert abs(c.position_xy[0] - cx) + r <= limit + 1e-9
+        assert abs(c.position_xy[1] - cy) + r <= limit + 1e-9
+        assert c.position_xy == tuple(round(v, 4) for v in c.position_xy)
+        assert c.generated_at_state_version == world.state_version
+        # an offered candidate carries its claims as *unchecked* until re-checked
+        assert c.boundary_ok == CheckVerdict.unchecked
+        assert c.occupancy_ok == CheckVerdict.unchecked
+
+
+def test_generation_is_ordered_from_the_tray_centre_outwards(env):
+    scene, world, planner = env
+    cx, cy = scene.trays["tray_left"]["center"][:2]
+    got = planner.generate("tray_left", objs(scene, world)[0], world, limit=6)
+    dists = [math.hypot(c.position_xy[0] - cx, c.position_xy[1] - cy) for c in got]
+    assert dists == sorted(dists)
+
+
+def test_a_target_with_no_room_offers_nothing_rather_than_a_lie(env):
+    scene, world, planner = env
+    assert planner.generate("tray_nowhere", objs(scene, world)[0], world) == []
+    assert planner.generate("tray_left", "obj_ghost_1", world) == []
+
+
+# --------------------------------------------------------------- claims -----
+
+
+def test_recheck_reports_each_dimension_separately(env):
+    scene, world, planner = env
+    oid = objs(scene, world)[0]
+    cand = planner.generate("tray_left", oid, world, limit=1)[0]
+    chk = planner.recheck(cand, world)
+    assert chk.ok, chk.reasons
+    checked = chk.candidate
+    for field in ("params_ok", "boundary_ok", "occupancy_ok", "reachability_ok"):
+        assert getattr(checked, field) == CheckVerdict.ok, field
+    assert checked.checked_at_state_version == world.state_version
+    # the stored candidate keeps its original claim: the record of what was
+    # offered must not be rewritten by a later check
+    assert cand.boundary_ok == CheckVerdict.unchecked
+
+
+def test_a_slot_across_the_wall_is_a_boundary_failure_not_an_option(env):
+    scene, world, planner = env
+    oid = objs(scene, world)[0]
+    tray = scene.trays["tray_left"]
+    r = planner.circumscribed_radius(oid)
+    too_far = planner._make("tray_left", oid, tray["center"][0] + tray["inner_half"] + r,
+                            tray["center"][1], world)
+    chk = planner.recheck(too_far, world)
+    assert not chk.ok
+    assert chk.candidate.boundary_ok == CheckVerdict.fail
+    assert any("wall or margin" in m for m in chk.reasons), chk.reasons
+
+
+def test_hand_sweep_envelope_is_wider_than_the_footprint_rule(env):
+    """The descent clears more than the resting footprint needs.
+
+    Measured in work/p0_sweep.py: 65 mm centre-to-centre from a standing cylinder
+    shoved it 69-94 mm and tipped it 19 mm over; 75 mm left the neighbour moved
+    <= 8 mm and never tipped. Two footprints may legally touch closer than that,
+    so the two rules must disagree in this direction — if they ever agreed, a
+    placement would be destroying one the episode had already made true.
+
+    What the *physics* does to a real neighbour is tested with a real placement in
+    `test_place_hand_sweep.py`; this is the rule that reads a snapshot.
+    """
+    scene, world, planner = env
+    cyl = next(e.entity_id for e in world.entities if e.attributes.get("shape") == "cylinder")
+    cube = next(e.entity_id for e in world.entities if e.attributes.get("shape") == "cube")
+    r_cyl, r_cube = planner.circumscribed_radius(cyl), planner.circumscribed_radius(cube)
+    footprints_touch = r_cyl + r_cube + planner.CLEARANCE_M
+    sweep_needs = r_cyl + PlacementPlanner.HAND_SWEEP_RADIUS_M
+    assert footprints_touch < sweep_needs, "the envelope rule has collapsed into the footprint rule"
+
+    cx, cy = scene.trays["tray_left"]["center"][:2]
+    crowded = _occupying(world, scene, cyl, "tray_left", (cx, cy))
+    inside = planner._make("tray_left", cube, cx + sweep_needs - 0.010, cy, crowded)
+    chk = planner.recheck(inside, crowded)
+    assert not chk.ok and chk.candidate.occupancy_ok == CheckVerdict.fail
+    assert not any("footprint crosses" in m for m in chk.reasons), \
+        "the slot is legal geometry; only the hand's envelope rules it out"
+    assert any("descent envelope" in m and cyl in m for m in chk.reasons), chk.reasons
+
+    outside = planner._make("tray_left", cube, cx + sweep_needs + 0.005, cy, crowded)
+    chk_out = planner.recheck(outside, crowded)
+    assert chk_out.candidate.occupancy_ok == CheckVerdict.ok, chk_out.reasons
+
+
+def _occupying(world, scene, who, tray_id, xy):
+    """A copy of the measured snapshot in which `who` rests at `xy` in `tray_id`.
+
+    Only positions are rewritten; geometry, ids, region facts and the state
+    version stay those of the real snapshot, so what the rule under test reads is
+    the same shape of evidence the runtime hands it."""
+    from embodied_agent.core.contracts import OccupancyRecord, Vec3
+
+    ent = world.entity(who)
+    rest_z = scene.trays[tray_id]["floor_top"] + ent.geometry.half_h_vertical
+    moved = ent.model_copy(update={"pose": ent.pose.model_copy(
+        update={"position": Vec3(x=xy[0], y=xy[1], z=rest_z)}), "supported_by": tray_id})
+    ents = [moved if e.entity_id == who else e for e in world.entities]
+    occ = [o for o in world.occupancy if o.entity_id != who] + [OccupancyRecord(
+        target_id=tray_id, entity_id=who, rest_xy=(xy[0], xy[1]),
+        footprint_half_xy=tuple(round(v, 4) for v in scene.footprint_half_xy(who)),
+        fully_inside=True)]
+    return world.model_copy(update={"entities": ents, "occupancy": occ})
+
+
+def test_best_feasible_searches_the_whole_lattice_not_a_sample(env):
+    """`generate(limit=8)` is a prompt budget; answering "no slot is free" from it
+    would hand both modes a fake TARGET_NO_FREE_SLOT."""
+    scene, world, planner = env
+    oid = objs(scene, world)[0]
+    cand, notes = planner.best_feasible("tray_left", oid, world)
+    assert cand is not None and cand.candidate_id
+    full = planner.generate("tray_left", oid, world, limit=None)
+    assert len(full) > 8, "this test needs a lattice larger than the prompt sample"
+
+
+def test_registry_is_per_executor_so_two_episodes_do_not_share_ids(env):
+    scene, world, planner = env
+    other = PlacementPlanner(scene, planner.config, registry=CandidateRegistry())
+    oid = objs(scene, world)[0]
+    cand = planner.generate("tray_left", oid, world, limit=1)[0]
+    assert other.resolve(cand.candidate_id) is None

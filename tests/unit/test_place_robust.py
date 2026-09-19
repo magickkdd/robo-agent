@@ -1,296 +1,294 @@
-"""Unit tests for W2.3: Robust place skill.
+"""The place skill against real physics (SPEC 5.4, 5.5, 10.2, 12.1.5).
 
-Tests:
-- Place with stable/unstable outcomes
-- Target full handling
-- Place collision detection
-- Measurement accuracy
-- Failure taxonomy completeness
+Replaces the mock-scene version of this file. A mock that carries the numbers it
+is checking cannot fail, and every claim below is exactly the kind of claim that
+has to fail when it stops being true:
+
+* a refusal moves nothing and costs no simulated time;
+* the three refusal codes stay distinguishable from one another;
+* a completion is a *measured* footprint inside the region, not a command sent;
+* an actuator error changes where the object is let go, while the request and the
+  named candidate stay what the decision asked for, so the model reads a
+  consequence rather than a label.
 """
-import numpy as np
+import math
+
 import pytest
 
-from embodied_agent.core.contracts import FailureCode, SkillStatus
-from embodied_agent.core.fault_injection import PlaceFaultConfig, PlaceFaultInjector, PlaceFaultType
+from embodied_agent.core.contracts import (
+    FailureCode,
+    SkillCall,
+    SkillStatus,
+)
+from embodied_agent.core.scene import PhysicsScene
+from embodied_agent.core.skills import SkillExecutor
+from embodied_agent.core.verify import RuntimeVerifier, build_world_state
+from embodied_agent.evaluation.tasks import find_case
 
 
-class MockTray:
-    """Mock tray for testing."""
-    def __init__(self, center, inner_half, floor_top):
-        self._data = {
-            "center": np.array(center),
-            "inner_half": inner_half,
-            "floor_top": floor_top,
-        }
-    
-    def __getitem__(self, key):
-        return self._data[key]
+class Rig:
+    """One built scene, one executor, and a measuring world channel."""
+
+    def __init__(self, case_id="smoke_shared"):
+        self.case = find_case(case_id)
+        self.scene = PhysicsScene(seed=self.case.seed, object_layout=self.case.objects)
+        self.config = self.case.verify
+        self._v = 0
+        self.executor = SkillExecutor(self.scene, world_provider=self.observe, config=self.config)
+
+    def observe(self):
+        self._v += 1
+        return build_world_state(self.scene, self._v, f"obs_{self._v:04d}", self.config)
+
+    def call(self, skill, **args):
+        return SkillCall(plan_id="test", step_id=f"t{self._v}", skill=skill, args=dict(args))
+
+    def pose(self, eid):
+        pos, _ = self.scene.object_pose(eid)
+        return [round(float(v), 4) for v in pos]
+
+    def pick(self, eid):
+        return self.executor.execute(self.call("pick", object_id=eid))
+
+    def place(self, eid, tid, candidate_id=None):
+        args = {"object_id": eid, "target_id": tid}
+        if candidate_id:
+            args["candidate_id"] = candidate_id
+        return self.executor.execute(self.call("place", **args))
+
+    def objects(self, shape=None):
+        out = sorted(self.scene.objects)
+        if shape:
+            out = [e for e in out if self.scene.objects[e]["attributes"]["shape"] == shape]
+        return out
+
+    def close(self):
+        self.scene.close()
 
 
-class MockObject:
-    """Mock object for testing."""
-    def __init__(self, half_h):
-        self._data = {
-            "half_h": half_h,
-        }
-    
-    def __getitem__(self, key):
-        return self._data[key]
+@pytest.fixture
+def rig():
+    r = Rig()
+    try:
+        yield r
+    finally:
+        r.close()
 
 
-class MockScene:
-    """Mock scene for testing without PyBullet."""
-    def __init__(self):
-        self.trays = {
-            "tray_left": MockTray([-0.3, 0.0, 0.6], 0.12, 0.6),
-            "tray_middle": MockTray([0.0, 0.0, 0.6], 0.12, 0.6),
-            "tray_right": MockTray([0.3, 0.0, 0.6], 0.12, 0.6),
-        }
-        self.objects = {
-            "obj_red": MockObject(0.025),
-            "obj_blue": MockObject(0.025),
-            "obj_green": MockObject(0.025),
-        }
-        self._poses = {
-            "obj_red": (np.array([0.45, -0.10, 0.625]), None),
-            "obj_blue": (np.array([0.45, 0.12, 0.625]), None),
-            "obj_green": (np.array([0.75, -0.05, 0.625]), None),
-        }
-        self._velocities = {
-            "obj_red": (np.zeros(3), np.zeros(3)),
-            "obj_blue": (np.zeros(3), np.zeros(3)),
-            "obj_green": (np.zeros(3), np.zeros(3)),
-        }
-        self.sim_time = 0.0
-    
-    def object_pose(self, entity_id):
-        return self._poses.get(entity_id, (np.zeros(3), None))
-    
-    def object_velocity(self, entity_id):
-        return self._velocities.get(entity_id, (np.zeros(3), np.zeros(3)))
-    
-    def held_bodies(self):
-        return set()
-    
-    def entity_by_body(self, body_id):
-        return None
-    
-    def ee_pose(self):
-        return np.array([0.45, 0.0, 0.80]), None
-    
-    def move_ee(self, xyz, orn, timeout_s=1.0, tol=8e-3):
-        return True
-    
-    def open_gripper(self):
-        pass
-    
-    def close_gripper(self):
-        pass
-    
-    def wait_until_rest(self, entity_id, max_s=2.5):
-        return True
-    
-    def settle(self, seconds):
-        self.sim_time += seconds
+# ------------------------------------------------- refusal is not physics -----
 
 
-class TestFailureCodes:
-    """Test that all required failure codes exist (W2.3)."""
-    
-    def test_place_unstable_exists(self):
-        assert hasattr(FailureCode, 'PLACE_UNSTABLE')
-        assert FailureCode.PLACE_UNSTABLE.value == "PLACE_UNSTABLE"
-    
-    def test_place_collision_exists(self):
-        assert hasattr(FailureCode, 'PLACE_COLLISION')
-        assert FailureCode.PLACE_COLLISION.value == "PLACE_COLLISION"
-    
-    def test_object_dropped_exists(self):
-        assert hasattr(FailureCode, 'OBJECT_DROPPED')
-        assert FailureCode.OBJECT_DROPPED.value == "OBJECT_DROPPED"
-    
-    def test_state_uncertain_exists(self):
-        assert hasattr(FailureCode, 'STATE_UNCERTAIN')
-        assert FailureCode.STATE_UNCERTAIN.value == "STATE_UNCERTAIN"
-    
-    def test_target_full_exists(self):
-        assert hasattr(FailureCode, 'TARGET_FULL')
-        assert FailureCode.TARGET_FULL.value == "TARGET_NO_FREE_SLOT"
-    
-    def test_path_collision_exists(self):
-        assert hasattr(FailureCode, 'PATH_COLLISION')
-        assert FailureCode.PATH_COLLISION.value == "PATH_COLLISION"
+def test_place_without_a_grasp_is_refused_before_physics(rig):
+    eid = rig.objects()[0]
+    before, sim_before = rig.pose(eid), rig.scene.sim_time
+    res = rig.place(eid, "tray_left")
+    assert res.status == SkillStatus.rejected
+    assert res.failure_code == FailureCode.HELD_STATE_CONFLICT.value
+    assert rig.pose(eid) == before, "a refused action moved the object"
+    assert res.sim_seconds_used == 0.0 and rig.scene.sim_time == sim_before, \
+        "a refusal consumed physics budget it never performed"
+    assert res.stages_executed == ["rejected:validation"]
 
 
-class TestPlaceFaultInjector:
-    """Test fault injection for place operations."""
-    
-    def test_init(self):
-        scene = MockScene()
-        injector = PlaceFaultInjector(scene)
-        assert injector.scene == scene
-        assert injector._active_fault is None
-    
-    def test_set_fault(self):
-        scene = MockScene()
-        injector = PlaceFaultInjector(scene)
-        
-        config = PlaceFaultConfig(
-            fault_type=PlaceFaultType.PLACE_UNSTABLE,
-            target_id="tray_left",
-            nudge_force=0.1,
-        )
-        injector.set_fault(config)
-        
-        assert injector._active_fault == config
-    
-    def test_clear_fault(self):
-        scene = MockScene()
-        injector = PlaceFaultInjector(scene)
-        
-        injector.set_fault(PlaceFaultConfig(fault_type=PlaceFaultType.PLACE_UNSTABLE))
-        injector.clear_fault()
-        
-        assert injector._active_fault is None
-    
-    def test_apply_fault_no_fault(self):
-        scene = MockScene()
-        injector = PlaceFaultInjector(scene)
-        
-        result = injector.apply_fault("obj_red", "tray_left")
-        assert result is False
-    
-    def test_apply_fault_wrong_target(self):
-        scene = MockScene()
-        injector = PlaceFaultInjector(scene)
-        
-        config = PlaceFaultConfig(
-            fault_type=PlaceFaultType.PLACE_UNSTABLE,
-            target_id="tray_right",  # Different target
-        )
-        injector.set_fault(config)
-        
-        result = injector.apply_fault("obj_red", "tray_left")
-        assert result is False
-    
-    def test_apply_fault_unstable(self):
-        """Test PLACE_UNSTABLE fault injection logic.
-        
-        Note: Actual force application requires PyBullet.
-        This test verifies the logic path and configuration.
-        """
-        scene = MockScene()
-        injector = PlaceFaultInjector(scene)
-        
-        config = PlaceFaultConfig(
-            fault_type=PlaceFaultType.PLACE_UNSTABLE,
-            target_id="tray_left",
-            nudge_force=0.05,
-        )
-        injector.set_fault(config)
-        
-        # Verify fault is set correctly
-        assert injector._active_fault.fault_type == PlaceFaultType.PLACE_UNSTABLE
-        assert injector._active_fault.target_id == "tray_left"
-        assert injector._active_fault.nudge_force == 0.05
-        
-        # The actual apply_fault requires PyBullet for force application
-        # In unit test without PyBullet, we verify the configuration is correct
-        # The implementation would call p.applyExternalForce in real PyBullet env
-    
-    def test_apply_fault_target_full(self):
-        """Test TARGET_FULL fault injection logic.
-        
-        Note: Object creation requires PyBullet.
-        This test verifies the logic path and configuration.
-        """
-        scene = MockScene()
-        injector = PlaceFaultInjector(scene)
-        
-        config = PlaceFaultConfig(
-            fault_type=PlaceFaultType.TARGET_FULL,
-            target_id="tray_left",
-            fill_count=3,
-        )
-        injector.set_fault(config)
-        
-        # Verify fault is set correctly
-        assert injector._active_fault.fault_type == PlaceFaultType.TARGET_FULL
-        assert injector._active_fault.target_id == "tray_left"
-        assert injector._active_fault.fill_count == 3
-        
-        # The actual apply_fault requires PyBullet for object creation
-        # In unit test without PyBullet, we verify the configuration is correct
-    
-    def test_check_collision_pending(self):
-        scene = MockScene()
-        injector = PlaceFaultInjector(scene)
-        
-        # No collision pending
-        assert injector.check_collision_pending() is False
-        
-        # Set collision pending
-        injector._collision_pending = True
-        assert injector.check_collision_pending() is True
-        
-        # Should be cleared after check
-        assert injector.check_collision_pending() is False
+def test_the_three_refusal_reasons_do_not_collapse_into_one(rig):
+    eid = rig.objects()[0]
+    unknown_object = rig.place("obj_ghost_1", "tray_left")
+    unknown_target = rig.place(eid, "tray_drawer")
+    assert unknown_object.failure_code == FailureCode.UNKNOWN_ENTITY.value
+    assert unknown_target.failure_code == FailureCode.UNKNOWN_TARGET.value
+    # and neither is dressed up as a contact failure
+    for res in (unknown_object, unknown_target):
+        assert res.status == SkillStatus.rejected
+        assert res.failure_code != FailureCode.PLACE_COLLISION.value
 
 
-class TestPlaceFaultConfig:
-    """Test fault configuration."""
-    
-    def test_default_config(self):
-        config = PlaceFaultConfig()
-        assert config.fault_type == PlaceFaultType.NONE
-        assert config.target_id is None
-        assert config.nudge_force == 0.05
-        assert config.fill_count == 3
-    
-    def test_custom_config(self):
-        config = PlaceFaultConfig(
-            fault_type=PlaceFaultType.PLACE_UNSTABLE,
-            target_id="tray_left",
-            nudge_force=0.1,
-            fill_count=5,
-        )
-        assert config.fault_type == PlaceFaultType.PLACE_UNSTABLE
-        assert config.target_id == "tray_left"
-        assert config.nudge_force == 0.1
-        assert config.fill_count == 5
+def test_a_missing_argument_is_a_structured_rejection_not_a_crash(rig):
+    res = rig.executor.execute(SkillCall(plan_id="test", step_id="t", skill="place",
+                                         args={"object_id": rig.objects()[0]}))
+    assert res.status == SkillStatus.rejected
+    assert res.failure_code == FailureCode.INVALID_DECISION.value
+    assert any("missing required argument" in n for n in res.notes), res.notes
 
 
-class TestPlaceMeasurements:
-    """Test that place operations return correct measurements."""
-    
-    def test_measurement_fields(self):
-        """Verify all required measurement fields are present."""
-        required_fields = [
-            "release_height",
-            "final_x", "final_y", "final_z",
-            "lin_speed", "ang_speed",
-            "seated", "rest_settled",
-            "supported", "gripper_free", "velocity_stable",
-        ]
-        
-        # This is a specification test - the actual implementation should provide these
-        # We're testing the contract, not the implementation
-        assert len(required_fields) == 11
+def test_a_skill_outside_the_catalogue_reaches_no_physics(rig):
+    """The model-facing catalogue is the whole action space (SPEC 5.2): there is no
+    verb that teleports, releases mid-air or re-seats a joint group."""
+    from embodied_agent.core.skills import SkillRegistry
+
+    assert set(SkillRegistry.CATALOGUE) == {"observe", "pick", "place", "safe_retreat"}
+    with pytest.raises(Exception):
+        SkillCall(plan_id="test", step_id="t", skill="teleport", args={})
 
 
-class TestPlaceSuccessCriteria:
-    """Test place success criteria from spec 6.2."""
-    
-    def test_success_criteria_documented(self):
-        """Document the success criteria from spec 6.2."""
-        criteria = {
-            "footprint_in_target": "Object footprint in target valid region",
-            "object_supported": "Object supported by target",
-            "target_not_overflowing": "Target not overflowing",
-            "velocity_stable": "Speed < 0.02 m/s, angular speed < 0.2 rad/s",
-            "gripper_free": "Gripper not carrying object",
-        }
-        
-        assert len(criteria) == 5
-        assert "footprint_in_target" in criteria
-        assert "velocity_stable" in criteria
+def test_who_chose_the_slot_is_recorded_either_way(rig):
+    """SPEC 5.5: an automatic slot choice must be recorded, and a prose note is not
+    a record — the episode counter is read from this field. Both branches are
+    measured here so neither can be a default nobody ever set."""
+    a, b = rig.objects()[:2]
+    named = rig.executor.placement_planner.generate("tray_left", a, rig.observe(), limit=1)[0]
+    assert rig.pick(a).status == SkillStatus.completed
+    res = rig.place(a, "tray_left", candidate_id=named.candidate_id)
+    assert res.status == SkillStatus.completed, res.notes
+    assert res.candidate_resolution == "model_named_candidate"
+
+    assert rig.pick(b).status == SkillStatus.completed
+    res2 = rig.place(b, "tray_right")
+    assert res2.status == SkillStatus.completed, res2.notes
+    assert res2.candidate_resolution == "runtime_fallback_rule"
+    # the slot it chose is still measurable, not just labelled
+    assert res2.measurements["displacement_from_candidate_m"] >= 0.0
+
+
+# ------------------------------------------------------ candidate honesty -----
+
+
+def test_a_candidate_id_never_offered_is_stale_not_guessed(rig):
+    eid = rig.objects()[0]
+    assert rig.pick(eid).status == SkillStatus.completed
+    res = rig.place(eid, "tray_left", candidate_id="cand-tray_left-%s-x0y0" % eid)
+    assert res.status == SkillStatus.rejected
+    assert res.failure_code == FailureCode.CANDIDATE_STALE.value
+    assert rig.scene.held_bodies(), "the object was dropped while the slot was being argued about"
+
+
+def test_a_candidate_belonging_to_another_object_is_not_borrowed(rig):
+    a, b = rig.objects()[:2]
+    other = rig.executor.placement_planner.generate("tray_left", b, rig.observe(), limit=1)[0]
+    assert rig.pick(a).status == SkillStatus.completed
+    res = rig.place(a, "tray_left", candidate_id=other.candidate_id)
+    assert res.failure_code == FailureCode.INVALID_DECISION.value
+    assert b in " ".join(res.notes) and a in " ".join(res.notes), res.notes
+    assert rig.scene.held_bodies()
+
+
+def test_a_slot_inside_an_occupants_hand_envelope_is_rejected_and_says_why(rig):
+    """The real-physics counterpart of the planner's descent-envelope rule.
+
+    One object is placed for real; the second is then offered a slot at that
+    object's own resting position. The refusal must name the *occupant*, because
+    'no free slot' and 'this slot is inside the hand's path' are different facts
+    for the policy that has to choose a target."""
+    a, b = rig.objects()[:2]
+    world = rig.observe()
+    first = rig.executor.placement_planner.best_feasible("tray_left", a, world)[0]
+    assert first is not None, "no slot for the first object: the tray is not empty at t0"
+    assert rig.pick(a).status == SkillStatus.completed, rig.pose(a)
+    assert rig.place(a, "tray_left", first.candidate_id).status == SkillStatus.completed
+    occupied_at = rig.pose(a)[:2]
+
+    assert rig.pick(b).status == SkillStatus.completed
+    crowded = rig.executor.placement_planner._make("tray_left", b, occupied_at[0], occupied_at[1],
+                                                   rig.observe())
+    res = rig.place(b, "tray_left", crowded.candidate_id)
+    assert res.status == SkillStatus.rejected
+    assert res.failure_code == FailureCode.CANDIDATE_INFEASIBLE.value
+    assert a in " ".join(res.notes) and "descent envelope" in " ".join(res.notes), res.notes
+    assert rig.pose(a)[:2] == occupied_at, "the refused approach still shoved the first object"
+    assert rig.scene.held_bodies()
+
+
+# ------------------------------------------------------- measured success -----
+
+
+def test_a_completed_place_is_a_measured_footprint_inside_the_region(rig):
+    eid = rig.objects()[0]
+    world = rig.observe()
+    cand = rig.executor.placement_planner.best_feasible("tray_left", eid, world)[0]
+    assert rig.pick(eid).status == SkillStatus.completed
+    res = rig.place(eid, "tray_left", cand.candidate_id)
+    assert res.status == SkillStatus.completed, res.notes
+    m = res.measurements
+    assert m["inside_target"] == 1.0 and m["at_rest"] == 1.0
+    assert m["gripper_free"] == 1.0, "the hand is still touching it"
+    assert not rig.scene.held_bodies()
+    # the runtime's own verifier, from a fresh measurement, agrees
+    verdict = RuntimeVerifier(rig.observe(), rig.config).verify_placement(eid, "tray_left")
+    assert verdict.value.value == "true", verdict.evidence
+    # and the object is where the *named candidate* said it would be, to within the
+    # hand-off slip the skill itself measured
+    assert math.isclose(m["final_x"], cand.position_xy[0], abs_tol=0.03)
+    assert math.isclose(m["final_y"], cand.position_xy[1], abs_tol=0.03)
+
+
+def test_a_release_the_measurement_contradicts_is_never_reported_as_success(rig):
+    """`bounded_no_blind_place` at the level of one skill (SPEC 11.1, 12.1.2).
+
+    A calibration error is armed on the *actuator*, so the object is handed off
+    where no decision named it — measured at -150 mm the release lands against
+    the outside of the tray wall. Whatever the geometry does, the invariant is
+    one: a footprint the skill measured outside the region may not come back as a
+    completion, because that is the false success the whole protocol forbids."""
+    eid = rig.objects()[0]
+    rig.scene.place_calibration_offset = [-0.15, 0.0, 0.0]
+    world = rig.observe()
+    cand = rig.executor.placement_planner.best_feasible("tray_left", eid, world)[0]
+    assert rig.pick(eid).status == SkillStatus.completed
+    res = rig.place(eid, "tray_left", cand.candidate_id)
+    assert res.measurements["inside_target"] == 0.0, \
+        "the mechanism stopped producing an outside-region release; this test must be re-armed"
+    assert res.status == SkillStatus.failed, res.measurements
+    assert res.failure_code == FailureCode.PLACE_UNSTABLE.value
+    assert res.measurements["at_rest"] == 1.0 and res.measurements["gripper_free"] == 1.0
+    assert res.measurements["candidate_x"] == pytest.approx(cand.position_xy[0], abs=1e-4), \
+        "the report was rewritten to the place it actually ended up"
+
+
+def test_an_actuator_error_moves_the_release_not_the_request(rig):
+    """SPEC 10.2: the evidence the model sees is a measured consequence.
+
+    The named candidate, the call and every value the skill attributes to the
+    decision stay what was asked for; only the *measured* final position reveals
+    that the hand let go somewhere else. A test that let the offset appear in the
+    request would be checking a leak, not a mechanism."""
+    eid = rig.objects()[0]
+    rig.scene.place_calibration_offset = [-0.05, 0.0, 0.0]
+    world = rig.observe()
+    cand = rig.executor.placement_planner.best_feasible("tray_left", eid, world)[0]
+    assert rig.pick(eid).status == SkillStatus.completed
+    res = rig.place(eid, "tray_left", cand.candidate_id)
+    assert res.measurements["candidate_x"] == pytest.approx(cand.position_xy[0], abs=1e-4)
+    assert res.measurements["candidate_y"] == pytest.approx(cand.position_xy[1], abs=1e-4)
+    slip = res.measurements["final_x"] - cand.position_xy[0]
+    assert slip == pytest.approx(-0.05, abs=0.02), \
+        f"the hand did not actuate the offset it was armed with (slip {slip * 1000:.0f} mm)"
+    joined = " ".join(res.notes)
+    assert f"candidate={cand.candidate_id}" in joined, res.notes  # what it was asked for
+    assert "calibration" not in joined and "offset" not in joined, \
+        f"the skill reported the environment's label instead of measuring it: {res.notes}"
+
+
+def test_no_object_teleports_and_no_joint_resets_during_a_skill(rig):
+    """SPEC 12.1.5: the path is interpolated, so simulated time advances through
+    every stage and the object's own travel is continuous."""
+    eid = rig.objects()[0]
+    world = rig.observe()
+    cand = rig.executor.placement_planner.best_feasible("tray_middle", eid, world)[0]
+    samples = [rig.pose(eid)]
+    origin = rig.scene.objects[eid]["body"]
+    assert rig.pick(eid).status == SkillStatus.completed
+    res = rig.place(eid, "tray_middle", cand.candidate_id)
+    assert res.status == SkillStatus.completed
+    assert res.sim_seconds_used > 0.5, "a transfer that spent no simulated time moved nothing"
+    for stage in ("transfer", "descend", "release", "retreat", "settle"):
+        assert stage in res.stages_executed, res.stages_executed
+    assert rig.scene.entity_by_body(origin) == eid
+    final = rig.pose(eid)
+    assert abs(final[2] - cand.rest_z) < 0.02, f"resting height {final} vs seated {cand.rest_z}"
+
+
+def test_two_objects_in_one_region_both_end_inside_and_the_second_waits_for_room(rig):
+    """The shared-tray case the benchmark's ordering question rests on: the second
+    placement must find a slot that does not disturb the first."""
+    a, b = rig.objects()[:2]
+    world = rig.observe()
+    planner = rig.executor.placement_planner
+    first = planner.best_feasible("tray_right", a, world)[0]
+    assert rig.pick(a).status == SkillStatus.completed
+    assert rig.place(a, "tray_right", first.candidate_id).status == SkillStatus.completed
+    second = planner.best_feasible("tray_right", b, rig.observe())
+    assert second[0] is not None, second[1]
+    assert rig.pick(b).status == SkillStatus.completed
+    assert rig.place(b, "tray_right", second[0].candidate_id).status == SkillStatus.completed
+    v = RuntimeVerifier(rig.observe(), rig.config)
+    assert v.verify_placement(a, "tray_right").value.value == "true"
+    assert v.verify_placement(b, "tray_right").value.value == "true"
