@@ -63,12 +63,52 @@ def test_a_credential_bearing_key_is_redacted_but_a_usage_counter_is_not(store):
     assert FAKE_KEY not in _raw(s)
 
 
+def test_a_usage_mapping_under_the_bare_name_tokens_survives(store):
+    """`benchmark_mujoco/perceive.py:1487,1511` files a whole provider usage dict under the
+    key `tokens`, and `token` is one of the credential substrings — so batch 7's five
+    perception records reached the archive as `"tokens": "***redacted***"` and what one
+    reading cost was unrecoverable from the run. A mapping or a number in that seat is
+    SPEC 7 metadata; a string is still the credential its name suggests."""
+    s, _ = store
+    s.log("perception", tokens={"prompt_tokens": 1103, "completion_tokens": 27,
+                               "total_tokens": 1130},
+          usage={"prompt_tokens": 4}, token=FAKE_KEY, access_token=FAKE_KEY)
+    s.log("provider_error", tokens=FAKE_KEY)
+    p, err = (r["payload"] for r in s.read_all())
+    assert p["tokens"] == {"prompt_tokens": 1103, "completion_tokens": 27,
+                           "total_tokens": 1130}, p["tokens"]
+    assert p["usage"] == {"prompt_tokens": 4}
+    assert p["token"] == "***redacted***" and p["access_token"] == "***redacted***"
+    assert err["tokens"] == "***redacted***"
+    assert FAKE_KEY not in _raw(s)
+
+
 def test_a_short_value_is_not_mangled_by_the_credential_scan(store):
     """The scan is length-bounded on purpose: `sk-` appears in ordinary ids and
     redacting them would destroy the record without protecting anything."""
     s, _ = store
     s.log("note", text="sk-1")
     assert s.read_all()[0]["payload"]["text"] == "sk-1"
+
+
+def test_an_identifier_that_happens_to_contain_sk_survives(store):
+    """The length bound alone was not enough: `…-Desk-308/trial_…` and "task-1" are both
+    long, both contain `sk-`, and both are records the benchmark needs intact — six task
+    ids and one rationale were truncated to 12 characters in the 268-episode batch by
+    exactly this. A credential is `sk-` *starting* a token, which is also how every real
+    key reaches a log line."""
+    s, _ = store
+    task_id = "pick_and_place_simple-Mug-None-Desk-308/trial_T20190909_203041_433487"
+    rationale = ("The task requires the mug on desk-1, and the risk-averse reading of the "
+                 "observation is that it is inside cabinet 3.")
+    s.log("episode_start", task_id=task_id)
+    s.log("decision", rationale=rationale)
+    s.log("provider_error", body=f"request rejected, api_key={FAKE_KEY} was used")
+    written = _raw(s)
+    assert s.read_all()[0]["payload"]["task_id"] == task_id
+    assert s.read_all()[1]["payload"]["rationale"] == rationale
+    assert FAKE_KEY not in written, "a credential pasted after an `=` reached the file"
+    assert "***redacted***" in s.read_all()[2]["payload"]["body"]
 
 
 def test_an_artifact_is_redacted_too(store):
@@ -211,6 +251,66 @@ def test_an_unverifiable_tree_is_not_reported_as_clean(monkeypatch):
     code = git_state()
     assert code["commit"] == "unknown"
     assert code["dirty"] is None, "an unreadable tree must not be recorded as clean"
+    assert code["untracked_code"] is None, "unreadable is not the same claim as empty"
+
+
+def test_an_edit_to_untracked_code_moves_an_identity_the_diff_cannot_see(tmp_path):
+    """The camera package is untracked, so `dirty_diff_sha256` was blind to every edit in it.
+
+    Phase-log H-15 读数三 measured the consequence on real artifacts: batch5b L4 and batch6 L4
+    recorded `a821c9769c1664e4` for two trees that ran different code across the Fix B edit. This
+    reproduces that blindness in a throwaway checkout and pins the field that replaces it.
+    """
+    import subprocess
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=str(tmp_path), capture_output=True, text=True)
+
+    # `-c` on the command line, never `git config`: nothing here may touch a config file.
+    git("init", "-q")
+    git("-c", "user.email=t@invalid", "-c", "user.name=t", "commit", "-q", "--allow-empty",
+        "-m", "seed")
+    pkg = tmp_path / "embodied_agent" / "channel"
+    pkg.mkdir(parents=True)
+    module = pkg / "perceive.py"
+    module.write_text("BOUND = 1\n", encoding="utf-8")
+    (tmp_path / "scratch").mkdir()
+    outside = tmp_path / "scratch" / "probe.py"
+    outside.write_text("IGNORED = 1\n", encoding="utf-8")
+
+    first = git_state(str(tmp_path))
+    assert first["dirty_diff_sha256"] is None, "nothing tracked changed, so the diff says nothing"
+    assert first["untracked_code"]["prefixes"] == ["embodied_agent/"]
+    assert first["untracked_code"]["files"] == 1, "scratch is outside the declared scope"
+    assert re.fullmatch(r"[0-9a-f]{16}", first["untracked_code"]["sha256"])
+
+    module.write_text("BOUND = 2\n", encoding="utf-8")
+    second = git_state(str(tmp_path))
+    assert second["dirty_diff_sha256"] is None, "the field that was blind is still blind"
+    assert second["untracked_code"]["sha256"] != first["untracked_code"]["sha256"], \
+        "an edit to the code that ran has to move the recorded identity"
+
+    outside.write_text("IGNORED = 2\n", encoding="utf-8")
+    assert git_state(str(tmp_path))["untracked_code"]["sha256"] == \
+        second["untracked_code"]["sha256"], "the declared scope excludes scratch, as filed"
+
+
+def test_the_real_manifest_carries_the_same_identity_git_state_reports(tmp_path):
+    """A field that only works on a fixture is not the identity the batches will rest on.
+
+    So the assertion here is about the production path: the manifest has to file exactly what
+    `git_state` reads, byte for byte, or a reader comparing two runs is comparing two different
+    measurements. Whether this checkout has any untracked code is not a contract -- on a fully
+    committed tree `files == 0` and the identity is legitimately empty, and saying otherwise
+    would make the test assert the state of a working tree rather than its own behaviour.
+    """
+    manifest = json.loads(open(E.write_manifest(str(tmp_path), run_id="probe"),
+                               encoding="utf-8").read())
+    live = git_state()
+    assert manifest["code"]["untracked_code"] == live["untracked_code"]
+    assert live["untracked_code"] is not None, "git is readable here, so the field must be a dict"
+    assert (live["untracked_code"]["sha256"] is None) == (live["untracked_code"]["files"] == 0), \
+        "an identity is filed exactly when there is code to file it for"
 
 
 def test_the_physics_dependency_version_is_the_installed_one():

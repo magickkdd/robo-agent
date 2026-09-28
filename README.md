@@ -5,6 +5,11 @@
 PyBullet 桌面场景中通过真实夹爪接触完成 3～5 个物体的整理归位，DeepSeek 输出结构化计划，
 Runtime 逐步验证并处理可复现的抓空故障。旧二维接口原型保留为测试替身（`embodied_agent` 顶层模块）。
 
+> **当前有效规格是 `Continuous-Decision-Embodied-Agent-SPEC-v0.1.md`**（P0–P3 已执行完毕，逐阶段
+> 记录见 `docs/continuous-decision-phase-log.md`）。上面这段与本文后半部分的 S1 措辞是历史背景：
+> 其中"Runtime 处理抓空故障"等说法已被现版本取代（Runtime 不再替模型选策略），运行命令与产物名
+> 已按现 CLI 更正如下。
+
 ## 支持范围（S1 边界）
 
 - 场景：固定 Panda（PyBullet `franka_panda/panda.urdf`，基座抬高 0.30 m）、桌面、3 个浅托盘
@@ -22,42 +27,59 @@ Runtime 逐步验证并处理可复现的抓空故障。旧二维接口原型保
 # Python 3.11（conda env `embodied`，依赖锁定见 requirements.txt）
 pip install -r requirements.txt
 
-# 冒烟（5 用例：正常、属性分类、5 物体、一次抓空故障、非法目标）
-python -m embodied_agent.evaluation.run evaluate --set smoke --planner rule --out runs
+# 离线：全部必需测试（无需网络、无需 key；在线用例无 RUN_ONLINE=1 时整档 skip）
+PYTHONPATH=. python -m pytest -q
 
-# 负例（10 用例：歧义、不存在实体、未知目标、空目标……）
-python -m embodied_agent.evaluation.run evaluate --set negative --planner rule --out runs
+# 环境与依赖自检
+PYTHONPATH=. python -m embodied_agent.cli doctor
 
-# 固定验收集（90 episodes）与故障配对实验
-python -m embodied_agent.evaluation.run evaluate --set s1_clean  --planner rule --out runs
-python -m embodied_agent.evaluation.run evaluate --set s1_fault  --planner rule --recovery on  --out runs
-python -m embodied_agent.evaluation.run evaluate --set s1_fault  --planner rule --recovery off --out runs
+# 一条 episode，一个臂（规则策略，离线、零成本；产物写进 /tmp 以免污染仓库）
+PYTHONPATH=. python -m embodied_agent.cli run --task clean:clean_c1 --mode B --planner rule \
+  --out /tmp/single
 
-# 单集运行
-python -m embodied_agent.evaluation.run run --set smoke --planner rule --out runs
+# 一批（三臂 A/B/C 同一底座、同一 goal 解析）；--set 取 smoke / dev / clean /
+# state_change / execution_deviation / formal / protocol / all
+PYTHONPATH=. python -m embodied_agent.cli evaluate --set clean --modes A,B,C --planner rule \
+  --out-root /tmp/batch
+PYTHONPATH=. python -m embodied_agent.cli report --run-dir /tmp/batch/<run_id>
+PYTHONPATH=. python -m embodied_agent.cli replay --run-dir /tmp/batch/<run_id> --recorded
 
-# 在线 DeepSeek（需真实 key；无 key 时会显式报错，不会静默回退到规则规划器）
-export DEEPSEEK_API_KEY=sk-...
-python -m embodied_agent.evaluation.run run --set smoke --planner deepseek --out runs
+# 在线模型：先配 key（值只放环境变量或仓库内 .env；SPEC 7：不入配置/日志/提示词）
+#   默认被试 = configs/models/deepseek.yaml（v1 预注册的那一个）
+#   免费档被试 = configs/models/agnes.yaml（agnes-2.5-flash，api_key_env: LLM_API_KEY）
+set -a; . ./.env; set +a          # 或直接 export LLM_API_KEY=…
+PYTHONPATH=. python -m embodied_agent.cli run --task clean:clean_c1 --mode B \
+  --planner deepseek --model-config configs/models/agnes.yaml --out /tmp/online
 
-# 轨迹回放（重放已记录计划，展示既有执行，不冒充重新在线完成任务）
-python -m embodied_agent.evaluation.run replay --run-dir runs/<episode_dir>
+# 冻结自查：任务清单 / 预注册（阈值、矩阵、prompt、预算、被试）
+PYTHONPATH=. python -m embodied_agent.cli freeze --check
+PYTHONPATH=. python -m embodied_agent.cli prereg --check
 ```
+
+无 key 时 `--planner deepseek` **显式报错并拒绝开跑**，不会静默换成规则策略。带 `--prereg` 的批次会
+把实际 `base_url`/`model`/矩阵与冻结值逐条比对，不符即拒绝且不产生任何目录——所以换 provider 的批次
+不能冒充 v1，除非另立一份 v2 预注册（`configs/models/deepseek.yaml` 的字节被哈希进 `rules_sha256`，
+因此换被试只能新增配置文件）。
 
 ## 产物
 
-每次运行目录包含：`config.json`（场景/任务/预算/故障配置快照）、`events.jsonl`
-（episode/plan/skill/observation ID 串联的逐事件日志）、`summary.json`、`final_frame.png`、
-错误诊断。集合级产物：`report.json`（成功率 + Wilson 95% 区间 + 按物体数分层）、`results.csv`。
+批次目录（`evaluate`）：`manifest.json`（代码 commit + dirty diff 哈希 + 依赖 + 被试与采样 + 冻结清单
+与预注册状态；**不记凭证、不记环境变量**，代理只记 kind）、`episodes.csv`、`run_summary.json`、
+`task_manifest.json`、`goal_resolutions/`（每 case 一次共享解析及其账本）、
+`episodes/<episode_id>/{events.jsonl, episode_summary.json, model_calls.jsonl, frame_NNN_<skill>.png}`、
+`report.json` / `report.md`；跑过 `state-util` 后另有 `state_utilization.json`。
+`run` 只产生该 episode 的目录与 `goal_resolutions/`，不写批次级清单与表。
+成功率、Wilson 区间、按 case 聚类的配对 bootstrap、行为与成本指标、失败归因都在 `report.md` 开头。
 
 ## 成功率分母与统计口径
 
-主指标 = 完整任务成功 episodes / 全部有效正式试验（所有约束满足、无人工干预）。
-- A1 规则基线：S1-clean ≥ 80%。
-- A2 在线 DeepSeek：同一域 ≥ 80%（真实物理夹取、无隐式回退）。
-- A3 恢复增益：S1-fault 中 recovery 组相对 no-recovery 组正向增益，配对差异 95% 区间下界 > 0。
-- A4 全部 negative 用例预算内终止/澄清，非法动作不执行。
-- 评测集均为自建工程集合（TabletopOrganize-v1），不是公共 benchmark。
+主指标 = 独立判分的完整任务成功 episodes / **预定运行的全部 episode**（失败、超时、被拒、澄清、
+基础设施错误都留在分母里，不事后剔除）。
+- 配对增益按 case 聚类 bootstrap（次数与 seed 都在冻结文件里），Wilson 区间只作描述。
+- S1 时期的 A1–A4 目标已由 `configs/experiment/p3_preregistration_v1.json` 的 G1–G5 取代；
+  v1 批次结果：G1–G4 达标、G5（状态对 10/12）未达 ⇒ 门槛组整体 `not met`，逐条见
+  `docs/continuous-decision-phase-log.md` 的 P3 §5 与末尾审计。
+- 评测集为自建工程集合（TabletopOrganize-v1），不是公共 benchmark。
 
 ## 物理真实性边界
 
@@ -72,10 +94,14 @@ python -m embodied_agent.evaluation.run replay --run-dir runs/<episode_dir>
 - 抓取候选为几何启发式（物体顶面中心 + 少量横向偏移），非学习型。
 - 转移采用开阔场景的"抬升—平移—下降"栅栏策略，不声称通用避障。
 - 平台：WSL2/Ubuntu（Windows 原生因规划依赖未验证而未采用，见 `outputs/w0_precheck/`）。
-- 在线 DeepSeek 指标（A2）需要 `DEEPSEEK_API_KEY`；当前仓库内的 LLM 指标均来自 fixture
-  模式（仅离线测试用，不冒充在线结果）。
+- 在线被试由 `configs/models/*.yaml` 指定：默认 `deepseek.yaml`（v1 批次的那个），`--model-config
+  configs/models/agnes.yaml` 走免费档 `agnes-2.5-flash`。密钥只从环境变量或仓库内 `.env` 读，
+  配置里只出现变量名。仓库内的 LLM 指标不再只有 fixture：`/tmp/p3d_formal/…` 是 216 episode 的
+  真实在线批次，其结论只属于当时那个被试。
 
 ## 成本
 
-暂无人民币预算目标。小规模调用的 token/延迟记录在 episode 的 `model_response` 事件中
-（provider/model/usage），批量费用按当时实际单价估算。
+请求数、prompt/completion tokens、逐调用延迟与墙钟占比全部**实测**并出表（`report.md` 的 Costs 与
+`model_latency`）；金额只在配置了 `pricing_usd_per_mtok` 时才出现，否则 `cost_estimate_usd` 保持
+`null`（SPEC 11.4：不臆造价格）。v1 那一批为 1,631 请求 / 7.19 M prompt tokens / 47.3 min，其中
+B 相对 A 多出的 11 条成功花了 +706 请求与 +4.17 M tokens——增益与代价必须同框读。

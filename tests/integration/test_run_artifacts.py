@@ -391,3 +391,60 @@ def test_plan_rerun_replays_the_last_plan_in_a_fresh_scene_and_says_what_it_is(s
     assert [o["skill"] for o in out["outcomes"]] == ["pick", "place"] * 3
     assert [o["status"] for o in out["outcomes"]] == ["completed"] * 6, out["outcomes"]
     assert all(o["failure_code"] is None for o in out["outcomes"])
+
+
+# --------------------------------------------------- the pre-registration -----
+
+
+def test_the_manifest_records_the_pre_registration_and_says_whether_it_was_enforced(manifest):
+    """Like the task list, the rules are recorded on every run and only *enforced*
+    when the operator asked for the refusal. `matches: False` on a run is therefore a
+    finding about the code, not a missing field."""
+    from embodied_agent.evaluation.preregistration import PREREG_PATH, preregistration
+
+    pre = manifest["pre_registration"]
+    assert pre["prereg_path"] == PREREG_PATH
+    assert pre["matches"] is True, pre["detail"]
+    assert pre["enforced"] is False, "no --prereg was passed, so this records, it does not refuse"
+    assert pre["rules_sha256"] == pre["detail"] == preregistration()["rules_sha256"]
+
+
+def test_an_offline_batch_is_not_graded_against_the_frozen_gates(root):
+    """SPEC 12.2's thresholds were written for the 216-run online matrix. A 3-run
+    offline harness must not be able to pass them, fail them, or leave the reader to
+    work out which one happened."""
+    from embodied_agent.evaluation.preregistration import preregistration
+
+    report = R.build_report(root)
+    pg = report["preregistered_gates"]
+    assert pg["registered"] is True and pg["enforced"] is False
+    assert pg["sample_matches_preregistration"] is False
+    assert any("planner 'rule'" in m for m in pg["sample_mismatches"]), pg["sample_mismatches"]
+    assert any("3 runs measured, 216 pre-registered" in m for m in pg["sample_mismatches"])
+    assert [g["status"] for g in pg["gates"]] == ["not_enforced"] * 5
+    assert pg["claim"] == "not_evaluable"
+    assert pg["rules_sha256"] == preregistration()["rules_sha256"]
+    # every number the gates would have read is null rather than a convenient 0
+    assert set(pg["numbers"].values()) == {None}
+    R.write_report(root)
+    with open(os.path.join(root, "report.md"), encoding="utf-8") as f:
+        md = f.read()
+    assert "## Pre-registered gates (SPEC 12.2)" in md
+    assert "not the pre-registered sample" in md
+    assert f"rules `{pg['rules_sha256'][:12]}`" in md
+    assert f"pre-registered rules `{pg['rules_sha256'][:12]}` matches=True refusal=False" in md
+
+
+def test_prereg_refuses_before_a_run_directory_exists(tmp_path):
+    """The refusal is cheaper than the artifacts: an empty directory full of nothing
+    is still a directory someone could point at."""
+    from embodied_agent.evaluation.preregistration import PREREG_PATH
+
+    out = str(tmp_path / "out")
+    os.makedirs(out, exist_ok=True)
+    with pytest.raises(RUN.InfraError) as exc:
+        RUN.main(["run", "--set", "smoke", "--cases", CASE, "--modes", "B",
+                  "--out-root", out, "--no-frames", "--prereg", PREREG_PATH])
+    assert "not the pre-registered one" in str(exc.value)
+    assert "the pre-registered set is 'formal'" in str(exc.value)
+    assert os.listdir(out) == [], "a refused batch leaves no run behind to be quoted"

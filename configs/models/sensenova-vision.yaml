@@ -1,0 +1,50 @@
+schema_version: "1"
+# 第二个可轮换的被试（用户 2026-09-25 给了商汤日日新的 key，要求"agnes 和商汤的轮换着用"，
+# 并排除 DeepSeek）。**新文件，不动 `agnes-vision.yaml`**：两份旧配置的字节属于已跑完的批次，
+# 每份 manifest 里都记着它们的 `config_sha256`。
+#
+# base_url 与 model 都不是查来的、是量出来的（`/tmp/mw117/sn_probe.py` 的 stdout、
+# `/tmp/mw117/sn_capability.py` -> `/tmp/mw117/sn_capability_saved.out`，摘要与读数一起记在
+# 阶段日志 H-37）：
+#   GET https://token.sensenova.cn/v1/models -> HTTP 200，9 个 id；
+#   api.sensenova.cn/v1 与 platform.sensenova.cn/v1 的 /v1/models -> 404；
+#   sensenova.cn/v1 -> 自签证书，SSL 校验失败；
+#   该列表里 sensenova-* 只有三个，另外六个是 deepseek-*/glm-*/kimi-*，按指示不拨号。
+#   三个 sensenova-* 各发一次真实看图请求（同一个类、同一个 SURVEY_SYSTEM、同一张 batch6 存档帧，
+#   帧 sha256 1ef768b5b276282f，本次共花 4 个 HTTP 请求）：
+#     sensenova-u1-fast、sensenova-u1.5-lite -> HTTP 404（body 不读；这条路不服务这两个 id）
+#     sensenova-6.8-flash-lite -> 200，finish_reason=stop，返回体可 json.loads，键为 ["box","notes"]
+#   纯文本 ping 同一个 id -> 200（prompt 551 / completion 52，raw_chars 16）
+# 所以 `model` 只填被量出来的那一个，`capabilities` 只写被证明的那两项。
+provider: sensenova
+api_key_env: SENSENOVA_API_KEY   # 只记录变量名；密钥本身只在环境变量/仓库内 .env（SPEC 7）
+base_url: https://token.sensenova.cn/v1
+model: sensenova-6.8-flash-lite
+
+# 本轮实测过：把这个 id 换成列表里另外两个 sensenova-* 之一，`adapter.chat_vision` 拿到的是
+# HTTP 404 —— 也就是 u1-fast / u1.5-lite 在这台 host 上不接看图请求，而 u1 系被选中的这一个拿到
+# 200 且返回体可 `json.loads`。这条推论的边界要说清楚：404 是在**方法级**量到的，
+# `--perceive vlm` 整条 CLI 路并没有用那两个 id 真跑过一帧。
+# 这里引用方法名而不是行号：本轮 survey 的调用点自己就从 `chat_vision` 换成了 `chat_vision_json`
+# （见 `perceive.py` 的 `survey()`），写死在配置文件里的行号下一轮就会变成一句假话。
+# 也就是说 `capabilities` 这一行挡不住"端点接不接图"，那是路由级的事实，只有拨过一次号才知道；
+# 它的作用域是"这个 id 在这台 host 上被证明能看图"，比 `agnes-vision.yaml` 里同一行更窄。
+capabilities: [text, vision]
+
+# prompt 版本与 agnes-vision.yaml / deepseek.yaml 逐项相同：换了被试没换题，两边才可比。
+prompts:
+  goal: s2-goal-v1
+  decision: s2-decide-v1
+  plan: s2-plan-v1
+temperature: 0.2
+max_tokens: 1200
+timeout_s: 90
+max_retries: 2
+feedback_depth: 3
+# 单价未知就留空：`api_cost_estimate`/`cost_estimate_usd` 保持 null，只报请求数与 tokens
+# （SPEC 11.4：不臆造价格）。tokens 读数取**输出已落盘**的那两次（`/tmp/mw117/sn_repair_n6_saved.out`
+# 与 `/tmp/mw117/sn_smoke.out` + `/tmp/mw_sensenova_smoke` 的 manifest）：
+#   survey 单题 prompt 594 tokens 是稳定的（6 次共 3564，每次都是 594 —— 题相同）；
+#   completion 6 次共 2841（均值 473.5，单次区间随生成变化）；
+#   真批次那一集 survey = prompt 594 / completion 507（reasoning 452）。
+# 这是 tokens 读数，不是价格；早先另两次探针的 stdout 没有落盘，所以这里不引用它们的数字。

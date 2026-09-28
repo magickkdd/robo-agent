@@ -13,7 +13,9 @@ PYTHONPATH=. /home/czx/miniforge3/envs/embodied/bin/python -m embodied_agent.cli
 ```
 
 Python 3.11.16 / pybullet 3.2.7 / pydantic 2.13.5 / numpy 2.4.6，无 scipy，HTTP 仅用标准库 `urllib`。
-基线 commit `a69ffcd`；P0/P1/P2 全部改动尚未提交，工作树为脏，运行清单以 `dirty_diff_sha256` 标识该状态。
+基线 commit `a69ffcd`（P0 起）；P0/P1/P2 与 P3 §0–§1 的改动已于 P3 §2 提交为 **`4e960a2`**，
+各阶段当时写下的"未提交/工作树为脏"是当时的真实状态，保留不改写。运行清单始终以
+`code.commit` + `dirty` + `dirty_diff_sha256` 标识其代码身份。
 
 ---
 
@@ -556,7 +558,7 @@ P2 退出条件（SPEC 9）逐项：
 
 ---
 
-## P3：冻结实验与对照报告 —— 进行中
+## P3：冻结实验与对照报告 —— 已完成（退出条件满足；门槛组 4/5，G5 未达 ⇒ 整体 `claim: not met`）
 
 ### 0. 冻结前裁定：缺陷 27（`displace_placed` 机制）
 
@@ -671,6 +673,457 @@ P2 §5 的欠账是"`needs_blind_review` 只产出证据指针，没有 rubric�
 **P3-d 的正式批次若仍为 0，报告就照实写 0 条待审、盲审为空集**，不得为了让盲审有数可报去放宽自动
 口径的判定线；若出现条目，则两名审阅人的 verdict 必须先入库，报告才允许引用 adverse 比率。
 
-**测试**：新增 `tests/unit/test_blind_review.py`（20 条：表 6 / verdict 6 / 注册文件 1 / 报告渲染 1 /
-CLI 4 / 其余 2），证据侧用真实 episode 的 `events.jsonl` 铺成 run 目录，准则读的是注册文件本身而不是
-fixture 副本。全量离线套件 **206 passed in 129.09 s**（上一基线 188+2，其中 2 条是 online 跳过项）。
+**测试**：新增 `tests/unit/test_blind_review.py`（20 条：出表 5 / verdict 与聚合 8 / 注册文件与
+报告呈现 3 / CLI 4），证据侧用真实 episode 的 `events.jsonl` 铺成 run 目录，准则读的是注册文件
+本身而不是 fixture 副本。全量离线套件 **206 passed in 129.09 s**（上一基线 188+2，其中 2 条是
+online 跳过项）。
+
+### 2. 代码身份：P0–P3§1 的提交
+
+按用户指令"先提交当前进度"提交为 **`4e960a2`**（`feat(P0-P3): 持续决策闭环的可信实验底座与冻结前
+裁定`）：46 files，+22,732 / −4,849，未 push。包含 SPEC 正本、`configs/experiment/` 两份预注册
+文件、本阶段记录、5 个新评估模块（`protocol/report/sources/state_utilization/blind_review`）、
+9 个新测试文件，以及 3 个旧测试的删除（`test_replan_budget`、`test_w2_4_contracts`、
+`test_w2_5_benchmark`：它们断言的正是 SPEC 2 取消掉的"Runtime 替模型重规划"行为）。
+提交前对全部暂存内容做过凭证扫描（无 `DEEPSEEK_API_KEY=`、无 key 形状字符串；命中的两条
+`sk-` 是 `task-relevant` 一词）。
+
+**未纳入**：`runs/` 两个历史产物目录、`work/p0_*` 一次性探针脚本、14 个仅有权限位变化
+（644→755，零行内容改动）的文件、1 个仅有行尾变化的历史 CSV。理由：产物与已丢弃的探针不是代码
+身份的一部分，权限位与行尾也不是本轮改动，把它们混进这一笔只会让"哪段代码产出了哪份结果"更难读。
+
+**如实记录的后果**：`git status --porcelain` 仍非空（16 个跟踪文件的权限/行尾差异 + 35 个未跟踪
+路径），所以此后
+每一次运行清单的 `code.dirty` 仍是 **`true`**；变的是 `dirty_diff_sha256` 的量级——从"整轮 P0–P3
+改动"缩到"权限位 + 一份 CSV + 本文件的这次编辑"（本小节写下后该值即改变，这正是要同时记
+`commit` 与 `dirty_diff_sha256`、而不是只记其一的原因）。**冻结的是 commit 身份，不是"干净的树"**；
+P3-c 的预注册文件因此记 `commit + dirty + dirty_diff_sha256` 三项，并把未纳入版本控制的残留逐项写明。
+
+### 3. P3-c 冻结：一份会让运行器和报告**拒绝执行**的预注册
+
+§9 要求冻结"代码、任务、seed、事件、prompt、预算、统计口径、模型配置"。前三节把这些分别钉住了
+（任务清单 `2f1c74f52e91…`、盲审准则 `95811983da05…`、代码 `4e960a2`），但**分别钉住不等于有人核对**。
+本节要的不是把它们抄进一个 JSON 再声明已冻结，而是一个入口：写下这些之后，"把 0.80 改成 0.75 再跑"
+必须变成一次**拒绝**，而不是一句承诺。
+
+**交付**：`configs/experiment/p3_preregistration_v1.json`（21,424 B，`prereg_id: p3-formal-v1`，
+`rules_sha256 = 23abe58ff33372ffa6f62a608221dfc1af2006f85ae50f7651a0f28451aae7b3`）与生成器
+`embodied_agent/evaluation/preregistration.py`（625 行，14 个 rules 块）。三条取舍：
+
+1. **每个冻结值都从"当场起作用的那个对象"读出，不重新录入**：预算取 `Budgets.model_fields[...].default`；
+   采样取 `DeepSeekAdapter.__init__` 的签名默认；prompt 版本号取 `DeepSeekPlanner.__init__` 的默认值，
+   另外对 system/user 文本本身取 sha256；统计口径取 `report.BOOTSTRAP_*` 与 `wilson_interval` 的签名默认；
+   任务与矩阵取 `build_set("formal")` + `frozen_manifest()`；`per_episode_http_cap = 32` 是**正式集各 case
+   自己 `Budgets` 里最宽的那个**。只有这样才写得出"改代码 ⇒ 哈希必变"的测试（用 `monkeypatch` 改一条
+   `Budgets` 默认值、改一个 prompt 常量、改 `report.BOOTSTRAP_SEED`，三处都必须同时移动值和哈希）；
+   否则文件与代码可以各自自洽地同时错着。
+2. **哈希只覆盖 `rules`**，`provenance`（commit / dirty / `dirty_diff_sha256` / 依赖版本 / `generated_at`
+   / `amended_from`）在哈希之外。一次纯文档提交会移动 `provenance.code` 但不作废行为规则；反之动任何一个
+   门槛、预算或 prompt 版本都会作废。
+3. **漂移报到字段名**：`_flat`/`_drift` 逐叶子比对，消息形如 `temperature: frozen 0.2 != live 0.9`，
+   而不是只说"哈希不符"。
+
+**七条关于代码的不变量（I1–I7）**——它们可以在没有任何冻结数值变动的情况下失效，所以
+`check_prereg` 的顺序是：文件自洽 → **不变量** → 与活代码比哈希：
+
+| id | 位置 | 钉住的东西 |
+|---|---|---|
+| I1 | `DeepSeekAdapter.chat` | `"response_format": {"type": "json_object"}` 仍在（结构约束靠 API，不靠恳求） |
+| I2 | `DeepSeekAdapter._post` | `(body not read)`：provider 错误体不进异常消息，因此不进日志 |
+| I3 | `write_manifest` | `not recorded (SPEC 7: no credentials or full env)` |
+| I4 | `core/runtime.py` | `eval_spec` **不得出现**——Runtime 不替模型选策略（用户第 5 条禁令） |
+| I5 | `validate_verdicts` | `row.get("reviewer_kind") != "human"`：盲审不可能由模型自评 |
+| I6 | `OneShotPlanSource._settle_pending` | `self.per_action_extra_repeats`：A 臂的有限重复是基线规则不是策略 |
+| I7 | `Runtime.run_episode` | `prologue.get("http_requests")`：共用 goal parse 记进每个臂的预算 |
+
+`_function_source` 用正则 `^ *def name\(` + 缩进走位取函数体，**故意不用 AST**：让检查读到的字节就是
+评审人在编辑器里打开的那几行。测试钉住三种情形——新增一条假不变量会**在哈希比对之前**失败、
+`absent` 型 needle 命中即失败、目标函数改名后不存在也失败（不是静默通过）。
+
+**运行侧**（`evaluation/run.py`，`cli evaluate --prereg [PATH]`）：planner 的构造挪到 `run_id` 与
+`makedirs` **之前**，于是一次不合规的批次不留目录、不发请求。实测：
+
+```
+refused in 0.08s:
+  this batch is not the pre-registered one: the pre-registered set is 'formal', not 'smoke';
+  the pre-registered repeats are 3, got 1; the pre-registered planner is 'deepseek', got 'rule'
+dirs left: none created
+```
+
+`matrix_mismatch` 把"能矛盾于一份预注册"的方式一次列全：集合 ≠ `formal`、臂序 ≠ `['A','B','C']`、
+repeats ≠ 3、planner ≠ `deepseek`、`--cases/--limit` 会事后改分母、以及把 `planner.adapter.sampling`
+这个**活对象**与 `sampling.defaults_in_code` 逐键比（yaml 里偷改 temperature 在这里现形，报字段名）。
+不带 `--prereg` 时仍然**记录不强制**：仓库里存在该文件就顺带 `check_prereg`，把
+`{prereg_path, matches, detail, rules_sha256, enforced:false}` 写进 manifest——离线批次的产物上也看得见
+"它没按预注册跑"。入口 `cli prereg [--check PATH] [--out P] [--amend]`：0 = 文件与代码一致，3 = 不一致；
+对一个它不同意的文件拒绝覆盖，除非 `--amend`，且 `--amend` 必须给理由并把前哈希写进
+`provenance.amended_from`。
+
+**报告侧**（`report.py::preregistered_gates`）四种状态——未注册 / **refused** / 读不到 / 已判分。关键
+那一条：manifest 里记的 rules 哈希若与磁盘上现在的文件不符，门槛**拒绝判分**而不是照旧算数。手伸向
+JSON 里那个 `0.8` 的瞬间，正在为这次运行出具的那份报告就失效——这就是"不得在结果存在后调低门槛"
+从承诺变成机制的地方（测试演完整一幕：重冻结成 `0.99` ⇒ 同一批数字的状态列表变成
+`['met','met','not_met','not_met','met']`；把已冻结文件里的阈值手改一个字 ⇒ `refused`）。判分口径：
+G1 `b_clean ≥ 0.80`、G2 `a−b_clean ≤ 0.05`、G3 `b_perturbed ≥ 0.70`、G4 `b−a_perturbed 配对均值 ≥ 0.15`、
+G5 `状态对双臂达标 ≥ 10/12`；每条 `status ∈ {not_enforced, not_evaluable, no_measurement, met, not_met}`；
+`claim` 优先级为 `not_evaluable` → （全部 met **且**配对 95% 下界 > 0）`supported` → 否则
+`preliminary: … 95% interval crosses 0 …`。G3/G4 的分母**只**取冻结的 16 条 perturbed case
+（`_subset_rate`；合成 fixture 下 `denominators["perturbed"]["B"] == 48 = 16×3`）。报告新增
+`## Pre-registered gates (SPEC 12.2)` 一节与表头一行 ``pre-registered rules `23abe58ff333` matches=… refusal=…``。
+
+**写进产物的自限**：`change_policy.self_certification_limit` 明说这份文件**无法自证写在结果之前**，
+证据是另外两处——每个 run manifest 内嵌的 rules 哈希，和该路径的 git 历史。预算估计（1400–1600 请求 /
+6–7 M prompt tokens / 1.5–2.5 h）标注 `no estimate enters a denominator`；`api_cost_estimate` 仍是
+`null`（未配置 `pricing_usd_per_mtok`，不编造价格）；`pilot`（smoke × A,B,C × 1）明确
+`enforced_by_prereg: false`——校准批次不能冒充预注册样本，因此它**必须**在 `--prereg` 之外跑。
+正式矩阵：24 case × 3 臂 × 3 repeat = 216 episode + 72 次共用 goal parse，`batch_http_upper_bound
+= 6912`（上界，不是预期）。
+
+**测试**：新增 `tests/unit/test_preregistration.py`（28 条：值来自代码 7 / 哈希与校验 7 / 运行矩阵拒绝
+4 / 报告判分 7 / CLI 3）与 `tests/integration/test_run_artifacts.py` 追加 3 条
+（manifest 记录并区分 enforced、离线批次 5 条 `not_enforced` 且 `numbers` 全 `null`、拒绝时不留目录）。
+全量离线套件 **237 passed in 139.33 s**（P3§1 基线 206 passed in 129.09 s；+31 条测试 +10.2 s，
+派生 0.08 s + 校验 0.09 s 的常驻开销几乎看不见）。`cli prereg --check` 全程 0.35 s，哈希不变。
+
+**与 SPEC 的对应**：§9 P3 冻结清单 → 14 个 rules 块逐项落地并派生；12.2 四条门槛与"只有配对 95%
+下界 > 0 才配称稳定增益" → `gates` + `statistics.claim_rule`；11.2 固定 provider/模型标识/采样参数 →
+`sampling` 双记（声明文件 sha256 + 代码默认）且运行时比对活对象；11.1 配置聚类 → `statistics.aggregation`
+与 `bootstrap.cluster = case`（seed 20260919 固定，故冻结报告的区间可复现而非每次重抽）；§7 凭证 →
+`credential_policy` + I3 + `environment_variables: not recorded`；11.4 盲审非自评 → I5 + `blind_review` 块
+（含 `empty_is_a_result`）；"边界用例不进成功率分母" → `diagnostics` 把 12 对状态 + 11 条协议 +
+22 条边界分开计数。
+
+**剩余问题**：① P3-d 的真实批次尚未跑，此刻一切在线计数为 0；② `--prereg` 只比对
+`defaults_in_code` 那 6 个键（`⊆` 关系，测试用 `DeepSeekAdapter(api_key="probe-value-never-sent")`
+构造——不发请求），yaml 若新增一个未冻结的可选参数仍会静默生效，等真出现这种参数再改成整字典相等；
+③ 不变量是字符串 needle，把 I3 那句注释改写成别的话就会失败——有意选它（宁假阳不假阴），代价是无关
+提交多一次摩擦；④ 本文件写下之后 `provenance` 必然移动而 `rules_sha256` 不变，§2 记录的残留计数也已
+更新为 **20 个跟踪差异（14 仅权限位 + 1 仅行尾的 CSV + 5 个真实改动：`cli.py`/`run.py`/`report.py`/
+本文件/`test_run_artifacts.py`）+ 57 个未跟踪路径（33 个 `work/p0_*` 探针、21 个 `runs/smoke_*` 产物、
+本节的 3 个新文件）**。
+
+### 4. P3-d 试点：成本从"估计"变成"测得"，并当场抓到一处模型标识不符
+
+试点是冻结文件里唯一**明文排除在强制之外**的批次（`run_matrix.pilot.enforced_by_prereg: false`——
+`--prereg` 只放正式矩阵过去，所以校准必须在预注册之外跑）。命令
+`cli evaluate --set smoke --planner deepseek --modes A,B,C --repeats 1 --frozen --no-frames
+--out-root /tmp/p3d_pilot`（产物在树外；`--prereg` 缺席，但 manifest 仍记
+`pre_registration = {matches: true, rules_sha256: 23abe58f…, enforced: false}`，正是"记录不强制"的形状）。
+12 episode（4 case × 3 臂 × 1）全部落盘，**进程墙钟 124.51 s**：
+
+| 臂 | req/episode | prompt tokens（均值） | 决策轮 | 墙钟 | 被拒决策 | 模型错误 |
+|---|---|---|---|---|---|---|
+| A one-shot | **1.00** | 432 | 5.8 | 1.6 s | 0 | 0 |
+| B 连续决策 | **7.00** | 32,135 | 6.0 | 13.7 s | 0 | 0 |
+| C 有状态变化 | **7.25** | 22,263 | 6.2 | 13.9 s | 0 | 0 |
+| 合计 | 61 次（5.08/ep） | 219,320 + 8,242 补全 | 72 轮 | 116.4 s（episode 之和） | 0 | 0 |
+
+外加 4 次共用 goal parse（1,727 prompt tokens）。`api_cost_estimate` 仍是 `null`：
+`pricing_configured: false`，不编造单价。三个可直接外推的结论：① A 与 B/C 的**请求数差一个数量级**
+（1 vs 7），所以"成本"这一列在 SPEC 12.2 里必须和成功率一起报，否则 B 的增益可以靠多打十倍请求买来；
+② B 的 prompt tokens 随轮数累积（`smoke_state.B` 一轮不剩地读到 55,723），`history_cap` 是唯一让它
+不爆的东西；③ 216 episode 的正式批次按 smoke 长度外推是 ~1,097 请求 / 3.9 M tokens / 35 min，
+按正式集更长（更多物体、上限 32 请求）落回冻结估计的 1,400–1600 / 6–7 M / 1.5–2.5 h——**估计仍不进
+任何分母**，跑完只把测得值写在旁边。
+
+**试点抓到的第一件事（比成本更重要）**：逐条 `model_calls` 里 **57/57 次调用的
+`returned_model` 都是 `deepseek-flash`，而 `requested_model` 是我们冻结的 `deepseek-chat`**
+（decision 49 / one_shot_plan 4 / goal_parse 4，`error` 全为 `null`）。也就是说 provider 在
+`https://api.deepseek.com` 上把请求路由到了另一个模型标识。三点处置，都不靠"改个数字"：
+
+1. **不改 `sampling.model`**：那是我们**发出**的参数，冻结它是对的，运行时比对的是活对象
+   `DeepSeekAdapter.sampling`（也确实等于 `23abe58f…` 里那份）。要改的是**读数**，不是请求。
+2. **每次调用的两个标识都已经在逐条记录里**（SPEC 11.2 "实际模型标识"要的就是这个字段），所以
+   `rules_sha256` 不动、批次不作废：不符是可发现的，不是被藏起来的。
+3. **报告侧必须把它抬到台面上**，而不是留在 216×7 行 jsonl 里等人来翻。正式批次跑完后给
+   `report.py` 加一个跨全部 `model_calls` 的聚合 `model_identities_observed`
+   （`requested → returned: 计数`），并在结论措辞里以**返回标识**描述被试；加完重跑
+   `prereg --check` 确认哈希未动（该改动不触碰任何冻结规则，只新增读数）。**这一步留给正式批次之后**，
+   免得在批次运行中途改它 import 过的模块。
+
+**其余读数**（不作门槛，只是先确认机制在真线上仍然在动）：`smoke_state.A.r0` 是 A 臂基线形状的现场证据
+——1 次请求、9 轮、**3 次 `finish` 被 `FINISH_REJECTED` 挡下**、2/3 完成，与 §0 表里 mode A 的行为一致；
+`smoke_state.B/C` 各自回头重抓并做到 3/3（B 也记了 1 次假 finish，即它并非从不犯错，而是在被拒后改判）。
+`smoke_clarify` 三臂都 `needs_clarification / AMBIGUOUS_TASK`、0 决策轮、各 1 次请求（goal parse 之外
+没有决策调用发生），这正是"问一句"应当花掉的量。
+
+**环境事实（如实记录，不当作缺陷修）**：`cli doctor` 以 **exit 4** 结束，唯一失败项是 `gui_once`
+（`cannot connect to X server`，WSL2 无显示服务器）；`sim_connect_headless`、`dynamics_1000_steps`
+（~26,925 步/秒）、`ik_solve`（残差 2.0 mm）、`collision_query`、`camera_rgb_depth_headless` 全 PASS。
+所有臂走的都是 headless 直连物理，因此该失败项不在实验路径上——**试点与正式批次都不以 `doctor` 为门**，
+这一条写在这里以免日后有人把 exit 4 读成"环境坏了所以结果可疑"。
+
+### 5. P3-d 正式批次：完整结果、代表记录、协议偏差与下一步判断
+
+**跑的是什么**：`cli evaluate --set formal --planner deepseek --modes A,B,C --repeats 3 --frozen
+--prereg --out-root /tmp/p3d_formal`，产物 `formal_deepseek_20260919_180000`（树外）。运行清单记
+`pre_registration = {matches: true, enforced: true, prereg_id: p3-formal-v1,
+rules_sha256: 23abe58ff333…}`、`frozen = 2f1c74f52e91 matches=true`、`code = 4e960a2d2d18 dirty=true`。
+**planned 216 = rows 216**：一条样本都没丢，24 case × 3 臂 × 3 重复全部进入分母；`events_unfired` 全
+0，`INFRA` 结局 0。墙钟 **2838.87 s（47.3 min）**，1,631 次请求 + 诊断另 24 次；prompt tokens
+**7.19 M**、补全 234 k；`cost_estimate_usd` 仍为 `null`（未配置单价）。与冻结估计对照：请求
+1,631 vs 估 1,400–1,600（略高）、tokens 7.19 M vs 估 6–7 M（略高）、时间 47.3 min vs 估 1.5–2.5 h
+（**明显更快**）——估计本来就不进任何分母，写在这里只为校准下一轮的预算估计。
+
+**主指标（独立判分的完整任务成功率，逐 episode；每 case 恰好 3 重复 ⇒ episode 比率 = 逐 case 均值）**
+
+| subset | A | B | C |
+|---|---:|---:|---:|
+| clean（8 case × 3） | 24/24 | 24/24 | 24/24 |
+| execution_deviation（8×3） | 24/24 | 24/24 | 24/24 |
+| **state_change（8×3）** | **9/24** | **20/24**（+1 待澄清） | **20/24** |
+| 合计 72 episode | 57 | 68 | 68 |
+
+配对（逐 case，按 case 聚类 bootstrap 2000 次，seed 20260919）：`B−A` 全 24 case
+均值 **+0.153，95% CI [+0.042, +0.292]**（下界 > 0）；`C−A` +0.153 **[−0.014, +0.333]**（跨 0）；
+`C−B` +0.000 [−0.111, +0.083]。扰动合并子集（16 case）`B−A` **+0.2292 [+0.0625, +0.4167]**。
+
+**预注册门槛判分（`report.py::preregistered_gates`，阈值只从冻结文件读，`enforced=True`）**
+
+| gate | 度量 | 判据 | 测得 | 状态 |
+|---|---|---|---:|---|
+| G1 | B clean 点估计 | ≥ 0.80 | 1.000 | met |
+| G2 | A−B clean | ≤ 0.05 | 0.000 | met |
+| G3 | B 扰动合并点估计 | ≥ 0.70 | 0.9167 | met |
+| G4 | B−A 扰动配对均值 | ≥ 0.15 | 0.2292 | met |
+| G5 | 状态对双臂达标 | ≥ 10/12 | **9** | **not_met** |
+| claim | 五条全 met 且配对下界 > 0 | — | — | **not met** |
+
+状态利用诊断（在线、真上下文、执行 0 个）：`action_fit_rate 0.875`（21/24 上下文；对答出决策的
+23 个是 0.913，未答的那 1 个**留在比率里**），misses = schema_invalid×1 + wrong_choice×2，
+**9/12 对双臂达标**，未达的那三对是 `sp05 / sp08 / sp09`（两臂在各该冻结了不同可接受集合的上下文里
+ drew 了同一个动作），`unreachable_pairs []`（测量本身有效，不是取不到上下文）。对照 P1 的 rule
+ 控制：0.9167 与 10/12——**真模型在这一维上比规则控制低一对**。
+
+**结论措辞（按 SPEC 12.2 的规矩，不整套也不抹杀）**：不能写"能力增益未证实"——成功率维度的增益是
+**得到支持**的（G1–G4 全 met，且配对 95% 下界 +0.0625 > 0，这是冻结规则允许说"稳定正向增益"的唯一
+情形）；也不能写"P3 通过"——门槛组整体 `not met`，因为 G5 差一对。据此本阶段结论为：
+**持续决策闭环已实现并在预注册批次上给出完整结果；扰动子集上的成功率增益得到支持；状态利用维度未达
+预注册门槛（9/12 < 10/12），故第一组对照不判定为整体达标。** 12/2.2 的"不得在结果存在后调低门槛"
+在这里生效：G5 保持 10，本批次永远记为 not met。
+
+**增益从哪里来，必须说清（这条决定结果怎么读）**：把逐 case 差值摊开，**16 个扰动 case 里只有 5 个
+贡献了增益**（`sc_c2 +1.0`、`sc_c3 +1.0`、`sc_c5 +0.667`、`sc_c8 +0.667`、`sc_c1 +0.333`），
+其余 11 个（含全部 8 个 execution_deviation）差值为**恰好 0**；clean 的 8 个同样全为 0。也就是说
+24 个 case 里有 **16 个是 one-shot 计划无需回头就能全对的**——天花板效应真实存在，区间宽
+（[+0.0625, +0.4167]）也正是这个形状的结果。
+
+**A 与 B 的差别不止"谁决定下一步"（如实登记的对照缺陷）**：逐 place 调用统计——A 的 279 次 place
+**全部** `candidate_resolution = runtime_fallback_rule`（0 次点名候选），B 的 291 次与 C 的 296 次
+**全部** `model_named_candidate`（0 次回退）。原因在 prompt 里写死且是有道理的（`adapters/deepseek.py`
+的 plan 模板：*"不要写 candidate_id 或槽位坐标：你无法预知释放时哪个空位还在"*），所以这是
+**设计上的不对称**而不是 bug；但它意味着 A/B 之差同时包含"每轮重新决策"与"在释放那一刻点名槽位"
+两件事，本实验无法把二者分开。**不改冻结文件来掩盖它**（改 `arms` 会移动 `rules_sha256`，本批次立即
+不可判分）；把它登记为下一轮的实验设计项（见下面第 5 条）。
+
+**代表性记录（SPEC §9 P3 要求成功与失败各给实例，产物在 `/tmp/p3d_formal/.../episodes/<id>/`）**
+
+- **成功·主 Demo 形状 `sc_c1.B.r1`**（9 轮 / 8 技能 / 10 请求，独立判分 3/3）：r1 pick `obj_green_1`
+  → r5 place `tray_right` 点名 `cand-tray_right-obj_green_1-x580y240`，核验 `placed=true`；
+  r10 pick `obj_blue_2` → r14 place 点名 `…x580y320`，**释放瞬间环境施加 [-0.07, 0] 冲量**
+  （`before [0.5794,0.3346] → after [0.5523,0.3278]`，位移 0.0279 m），同一条反馈的独立核验读
+  `placed:obj_blue_2:tray_right = false`；r19 模型自行决定 `subgoal=重新抓取蓝色方块以修正其在右托盘`
+  → r23 place **换了一个候选** `…x580y240` → `placed=true`；r28/r32 第三件放 `tray_middle`；r37 finish。
+  `obj_green_1` 的已完成结果全程保留未被重做——SPEC 10.1 要求的三件事（真实位置回观察、自行决定重抓、
+  保留仍有效的结果）在这一条 episode 里逐条可查。
+- **失败·A 臂基线 `sc_c1.A.r0`**（9 轮 / 1 请求 / 2 技能类别）：同一条 one-shot 计划同样撞上事件
+  （本例位移 0.1501 m，`placed` 读 false），计划**不回头**，继续做完第三件后 r29 `finish`
+  → 被独立判分拒绝 → 冻结的基线保护允许它把**同一个 finish 再打两次**，共 3 次 `false_finish_attempts`，
+  终态 `FINISH_REJECTED`，2/3。A 的 15 条失败**全部**是这个形状（`ff=3`、`FINISH_REJECTED`），
+  且 5 个 case 的三个重复完全一致（同 seed、同计划、同轨迹）。
+- **失败·模型自己喊停 `sc_c1.B.r2`**（24 轮 / 25 请求 / 2/3）：最后一次 `pick obj_green_1` 的反馈
+  之后，r97 上下文上模型给出 `action = blocked`，事件记 `terminated_blocked` +
+  *"the model found no feasible next action; that is not a proof that the task is unsolvable"*。
+  `failure_type` 为空、`score_complete_success=false`——**Runtime 没有替它换方案或重启计划**，
+  这条失败按模型自己的决策入表。它是 B 三条失败里唯一一条"没有假称成功、也没有被拒决策"的。
+- **失败·重复无效被停 `sc_c4.C.r0`**（C 的三个重复全失败，终态 `REPEATED_INVALID`，1/4）：事件把
+  `obj_green_3` 的 `placed` 打成 false 之后，模型转去做 `obj_blue_4`（连吃两次 `GRASP_MISS` 后成功
+  放入 `tray_left`），随后 r45 去 pick 已经 `placed=true` 的 `obj_red_2` → `IK_OR_PATH_UNREACHABLE`，
+  r49 又去 pick `obj_purple_1`——**开始返工已完成物体**，触发同一无效动作上限被停。
+  同类形状还有 `sc_c4.C.r1`（`INVALID_DECISION`，24 轮，1/4）与 `sc_c5.B.r0`（`REPEATED_INVALID`，3/5）。
+- **变异性证据 `sc_c8.B.r1`**：`needs_clarification / AMBIGUOUS_TASK`（2/3 未完成），而同一 case 的
+  `r0`、`r2` 两个重复都成功。同一个冻结任务、同一个 seed 族、同一个采样参数下模型**自己不一致**，
+  这条按 `not success` 留在分母里，没有被剔除也没有被"再跑一次取好的"。
+
+**协议偏差（SPEC §9 P3 要求统一出表，全部来自产物而不是回忆）**
+
+1. **被试标识不符**：1,572 次有应答的调用**逐条**都是 `requested deepseek-chat → returned
+   deepseek-flash`（A 72 / B 699 / C 706 / goal_parse 72 / 诊断 23），无一条例外，故
+   `one_identity_throughout = true` 而 `note` 仍报"answered as something other than requested"。
+   provider 侧把我们发往 `https://api.deepseek.com` 的 `deepseek-chat` 请求路由到了
+   `deepseek-flash`。处置：请求参数保持冻结不动（那确实是我们发出去的），**本批次所有结论以
+   `deepseek-flash` 描述被试**；新增的报告聚合（`model_identities_observed`）把这条从 1,500 行
+   jsonl 抬到表头第一行。
+2. **11 次应答不合契约**（批内 10 + 诊断 1）：`DecisionSchemaError`，其中 **9 次同一字段**——
+   `execute.args.grasp_candidate_index: Input should be a valid string`（模型给的是整数），
+   1 次 `action` 取了枚举外的值。全部由有界语义修复吸收（B `semantic_repairs 7` + `rejected 7`、
+   C `5 + 5`），**没有一次被人工替换成合法动作**（`identical_repeats_total` B 13 / C 13 是模型自己
+   重复，不是替换）。成本表里的 `api errors` 为 0 只指传输/provider 层失败，两者不互相遮掩。
+3. **G5 未达**（9/12）——门槛未达本身按结果入表，不修门槛、不重跑取好的。
+4. `cli doctor` exit 4（`gui_once` 无 X server）：不在实验路径，两批次都不以它为门（见 §4）。
+5. **`sim-smoke --gui` 以 core dump 收尾**（`PhysicsScene.close()` 的 `p.disconnect()` 段错误；
+   `cli.py:84` 的 `close()` 在 `cli.py:86-90` 的 `os._exit` 保护之前执行）。不影响任何实验产物
+   （headless 全链路正常），但它意味着**本仓库没有可用的 GUI 执行入口**；本轮按"不扩大改动"原则
+   只登记。§4 之外另有一次为验证 GUI 而跑的 `sim-smoke --gui` 覆写了被跟踪的
+   `outputs/sim_smoke.png`，已 `git checkout --` 还原（该路径现为 clean）。
+6. **超出冻结估计但未超上界**：请求 1,631（估 1,400–1,600）、7.19 M prompt tokens（估 6–7 M），
+   单 episode 最宽 HTTP 上限 32 **无一逼近**（最大实测 25），`batch_http_upper_bound 6912` 未触及。
+
+**盲审（SPEC 11.4）：本批次 0 条待审条目**，`cli blind-review --run-dir …` exit 0、
+表内 `items_by_kind = {place_of_already_satisfied: 0, fork_answer_outside_both_label_sets: 0}`、
+`not_reviewable: []`、准则 `blind-review-v1`（`95811983da05…`）。这与 §1 末的预测一致：
+自动口径要求"重放一个已 `true` 的关系"或"答案落在两个标签集之外"，本批次一条都没出现
+（报告里 `redundant re-placements` 三臂全 0）。因此**没有任何 adverse 比率可报，也没有人审 verdict
+存在**；报告照实写"0 条待审 + 无人审记录 = 未审，不等于审过且清白"。**没有为了让盲审有数而去放宽
+自动判定线。**
+
+**测试与冻结的一致性**：本节的报告侧改动（新增 `model_identities_observed` 及其渲染，
++244/−1 行 `report.py`）之后，`cli prereg --check` 仍为 **`23abe58ff333…`**（未触碰任何冻结常量：
+`BOOTSTRAP_*`、`wilson_interval` 签名、预算、prompt 版本、矩阵、门槛全部原样），
+全量离线套件 **239 passed in 147.64 s**（新增 2 条报告测试：批次内换模型必须在同一臂里显成两行；
+应答标识一致时不得喊"more than one identity"），在线 4 条 opt-in 在冻结代码上 **4 passed in 35.49 s**。
+`report.py` 的改动发生在批次与诊断**都已跑完之后**，所以批次自身的 `dirty_diff_sha256` 不含它。
+
+**P3 退出条件（SPEC 9）逐项**——出口不要求收益为正，只要求四样东西都在，且措辞受门槛结果约束：
+
+| 退出条件要求 | 证据 |
+|---|---|
+| 完整结果（不因收益负而裁样） | 计划 216 = 实际 216 行，`pre_registration.enforced: true`、`rules_sha256 23abe58ff333…` 与冻结文件一致；`events_unfired` 全 0、`INFRA` 结局 0、无 dropped 样本；三臂 × 三 subset 逐 episode 计数与逐 case 配对区间全部在上表 |
+| 代表性成功记录 | `sc_c1.B.r1`（扰动后被独立判分打成 false → 模型自行重抓并**换候选** → 3/3，且已完成结果未被重做，SPEC 10.1 三件事逐条可查） |
+| 代表性失败记录 | `sc_c1.A.r0`（基线不回头 + 冻结保护允许三次 `finish` 被拒）、`sc_c1.B.r2`（模型自己 `blocked` 喊停，Runtime 未接管）、`sc_c4.C.r0`（返工已完成物体触发 `REPEATED_INVALID`）、`sc_c8.B.r1`（同 case 同参数下模型自身不一致，按 not success 留在分母） |
+| 协议偏差 | 上面 6 条统一出表，全部取自产物而非回忆；含被试标识不符（`deepseek-chat → deepseek-flash`）与 11 次不合契约的应答 |
+| 下一步判断 | 下面 6 条，由错误分布决定而非"再加几个模块" |
+| 措辞纪律（"只有在明确的门槛未达且已报告时，才能写'架构可运行，能力增益未证实'"） | 门槛组 4/5：G1–G4 met、G5 未达 ⇒ **既不能**写"能力增益未证实"（成功率增益的下界 > 0），**也不能**写"P3 全部通过"（`claim: not met`）；本阶段结论按上段那三句写，G5 保持 10、本批次永远记为 not met |
+
+**下一步判断（由错误分布决定，不由"再多加几个模块"决定）**
+
+1. **G5 的三对先当线索查，不当失败掩盖**：`sp05/sp08/sp09` 是"两臂 drew 同一动作"，而不是"模型选了
+   一个错误动作"。要么这两处的区别**没有进入模型可见上下文**（信息边界问题，P1 类），要么冻结的
+   可接受集合把两个都合理的下一步判成同一侧（口径问题，属 SPEC 14 允许在 dev 上校准的那部分）。
+   两条查法不同，先查再动。
+2. **天花板效应是这批数据最大的信息损失**：16/24 case 对 A 也全对 ⇒ 配对区间被 5 个 case 撑起。
+   下一轮需要的是"不回头就会错"的任务密度（共享区容量更紧、时程更长、多次扰动），而不是更多指标。
+3. **`grasp_candidate_index` 的类型是接口真实缺陷**（9/11 次违约都在它）：让决策 schema 同时接受
+   整数与字符串是一次**契约变更**，必须另立 v2 预注册（会动 `rules_sha256`、本批次不追溯）。
+4. **provider 标识要在下一批前钉死**：向 DeepSeek 侧确认路由，或在下一份预注册里把
+   `answered_as` 一起冻结；若某批次内出现两种应答标识，报告已会把该批判成"模型换过"，届时整批作废。
+5. **`blocked` 是最该进盲审队列的一类决策**，而现在的两条准则都盖不到它（`sc_c1.B.r2` 那种"模型
+   在 2/3 时宣布无路可走"到底是合理止损还是过早放弃，自动判不了）。给盲审加 kind 属于准则换版，
+   只能以新 `rubric_id` + 重跑发生，不能改本批次已冻结的 `95811983da05…`。
+6. **A/B 的"点名槽位"不对称**（上面单列的那条）需要在下一轮设计一个能分离它的臂，否则"每轮决策"
+   与"释放时刻点名候选"的收益永远混在同一个数字里。
+
+---
+
+## 全量验收审计：SPEC 12（工程验收 / 能力目标）与 SPEC 14（交付物）
+
+审计口径：每项只认**能在产物或测试里查到的证据**；证据只是叙述的，状态就写未满足或另立缺陷。
+结论：**12.1 七项全部满足**；**12.2 四条能力目标中三条满足、第四条（状态利用 ≥ 10/12）未满足**
+⇒ 门槛组整体 `claim: not met`。SPEC 14 末段的信息隔离 / 同底座对照 / 失败入分母 / 无隐藏策略替代
+四条原则**不因该结果调整**。
+
+### 12.1 工程验收（"必须全部满足"）
+
+| # | 要求（原文关键短句） | 状态 | 可查证据 |
+|---|---|---|---|
+| 1 | 决策链不读取 EvalSpec 或故障配置；改隐藏评分答案不影响构造的 `DecisionContext` | 满足 | `test_no_runtime_module_needs_the_hidden_answer`：AST 逐个扫生产模块的**标识符**（非散文）——`runtime/skills/verify/planner/placement_planner/interpreter/events/fault_injection/sources` 全为 0，`contracts` 作真阳性对照；`test_the_hidden_answer_never_appears_as_a_pair_the_agent_can_read`：`pr_goal_truth_mismatch` 把隐藏答案与 agent 所见**故意造成不一致**，模型按所见做完 ⇒ `complete_success=false`，且那条被评分的配对不出现在 `goal/progress/candidates/recent_feedbacks` 任何可读陈述里；`test_a_declared_disturbance_leaves_its_label_out_but_its_effect_in` |
+| 2 | 所有 execute 通过最新状态校验；成功/失败/超时/被拒决策/finish 都有完整证据链 | 满足 | 两臂共用同一 `_validate_decision` + `SkillExecutor` + `RuntimeVerifier`（唯一差异点是 `make_source`，SPEC 11.2）；`test_a_decision_about_another_rounds_context_is_refused_and_never_executed`、`test_every_action_traces_back_to_the_context_and_decision_that_asked_for_it`、`test_the_newest_feedback_is_what_the_next_round_is_shown`；11 条 `h_*` 协议夹具逐条覆盖 hold 冲突 / 缺参 / 陈旧候选 / 不可行候选 / 未知谓词 / 假 finish / 重复无效 / 语义修复上限 / 空答复 / schema 错 / API 超时；正式批次 216 个 episode 目录逐个含 `events.jsonl` + `episode_summary.json` + `model_calls.jsonl`（+ 帧） |
+| 3 | 持有、释放、unknown 分支测试覆盖**真实生产模块**；不得只验自建 Mock | 满足 | `test_place_robust.py`（14 项，真实 `PhysicsScene` + `SkillExecutor`，文件开头明写"replaces the mock-scene version"）；`test_state_fork.py`（5 项，深拷贝分叉后只有被声明的对象不同、第二次重跑同一臂分叉仍存活）；`test_contracts::test_verification_report_empty_is_unknown_not_success` 与 `…_unknown_propagates`；`tests/integration/test_state_utilization.py` 在真实 12 对上跑打分器；P0 缺陷 13 就是把"不可能失败的 mock 测试"整体搬到真实路径上 |
+| 4 | 已知相关失败修复或明确重新界定；必需离线测试全通过；在线测试 opt-in 且无静默 rule fallback | 满足 | 缺陷统一续号 **1–37**（P0 1–20、P1 21–30、P2 31–37），P3 另在各节登记（含 §0 对 27 号的冻结前复测裁定），每条给处置或"明确重新界定"；离线套件 **242 passed, 2 skipped in 169.45 s**（那 2 条 skip 正是下面说的 opt-in 真 key 用例，非在线用例一条不落）；在线 4 项无 `RUN_ONLINE=1` 时整档 skip（`tests/online/test_deepseek_online.py` 复用生产入口 `resolve_goal` + `run_one_episode`，真实 key 那条只断言协议不断言能力）；"无静默回退"由两处可失败的算术守住：**(a)** `DeepSeekPlanner.from_env` 在任何 episode 之前、`try` 之外构造——缺 key 让整批起不来而不是悄悄变 rule（P3 §4 试点前实测）；**(b)** P0 缺陷 19 删掉了恒等字段 `fallback_used`/`model_requests`，改为每个决策轮在 `model_calls.jsonl` 恰有一条记录、`decision` 事件的 `context_id` 必须是模型真被问过的上下文（离线孪生 `_assert_nothing_substituted_the_model` 每次普通 pytest 都跑）。A 臂按设计一次 episode 只问一次，它的"没被回退"由"询问失败即整 trio 入分母"（`test_a_goal_parse_that_crashes_costs_the_whole_trio_not_one_arm`）保证，而不是靠逐轮计数 |
+| 5 | 无执行中对象瞬移/吸附；正常技能不通过瞬时机械臂复位规避轨迹；预算覆盖内部等待与所有请求 | 满足 | 全 `core/` 内 **`resetBasePositionAndOrientation` 与 `createConstraint` 各 0 次**（`createMultiBody` 只在建场时造静态几何与物体；抓取是指关节位置控制 + 摩擦接触，没有胶水约束，物体在 `skills.py` 里没有任何位姿写入口）；`resetJointState` 只作用于 `self.robot` 的臂/指关节，且只出现在建场、`ik()` 的影子求解（存—取—还原）与 `reachable()` 探针里；`reset_arm()` 带运行期闩锁：`skills.py:134` 首次执行落下 `begin_execution()`，此后复位抛 `RuntimeError`——**本审计把这条从散文升级为断言**（新增 `test_an_arm_reset_is_legal_while_setting_up_and_refused_once_a_skill_ran`：执行前合法、执行后抛错、抛错后被抓物体位姿逐位不变）；持物路径用 `move_ee_straight` 按 `TRANSFER_WAYPOINT_M` 插值，`test_no_object_teleports_and_no_joint_resets_during_a_skill` 要求 `transfer/descend/release/retreat/settle` 五段齐备且 `sim_seconds_used > 0.5`；`settle()` 与 `wait_until_rest()` 在 `start_action` 激活时**消耗同一份 sim-time 预算**（SPEC 6.2 内部等待入预算），请求侧 `max_http_requests=32/episode`，单 episode 最大实测 25 |
+| 6 | 运行清单实际进入 runner；产物含版本、上下文、决策、反馈、独立分数和失败记录 | 满足 | `run.py::write_manifest` 在批次循环**之后**调用（清单是本批次的真实计数而非模板）；实测字段：`code{commit,dirty,dirty_diff_sha256,dirty_diff_stat,changed_files,repo_dir}`、`dependencies`/`python`/`platform`、`frozen{sha,matches}`、`pre_registration{prereg_id,rules_sha256,enforced,matches}`、`model{sampling(temperature,max_tokens,timeout_s,max_retries,base_url,stream,response_format),prompt_version,pricing_configured}`、`budget_profile`/`scene`/`modes`/`repeats`/`scoring_version`/`schema_version`；代理只记 kind（`"proxy": "direct"`），`environment_variables` 值恒为 `"not recorded (SPEC 7: no credentials or full env)"`；provider 错误体不入异常消息（`body not read`）；上下文/决策/反馈/独立分数逐 episode 落盘，失败行留在 `episodes.csv`（**216 planned = 216 rows**） |
+| 7 | 至少一组在线 clean 与状态变化 Demo；另提供真实失败案例；不以精选 Demo 替代批量结果 | 满足 | 全部**取自正式批次本身**（不是另跑的演示）：clean `clean_c1.B.r0` 等 24/24；状态变化 `sc_c1.B.r1`（释放瞬间环境施加冲量 → 独立核验读 `placed=false` → 模型自行重抓并换候选 → 3/3，且已完成项未被重做，SPEC 10.1 三件事逐条可查）；真实失败 4 条已在 P3 §5 指名（A 不回头 + finish 三连被拒、B 自宣 `blocked`、C 返工已完成物体触发 `REPEATED_INVALID`、B 同 case 自身不一致）；主证据是上面那张 216 episode 的分档表，代表记录只指名、不替代 |
+
+### 12.2 能力目标（本初稿建议值，四条逐条）
+
+| 目标 | 判据 | 测得 | 状态 |
+|---|---|---|---|
+| B clean 点估计 ≥ 80%，且相对 A 下降 ≤ 5 pt | G1 + G2 | 1.000；A−B = 0.000 | 满足 |
+| B 合并 state-change + execution-deviation ≥ 70%，且相对 A 提升 ≥ 15 pt | G3 + G4 | 0.9167；配对均值 +0.2292，95% CI [+0.0625, +0.4167] | 满足 |
+| 状态利用诊断 ≥ 10/12 对双臂可接受 | G5 | **9/12**（`sp05/sp08/sp09`） | **未满足** |
+| 不必要返工、重复失败与成本全部出表；成本显著增加时必须一起报 | 报表口径 | 见下 | 满足（并如实给出代价） |
+
+第四条的"一起报"：`behaviour` 三臂逐项（`redundant_replacements_of_satisfied_goals` 全 0；
+`false_finish_attempts` A **45** / B 0 / C 3；`disturbed_goal_recovery_rate` A 0.0 / B 0.7143 /
+C 0.6429；`identical_repeats_charged` A 0 / B 13 / C 13；`rejected_decisions` B 7 / C 5；
+`slot_resolution_fallbacks` A 279 / B 0 / C 0）与 `cost` 同表发布。**增益的代价必须同框**：B 比 A
+多 11 条成功，多花 **+706 请求（≈64 请求/条额外成功）、+4.17 M prompt tokens（≈379 k/条）、
++1,026.9 s 墙钟（≈93 s/条）**；`cost_estimate_usd` 仍为 `null`（未配置单价，SPEC 7 不臆造价格）。
+且这 +11 全部落在 `state_change`（9→20），`execution_deviation` 与 `clean` 三臂全为 24/24。
+
+**区间与措辞纪律**（SPEC 12.2 末段）：`B−A` 配对 95% 下界 +0.0625 > 0 ⇒ 成功率维度**可以**写
+"本实验支持稳定正向增益"；`C−A` +0.153 [−0.014, +0.333] 跨 0 ⇒ C 臂只能写"初步收益，证据不足"
+（其点估计与 B 相同这一事实不构成证据）。G5 保持 10，本批次永远记为 not met——**没有在结果出来之后
+调低门槛**，机制上也不可能：报告与运行器都从冻结文件读阈值，清单里的 `rules_sha256` 一旦与文件不符即
+拒绝判分（P3 §3）。
+
+因此本阶段结论是：**持续决策闭环已实现并在预注册批次上给出完整结果；扰动子集上的成功率增益得到支持；
+状态利用维度未达预注册门槛（9/12 < 10/12），故第一组对照不判定为整体达标。** SPEC 12.2 给"工程验收
+通过、能力目标未达"的那句模板（"持续决策闭环已实现，预期能力增益未证实"）**不适用于本批次**，因为它
+把三条已达也一并抹掉了；套用会是一次不准确的声明，正如写"P3 全部通过"是一次过度的声明。
+
+### SPEC 14 交付物清单
+
+| 交付物 | 落点 |
+|---|---|
+| 最小契约及运行入口 | `embodied_agent/core/contracts.py`；入口 `embodied_agent/cli.py`：`doctor / sim-smoke / run / evaluate / report / replay / freeze / prereg / state-util / blind-review / llm` |
+| 共同底座修复说明 | 本文件 P0 §1 与 §4（缺陷 1–20）+ `core/scene.py` 顶部不变量清单（几何真值、接触证据、无执行期瞬移、真实时间单位、有界动作、环境侧扰动唯一入口） |
+| 离线测试结果 | 本文件各阶段 §2；本审计结束时 **242 passed, 2 skipped in 169.45 s**（2 skip = 在线 opt-in）；产物由 `pytest` 的 `tmp_path` 与 `/tmp/p3_*` 生成，不落仓库 |
+| 在线 Demo 证据 | `/tmp/p3d_pilot/…`（试点，逐臂成本）与 `/tmp/p3d_formal/formal_deepseek_20260919_180000/`（正式批次，216 episode 目录 + 帧 + 三份 ledger + `report.json/md`） |
+| 冻结实验清单 | `configs/tasks/*` 经 `freeze` 出的清单，sha256 `2f1c74f52e91…`（24 formal + 11 protocol + 11 protocol-harness 边界 + 12 状态对，SPEC 11.1 规模） |
+| 两组主对照结果 | A/B/C 三臂逐 case `success_rate_by_case` + `by_subset` + `paired_comparisons`（`B−A`、`C−A`、`C−B`），逐 case 聚类 bootstrap 2000 次、seed 20260919 |
+| 成本和错误归因 | `report.json` 的 `cost` / `model_latency`（含 `by_kind` 与"无 ledger""无应答标识"两类缺席）/ `failure_attribution`（含 `INFRA` 与 `events_unfired`）/ `model_identities_observed` |
+| 能力结论的限制 | P3 §5：天花板效应（16/24 case 无信息量、区间由 5 个 case 撑起）、A/B 点名槽位不对称、被试标识 `deepseek-chat → deepseek-flash`、盲审 0 条 = 未审而非清白、24 case 的小样本区间宽度、单 seed 族与单一 provider |
+
+**本审计自身产生的两处改动**（不在实验路径上，不改任何冻结常量）：新增 1 条真实物理测试把
+SPEC 12.1.5 的机械臂复位闩锁从散文变成断言（`tests/unit/test_place_robust.py` +20/−0，套件因此
+从 239 → **242 passed**，含 2 条在线 opt-in skip），`report.py` 的 `+244/−1` 更正为本审计核对后的
+实际行数。二者都发生在批次之后，`cli prereg --check` 仍为 `23abe58ff333…`。
+
+---
+
+## 附：P3 之后换被试（成本处置），以及它为什么不能顶替 v1
+
+v1 那一批花掉了真钱（DeepSeek 侧约 10 元，1,631 请求 / 7.19 M prompt tokens），所以后续跑改用免费档
+provider：`agnes-2.5-flash` @ `https://api.agnes-ai.cn/v1`。
+
+**不编辑被哈希的文件**。`preregistration._sampling()` 把 `configs/models/deepseek.yaml` 的**字节**
+哈希进 `rules_sha256`（`declared_sha256`），改它一行注释都会让 v1 批次立即不可判分。因此新被试是
+**新文件** `configs/models/agnes.yaml`，而 prompt 三个版本（`s2-goal-v1 / s2-decide-v1 / s2-plan-v1`）
+逐项照抄——换的是被试，不是题。凭据仍按 SPEC 7：配置里只有 `api_key_env: LLM_API_KEY` 这个**变量名**，
+值只在 gitignored 的 `.env`；改完后对整仓（排除 `.git`/`.env`）与全部新产物做密钥串扫描，**零命中**。
+
+顺手抓到并修掉两个真实缺陷（都不在实验路径上，`prereg --check` 仍为 `23abe58ff333…`）：
+
+41. **`.env` 的值带引号时被原样发出**。两处 `.env` 读取（`cli._load_dotenv` 与
+    `adapters…from_env`）都不去引号，而 shell `. ./.env` 会去——于是 `LLM_API_KEY="sk-…"` 把引号
+    一起塞进 bearer token，回来的是 `HTTP 401 (body not read)`，一个按设计**不能**说出原因的报错。
+    新增 `strip_env_quotes`（只剥一匹配对）供两处共用。已确认本仓库原有 `DEEPSEEK_API_KEY=` 行未加
+    引号，故 v1 批次的密钥读取路径逐字节未变。
+42. **provider 标签写死在类上**（`self.provider = "deepseek"`），任何非 DeepSeek 端点都会被运行清单和
+    每条账本标成 `deepseek`——正是 P3 §5 偏差 1 那一类"标识不符"，只是这次由我们自己制造。改为配置
+    驱动（缺省仍 `deepseek`），并给 `run` 与 `state-util` 补上缺的 `--model-config`（此前只有
+    `evaluate` 有，单 episode 与诊断两条路都只能默默打旧端点）。
+
+**真实流量验证**（合计 9 次请求）：探针 1 次（65/12 tokens，0.66 s，`requested == returned`）；
+一条在线 episode `run --task clean:clean_c1 --mode B --planner deepseek --model-config
+configs/models/agnes.yaml` → **success，3/3 物体，7 决策轮 / 6 技能 / 8 请求**，账本 7 条全为
+`agnes / agnes-2.5-flash → agnes-2.5-flash`（**没有** DeepSeek 那种把请求改写成另一个模型的 Routing
+现象）；36,672 prompt + 1,132 completion tokens。与 v1 对照：B 臂平均 58.4 k prompt/episode、
+9.8 轮——本条 7 轮，差异来自任务与轮数，不能读成"新模型更省"。
+
+**冻结仍然守住"不能冒充"**：`evaluate … --model-config configs/models/agnes.yaml --prereg
+configs/experiment/p3_preregistration_v1.json` 直接拒绝，理由是原话
+`the model the adapter will send differs from the frozen one: base_url: frozen
+https://api.deepseek.com != live https://api.agnes-ai.cn/v1 | model: frozen deepseek-chat != live
+agnes-2.5-flash`（连同 set/arms/repeats/`--cases` 四条），且**未创建任何运行目录**。因此规则写清：
+Agnes 批次要判任何门槛，必须**另立 v2 预注册**（会移动 `rules_sha256`，v1 因此永远可判分）；
+v1 的结论永远只属于 `deepseek-chat`（应答 `deepseek-flash`），换被试不追溯它。
+反过来读也成立：不带 `--prereg` 跑的批次，清单里的 `pre_registration.matches: true` 说的是"冻结值与
+当前代码仍一致"，**不是**"这一批就是预注册的那一批"；报告据此把每条门槛标成 `not_enforced`、把 claim
+标成 `not_evaluable`，并把实际被试放在 `model_identities_observed` 里——三处一起看才不会把免费档的
+结果读成 v1 的结果。
+
+**剩余问题**：`--planner deepseek` 这个 kind 名如今指的是适配器类而不是端点，名字已经不准（改它
+会动 `matrix_mismatch` 的 `planner` 项 ⇒ 属 v2 的事）；未做全量 216 重跑，因为那既是新的实验规模、
+也要先确认免费档的速率与上下文上限能吞下 60 k tokens 级的上下文。

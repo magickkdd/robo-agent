@@ -48,6 +48,7 @@ from ..core.scene import PhysicsScene
 from ..core.skills import SkillExecutor
 from ..core.verify import build_world_state
 from .evaluator import IndependentEvaluator
+from .preregistration import PREREG_PATH, check_prereg, load_prereg, matrix_mismatch
 from .protocol import run_probe
 from .sources import (
     AblatedFeedbackSource,
@@ -201,22 +202,86 @@ def resolve_goal(case: TaskCase, repeat: int, planner, root: str,
     return resolution
 
 
+def installed_module_refusals(condition: str, *, experience_store, skill_memory) -> list[str]:
+    """Why a gate on an *uninstalled* module is a different experiment — on any channel.
+
+    P5 runs the memory and acquisition arms on a camera as well as on the privileged loop, and the
+    rule that keeps §9's rows unambiguous cannot depend on which one: `wo_episodic_memory` and
+    `wo_skill_acquisition` are switches on things that must be there to be switched off. A batch
+    without the store/library takes a different code path that merely happens to behave the same,
+    which is the two-experiments-under-one-name failure the check exists to prevent — so it is
+    stated once here and consulted by both channel branches rather than paraphrased twice.
+    """
+    from ..episodic.arm import EPISODIC_ARMS
+    from ..planning.arm import PLANNING_ARMS
+
+    reasons: list[str] = []
+    if condition in EPISODIC_ARMS and condition not in PLANNING_ARMS and experience_store is None:
+        reasons.append(
+            f"arm {condition!r} needs --experience-store: the contrast is the module switched off "
+            f"on a loop that has a store, not a loop built without one, or the two arms differ by "
+            f"more than the gate")
+    if condition == "wo_skill_acquisition" and skill_memory is None:
+        reasons.append(
+            f"arm {condition!r} needs --skill-memory: the arm switches §5.6's pipeline off *an "
+            f"installed library*, and a loop built with no library at all takes a different code "
+            f"path that merely happens to offer nothing")
+    return reasons
+
+
 # ---------------------------------------------------------------- source -----
 
 
 def make_source(mode: str, case: TaskCase, planner, rt: Runtime, goal: GoalSpec,
-                log_call=None):
+                log_call=None, policy: str | None = None):
     """The only place the three arms differ (SPEC 11.2: same everything else).
 
     Mode A's plan is drawn from `rt.initial_context(...)` — the identical
     context a mode B round gets at t0 — and a failing one-shot request is the
     baseline's own outcome, not something to paper over with the rule plan.
+
+    `policy` switches mode B's *control*, and is refused anywhere else. `rule` is the v0.1
+    deterministic policy: it reads pending goals and the measured hold state and never a plan, so
+    switching the plan off changes nothing it can see. `payload` is `planning.policy.PlanPolicy`,
+    which reads `ctx.model_payload()` and nothing else — the same page a model would read. Without
+    that second object there is no way to tell "the arm removed information" from "the decision
+    maker never used the information", which is the whole of 9's planning contrast (P2-c's
+    measurement, now reachable from this entry point).
+
+    `memory` is one step further on the same logic: `episodic.policy.MemoryPolicy` is `PlanPolicy`
+    with one extra input, the order of objects in the recalled experiences, so a `full` vs
+    `wo_episodic_memory` difference under it is a difference in what the page said and nothing else.
+    It is refused on a runtime with no experience store, because such an episode would read a page
+    with no `recalled` key and be `payload` answering to two names — the one thing a policy switch
+    must never produce.
     """
+    if policy not in (None, "", "rule", "payload", "memory"):
+        raise ValueError(f"unknown policy {policy!r}; declared: 'rule' (the v0.1 control), "
+                         f"'payload' or 'memory' (both read only ctx.model_payload())")
+    if policy in ("payload", "memory") and (mode != "B" or planner is not None):
+        raise ValueError(
+            f"--policy {policy} is the zero-spend control for mode B only: mode A's claim is a plan "
+            f"drawn once at t0, mode C's is an ablated feedback stream, and a batch with a model "
+            f"planner already has its decision maker")
+    if policy == "memory" and getattr(rt, "experience_store", None) is None:
+        raise ValueError(
+            "--policy memory needs an episodic arm with a store on the runtime: with no "
+            "`working_memory.recalled` section to read it is planning.policy.PlanPolicy under a "
+            "second name, which is a renamed run rather than a contrast. Pass "
+            "`--experience-store` (an empty file is a legitimate cold start)")
     if planner is None:
         rule = RulePlanner(case.verify)
         if mode == "A":
             ctx = rt.initial_context(task_input(case), goal)
             return OneShotPlanSource(rule.plan(goal, ctx.world, plan_id=f"p_{ctx.context_id}"))
+        if policy == "payload":
+            from ..planning.policy import PlanPolicy
+
+            return PlanPolicy()
+        if policy == "memory":
+            from ..episodic.policy import MemoryPolicy
+
+            return MemoryPolicy()
         source = RulePolicySource(case.verify)
     else:
         if mode == "A":
@@ -255,13 +320,25 @@ class _FramedExecutor(SkillExecutor):
 
 
 def run_one_episode(case: TaskCase, repeat: int, mode: str, resolution: GoalResolution,
-                    planner, root: str, set_name: str, *, frames: bool = True) -> dict:
+                    planner, root: str, set_name: str, *, frames: bool = True,
+                    perceive: str = "privileged", ablation=None, adapter=None,
+                    views: tuple[str, ...] | None = None,
+                    default_view: str = "main", policy: str | None = None,
+                    experience_store=None, skill_memory=None, propose: str = "rule",
+                    propose_ask=None, validation_budget: int = 1) -> dict:
     """One episode, start to finish, with its artifacts.
 
     Nothing here decides *what to do*: the source chooses, the runtime executes
     and validates, the evaluator scores afterwards. A raised error escapes to
     `run_group`, which records it rather than retrying — a retry would be the
     runner repairing the sample it is supposed to report.
+
+    `perceive` chooses which arm the loop runs in and is the only place that decision is
+    made (SPEC-v0.2 §9, §13 P1-e). Its default is the v0.1 path: `build_arm("privileged")`
+    hands back a plain `Runtime`, so an untouched call to this function is the sealed
+    baseline, not a new implementation of it. `PerceptionUnavailable` escapes here too, for
+    the same reason a crash escapes: an episode whose camera never answered is not a
+    failure the arm earned.
     """
     episode_id = f"{case.task_id}.{mode}.r{repeat}"
     ep_dir = os.path.join(root, "episodes", episode_id)
@@ -273,8 +350,104 @@ def run_one_episode(case: TaskCase, repeat: int, mode: str, resolution: GoalReso
         executor = _FramedExecutor(scene, world_provider=lambda: None,
                                    frame_dir=ep_dir if frames else None, config=case.verify)
         store = EpisodeStore(ep_dir, episode_id)
-        runtime = Runtime(scene, executor, ep_dir, case.budgets, episode_id,
-                          config=case.verify, environment=controller, store=store)
+        if perceive == "privileged" and ablation is None and experience_store is None \
+                and skill_memory is None:
+            runtime = Runtime(scene, executor, ep_dir, case.budgets, episode_id,
+                              config=case.verify, environment=controller, store=store)
+        elif perceive == "privileged" and skill_memory is not None:
+            # §5.6's arm, and it is checked *before* the memory arm because it is the wider one:
+            # `build_skill_arm` stacks acquisition on the episodic arm and passes an
+            # `experience_store` through, so a batch that installed a library gets the whole v0.2
+            # loop and a batch that installed only a store keeps P3's code path untouched. Refusing
+            # a camera channel here is the store's own refusal, one module later.
+            from ..acquisition.arm import build_skill_arm
+
+            runtime = build_skill_arm(case=case, scene=scene, executor=executor, store=store,
+                                      run_dir=ep_dir, episode_id=episode_id,
+                                      budgets=case.budgets, perceive=perceive,
+                                      ablation=ablation, environment=controller,
+                                      experience_store=experience_store, task_kind=set_name,
+                                      skill_memory=skill_memory, ask=propose_ask,
+                                      proposer=propose, validation_budget=validation_budget)
+        elif perceive == "privileged" and experience_store is not None:
+            # 9's *memory* arm: the plan, the ledger, the re-derivation and now the store, on the
+            # zero-spend channel. `set_name` is the §5.4 任务上下文 kind term — the loop cannot
+            # invent it from the utterance without making the experiment's fact into the runtime's
+            # opinion, and a store full of `long_horizon` rows would otherwise be queried by a
+            # batch that never said which set it was running.
+            from ..episodic.arm import build_episodic_arm
+
+            runtime = build_episodic_arm(case=case, scene=scene, executor=executor, store=store,
+                                         run_dir=ep_dir, episode_id=episode_id,
+                                         budgets=case.budgets, perceive=perceive,
+                                         ablation=ablation, environment=controller,
+                                         experience_store=experience_store, task_kind=set_name)
+        elif perceive == "privileged":
+            # A privileged batch with a declared arm is 9's *planning* contrast: the plan, the
+            # ledger and the re-derivation are gated, and the vision model was never in the loop
+            # to begin with. `build_planning_arm` files that asymmetry in the record's own `notes`
+            # rather than hiding it, which is what makes a `full` row here readable as "planning
+            # full, no camera" and not as the whole system.
+            from ..planning.arm import build_planning_arm
+
+            runtime = build_planning_arm(case=case, scene=scene, executor=executor,
+                                         store=store, run_dir=ep_dir, episode_id=episode_id,
+                                         budgets=case.budgets, perceive=perceive,
+                                         ablation=ablation, environment=controller)
+        elif skill_memory is not None or experience_store is not None:
+            # §13 P5's closed loop: the camera channel with the memory arm, the library, or both
+            # installed. The perceiver and the grounding map come from
+            # `perception/arm.py:build_perceiver` — the very function `build_arm` calls — so "how a
+            # look is wired" stays stated in one place, and a joined arm cannot grow a second
+            # opinion about which body `obj_red_1` names. Each builder still refuses a perceiver it
+            # was not handed, and `PerceptRuntime.__init__` still runs `arm_coherence`: joining the
+            # arms adds a capability and removes no gate.
+            from ..perception.arm import arm_for_channel, build_perceiver
+            from .calibration import cell_catalog
+
+            perceiver, gmap = build_perceiver(case=case, scene=scene, run_dir=ep_dir,
+                                              episode_id=episode_id, perceive=perceive,
+                                              adapter=adapter, views=views,
+                                              catalog=cell_catalog(scene.trays.values()),
+                                              default_view=default_view)
+            channel_arm = arm_for_channel(perceive, ablation)
+            if skill_memory is not None:
+                # Checked first for the reason the privileged branch above gives: the acquisition
+                # arm stacks on the episodic one and passes the store through, so one builder
+                # assembles the whole loop.
+                from ..acquisition.arm import build_skill_arm
+
+                runtime = build_skill_arm(case=case, scene=scene, executor=executor, store=store,
+                                          run_dir=ep_dir, episode_id=episode_id,
+                                          budgets=case.budgets, perceive=perceive,
+                                          ablation=channel_arm, environment=controller,
+                                          perceiver=perceiver, gmap=gmap,
+                                          experience_store=experience_store, task_kind=set_name,
+                                          skill_memory=skill_memory, ask=propose_ask,
+                                          proposer=propose, validation_budget=validation_budget)
+            else:
+                from ..episodic.arm import build_episodic_arm
+
+                runtime = build_episodic_arm(case=case, scene=scene, executor=executor,
+                                             store=store, run_dir=ep_dir,
+                                             episode_id=episode_id, budgets=case.budgets,
+                                             perceive=perceive, ablation=channel_arm,
+                                             perceiver=perceiver, gmap=gmap,
+                                             environment=controller,
+                                             experience_store=experience_store,
+                                             task_kind=set_name)
+        else:
+            from ..perception.arm import build_arm
+            from ..perception.grounding import GroundingMap
+            from .calibration import cell_catalog
+
+            runtime = build_arm(case=case, scene=scene, executor=executor, store=store,
+                                run_dir=ep_dir, episode_id=episode_id, perceive=perceive,
+                                catalog=cell_catalog(scene.trays.values()),
+                                gmap=GroundingMap.from_objects(case.objects),
+                                budgets=case.budgets, environment=controller,
+                                ablation=ablation, adapter=adapter, views=views,
+                                default_view=default_view)
         executor.world_provider = runtime.observe
 
         def log_call(payload, latency_s):
@@ -283,7 +456,8 @@ def run_one_episode(case: TaskCase, repeat: int, mode: str, resolution: GoalReso
                            "episode_id": episode_id, "mode": mode, "case_id": case.task_id,
                            "repeat": repeat, "recorded_at": time.time()})
 
-        source = make_source(mode, case, planner, runtime, resolution.goal, log_call)
+        source = make_source(mode, case, planner, runtime, resolution.goal, log_call,
+                             policy=policy)
         result = runtime.run_episode(task_input(case), resolution.goal, source, mode=mode,
                                      prologue=resolution.prologue())
         events = store.read_all()
@@ -291,10 +465,30 @@ def run_one_episode(case: TaskCase, repeat: int, mode: str, resolution: GoalReso
         score = IndependentEvaluator(snapshot, case.eval_spec).score(result)
         probe = run_probe(case, result, score, events,
                           {"needs_clarification": str(result.failure_type or "")})
+        perceiver = getattr(runtime, "perceiver", None)
+        perception = {
+            "channel": perceive,
+            "arm": getattr(getattr(runtime, "ablation", None), "condition", "unset"),
+            "views": sorted(perceiver.views) if perceiver else None,
+            "default_view": perceiver.default_view if perceiver else None,
+            "looks": len(perceiver.percepts) if perceiver else 0,
+            "look_tokens": perceiver.usage() if perceiver else {},
+            "look_http_requests": perceiver.http_requests if perceiver else 0,
+            "grounding_map_sha256": (runtime.gmap.sha256() if perceiver else None),
+            "perception_events": sum(1 for e in events if e["type"] == "perception"),
+            "ablation_events": sum(1 for e in events if e["type"] == "ablation"),
+        }
         summary = {
             "episode_id": episode_id, "case_id": case.task_id, "set": set_name,
             "subset": case.subset, "mode": mode, "repeat": repeat,
             "expected": case.expected, "probe": probe, "score": score,
+            "perception": perception,
+            # Who answered the rounds, named from the object that answered them. An arm's row is
+            # only readable if the row says whether the decision maker could see the plan at all:
+            # the v0.1 control reads pending goals and no plan, so without this field a `full` vs
+            # `wo_planning` difference and a policy swap would look identical in the table.
+            "decision_source": {"mode": mode, "policy": policy or "rule",
+                                "provider": getattr(source, "provider", "unknown")},
             "result": result.model_dump(mode="json"),
             "goal_resolution": {"planner": resolution.planner, "artifact": resolution.artifact,
                                 "shared": True, "counters": resolution.counters,
@@ -307,6 +501,71 @@ def run_one_episode(case: TaskCase, repeat: int, mode: str, resolution: GoalReso
                           "frames": int(getattr(executor, "_frames", 0))},
             "wall_time_s": round(time.time() - started, 2),
         }
+        # §5.4's write, and the only place the store is touched by a run. It goes through the same
+        # `experience_from_episode` an offline reader calls on the archive, so a row a batch acted
+        # on cannot differ from a row somebody rebuilds afterwards; a batch that differed would be
+        # measuring a memory nobody could check. The store's state is captured on both sides of it
+        # because a run that appended nothing and a run that appended one row look the same in the
+        # counts alone, and RQ3 is answered from this field rather than from the log.
+        writer = getattr(runtime, "write_experience", None)
+        if writer is not None:
+            before = list(experience_store.ids()) if experience_store is not None else []
+            experience = writer(summary, run_ref=ep_dir)
+            summary["episodic"] = {
+                "arm": str(getattr(getattr(runtime, "ablation", None), "condition", "unset")),
+                "store_path": getattr(experience_store, "path", None),
+                "store_size_before": len(before),
+                "experiences_before": before,
+                "retrievals": getattr(runtime, "retrievals", 0),
+                "rows_retrieved": getattr(runtime, "retrieved_rows", 0),
+                "rows_used": getattr(runtime, "used_rows", 0),
+                "written_experience_id": (experience.experience_id if experience else None),
+                "store_size_after": (len(experience_store.ids()) if experience_store else 0),
+                "store_fingerprint": (experience_store.fingerprint() if experience_store else None),
+                "memory_events": {key: sum(1 for e in store.read_all() if e["type"] == key)
+                                  for key in ("memory_retrieval", "memory_use", "memory_write")},
+            }
+        # §5.6's five boxes, run over the episode that just finished, and the only place the skill
+        # memory is touched by a run. It sits *after* `memory_write` for the same reason that write
+        # sits after `episode_end`: a gap is a claim about a finished run's records, and a pipeline
+        # that repaired the capability set mid-episode would be a runtime making a strategic choice
+        # about its own library (§9). The report is kept whether or not anything was acquired —
+        # including on `wo_skill_acquisition`, where it says so with the stages listed as
+        # not attempted — because §11's candidate-generation rate needs the episodes that produced
+        # no candidate as much as the ones that produced three, and an absent key cannot tell the two
+        # apart. `Ablation.violations()` is what proves the disarmed arm filed no `skill_*` record.
+        acquirer = getattr(runtime, "acquire_from_episode", None)
+        if acquirer is not None:
+            acquisition = acquirer(summary, run_ref=ep_dir)
+            if acquisition is not None:
+                acquisition["events_filed_in_log"] = {
+                    key: sum(1 for e in store.read_all() if e["type"] == key)
+                    for key in ("skill_gap", "skill_candidate", "skill_validation",
+                                "skill_library")}
+                acquisition["store_size_after"] = (len(skill_memory.entries)
+                                                   if skill_memory is not None else 0)
+                acquisition["refusals_in_store"] = (len(skill_memory.refusals)
+                                                    if skill_memory is not None else 0)
+                summary["skill_acquisition"] = acquisition
+        # What the control policy says it saw, per round. `PlanPolicy.trace` and
+        # `MemoryPolicy.memory_order` / `memory_declined` exist only on the policy object, which is
+        # built here and thrown away when the episode ends, so without this line §11's memory rows
+        # are unmeasurable: `retrieval relevance` and `stale memory usage` can be read off the
+        # `memory_retrieval` records, but *successful reuse* and *negative transfer* are claims about
+        # what the recall did to the choice, and the only artifact of a choice is a rationale that
+        # names it. Filed once, at the end, next to the trajectory it explains.
+        trace = getattr(source, "trace", None)
+        if trace:
+            summary["policy"] = {
+                "provider": getattr(source, "provider", "rule"),
+                "rounds": len(trace),
+                "recalled_ids": sorted({str(x) for entry in trace
+                                        for x in (entry.get("recalled") or [])}),
+                "declines": sorted({str(k) for entry in trace
+                                    for k in (entry.get("memory_declined") or {})}),
+                "followed_rounds": [entry["round_index"] for entry in trace
+                                    if entry.get("memory_followed")],
+                "trace": list(trace)}
         with open(os.path.join(ep_dir, "episode_summary.json"), "w", encoding="utf-8") as f:
             json.dump(summary, f, ensure_ascii=False, indent=2, default=str)
         return summary
@@ -335,10 +594,14 @@ def goal_logger(root: str):
 
 
 def _infra_row(case: TaskCase, repeat: int, mode: str, where: str, error: str,
-               wall_s: float, set_name: str) -> dict:
+               wall_s: float, set_name: str, perceive: str = "privileged") -> dict:
     return {"episode_id": f"{case.task_id}.{mode}.r{repeat}", "case_id": case.task_id,
             "set": set_name, "subset": case.subset, "mode": mode, "repeat": repeat,
             "expected": case.expected, "outcome": "infrastructure_error",
+            # the arm a crashed episode belonged to, because §11's arms are counted over
+            # every planned run: a row that lost its channel would be pooled into another
+            # arm's denominator
+            "perception": {"channel": perceive, "looks": 0},
             "infrastructure_error": {"where": where, "error": error, "traceback_tail": ""},
             "wall_time_s": round(wall_s, 2), "probe": {}, "score": {},
             "result": {"terminal_status": "failed", "failure_type": None}}
@@ -351,14 +614,80 @@ def _row_of(summary: dict) -> dict:
 def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats: int = 1,
               out_root: str = "runs", case_ids: list[str] | None = None,
               limit: int | None = None, frames: bool = True,
-              model_config: str | None = None, frozen_path: str | None = None) -> dict:
+              model_config: str | None = None, frozen_path: str | None = None,
+              prereg_path: str | None = None, perceive: str = "privileged",
+              ablation=None, views: tuple[str, ...] | None = None,
+              default_view: str = "main", policy: str | None = None,
+              experience_store=None, skill_memory=None, propose: str = "rule",
+              propose_ask=None, validation_budget: int = 1) -> dict:
     """Run `cases x modes x repeats` with the modes interleaved.
 
     Interleaving is a measurement decision: a provider that changes behaviour
     mid-batch then perturbs all three arms of a pair equally instead of
-    contaminating one side of every comparison (SPEC 11.2)."""
+    contaminating one side of every comparison (SPEC 11.2).
+
+    One batch is one perception arm. `perceive` therefore goes into the run id and the
+    manifest as well as into every episode row: a directory that mixed a privileged world and
+    a camera would hold rows that look comparable and are not, and §12.1's "same task, model
+    and environment across arms" is a claim about a batch, so which arm a batch ran in has to
+    be readable from the batch."""
     if planner_kind not in PLANNERS:
         raise ValueError(f"--planner must be one of {PLANNERS}")
+    # The control policy is refused here, before a run directory exists, for the same reason the
+    # arm is: `payload` replaces mode B's decision maker, so a batch that asked for it while
+    # handing that mode to a model planner, or while asking for mode A's one-shot plan, would
+    # produce rows whose source nobody could name afterwards.
+    if policy not in (None, "", "rule", "payload", "memory"):
+        raise InfraError(f"unknown policy {policy!r}; declared: 'rule' (the v0.1 control), "
+                         f"'payload' (planning.policy.PlanPolicy) or 'memory' "
+                         f"(episodic.policy.MemoryPolicy), both of which read only the model "
+                         f"payload")
+    if policy in ("payload", "memory") and (planner_kind != "rule" or set(modes) != {"B"}):
+        raise InfraError(
+            f"--policy {policy} needs modes=B and planner=rule (got modes={list(modes)}, "
+            f"planner={planner_kind}): it is the zero-spend control that answers from "
+            f"ctx.model_payload(). Mode A's claim is one plan drawn at t0, mode C ablates the "
+            f"feedback stream, and a model planner already has its own decision maker")
+    if policy == "memory" and experience_store is None:
+        raise InfraError(
+            "--policy memory needs --experience-store: with no store installed the runtime files "
+            "no retrieval record and writes no residue, so the batch would run planning.policy."
+            "PlanPolicy under a second name and report it as a memory arm")
+    if experience_store is not None and len(set(modes)) > 1:
+        # The store is batch-level state, and §7's modes are interleaved *within* a case. With A, B
+        # and C all writing a residue for the same task, C's episode would retrieve a memory A's
+        # episode produced seconds earlier: the three arms would no longer start from one state, so
+        # §12.1's "same task, model and environment across arms" would be false of the batch and
+        # §13's RQ3 (a *later similar* task) would be answered about the same task instead.
+        raise InfraError(
+            f"a memory batch runs one mode, got {sorted(set(modes))}: modes are interleaved per "
+            f"case, and each episode appends to the store the next one reads, so a multi-mode "
+            f"batch would let mode C of a task retrieve the residue mode A of the same task "
+            f"produced. Run the memory arms as separate single-mode batches")
+    if propose not in ("rule", "model"):
+        raise InfraError(f"unknown proposer {propose!r}; declared: 'rule' "
+                         f"(acquisition.propose.rule_candidate, zero spend) or 'model' "
+                         f"(acquisition.propose.model_candidate, which bills)")
+    if propose == "model" and propose_ask is None and skill_memory is not None:
+        # The refusal is about the batch, not the module: `model_candidate` takes an `ask` callable
+        # and has no offline fallback, so asking for a model proposer without wiring one would turn
+        # §5.6's proposal step into an exception inside every episode of the run.
+        raise InfraError("--propose model needs a caller-supplied asker (propose_ask=): "
+                         "acquisition.propose.model_candidate has no built-in provider and no "
+                         "offline fallback, and a batch that spends has to say who it is spending "
+                         "with. A skill proposal is also a *model* decision, so this run is no "
+                         "longer the zero-spend control the rest of v0.2 measures")
+    if skill_memory is not None and len(set(modes)) > 1:
+        # The same argument the store gets above, one module later: the library is batch-level state
+        # that an episode both reads (the offer) and writes (an admission), so interleaving modes
+        # would let one mode's episodes reuse a program another mode's episode acquired. §9's
+        # `w/o Skill Acquisition` contrast is two batches that differ by the gate, not one batch
+        # whose second half is contaminated by its first.
+        raise InfraError(
+            f"a skill-acquisition batch runs one mode, got {sorted(set(modes))}: episodes read the "
+            f"library through the offer and write it through admission, so a multi-mode batch would "
+            f"compare an arm against itself. Run the acquisition arms as separate single-mode "
+            f"batches")
     cases = build_set(set_name)
     if case_ids:
         cases = [c for c in cases if c.task_id in set(case_ids)]
@@ -367,15 +696,117 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
     if not cases:
         raise ValueError(f"no cases selected from set {set_name!r}")
 
-    run_id = f"{set_name}_{planner_kind}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    root = os.path.join(out_root, run_id)
-    os.makedirs(root, exist_ok=True)
-
     planner = None
     if planner_kind == "fixture":
         planner = FixturePlanner()
     elif planner_kind == "deepseek":
         planner = DeepSeekPlanner.from_env(model_config)
+
+    # The arm is resolved before a run directory exists, for the same reason the
+    # pre-registration is: a refusal must not leave a half-written batch behind, and a batch
+    # that ran under an arm nobody declared is not an arm, it is a contaminated comparison.
+    arm = None
+    if perceive == "privileged":
+        # P2-e puts 9's *planning* arms on the zero-spend channel, so a privileged batch with a
+        # declared condition has to be one this channel can mean. `arm_coherence` is deliberately
+        # not consulted: both of its rules are about the `perception` record, which a privileged
+        # world never produces, and applying it here would refuse every planning arm because none
+        # of them turns the vision model off. The disclosure the check would have made instead —
+        # that this `full` consulted no model — is filed by the arm in the record's `notes` and
+        # repeated in the manifest below, where a reader finds it before a number.
+        if ablation is not None:
+            from ..acquisition.arm import SKILL_ARMS
+            from ..core.v02 import ABLATION_CONDITIONS
+            from ..core.v02 import ablation as ablation_record
+
+            condition = getattr(ablation, "condition", ablation)
+            if condition not in ABLATION_CONDITIONS:
+                raise InfraError(f"unknown ablation condition {condition!r}; registered: "
+                                 f"{sorted(ABLATION_CONDITIONS)}")
+            if condition not in SKILL_ARMS:
+                raise InfraError(
+                    f"channel 'privileged' cannot carry arm {condition!r}: it turns off "
+                    f"{list(ABLATION_CONDITIONS[condition]) or 'nothing'}, and a privileged "
+                    f"world consults no vision model, so the row would be the baseline wearing a "
+                    f"name. Planning, memory and acquisition arms runnable here: {list(SKILL_ARMS)}")
+            reasons = installed_module_refusals(
+                condition, experience_store=experience_store, skill_memory=skill_memory)
+            if reasons:
+                raise InfraError("; ".join(reasons))
+            arm = (ablation if getattr(ablation, "modules_off", None) is not None
+                   else ablation_record(condition))
+    else:
+        from ..core.v02 import ablation as ablation_record
+        from ..perception.grounding import (
+            PERCEIVE_CHANNELS,
+            arm_coherence,
+            channel_readiness,
+        )
+
+        if perceive not in PERCEIVE_CHANNELS:
+            raise InfraError(f"unknown perception channel {perceive!r}; declared: "
+                             f"{list(PERCEIVE_CHANNELS)}")
+        not_ready = channel_readiness(perceive)
+        if not_ready:
+            raise InfraError("; ".join(not_ready))
+        arm = ablation if ablation is not None else ablation_record("wo_vlm")
+        clash = arm_coherence(arm, perceive)
+        if clash:
+            raise InfraError(f"channel {perceive!r} cannot carry arm {arm.condition!r}: "
+                             + "; ".join(clash))
+        # §13 P5: a store and a library are runnable on this channel now, and what keeps §9's rows
+        # unambiguous is not the channel but the two checks below — a gate needs the module it gates,
+        # and `arm_coherence` already decided which conditions this camera may carry at all (`stub`
+        # consults no vision model, so only `wo_vlm` may claim it; `vlm` produces the record, so
+        # `wo_vlm` may not). Resolved before a run directory exists, for the standing reason: a
+        # refusal must not leave a half-written batch behind, and must not spend a request on its way
+        # to saying no.
+        reasons = installed_module_refusals(getattr(arm, "condition", arm),
+                                            experience_store=experience_store,
+                                            skill_memory=skill_memory)
+        if reasons:
+            raise InfraError("; ".join(reasons))
+
+    # The pre-registration is checked before a run directory exists: a refusal must
+    # leave no half-written batch behind, and must not spend a request on its way to
+    # saying no (SPEC 9 P3).
+    pre = None
+    check_path = prereg_path or (PREREG_PATH if os.path.exists(PREREG_PATH) else None)
+    if check_path:
+        ok, msg = check_prereg(check_path)
+        pre = {"prereg_path": check_path, "matches": ok, "detail": msg[:400],
+               "rules_sha256": msg if ok else None, "enforced": bool(prereg_path)}
+        if prereg_path:
+            if not ok:
+                raise InfraError(f"refusing to run against a drifted pre-registration: {msg}")
+            rules = load_prereg(check_path)["rules"]
+            reasons = matrix_mismatch(
+                rules, set_name=set_name, modes=modes,
+                repeats=repeats, planner_kind=planner_kind, case_ids=case_ids, limit=limit,
+                sampling=getattr(getattr(planner, "adapter", None), "sampling", None))
+            if reasons:
+                raise InfraError("this batch is not the pre-registered one: "
+                                 + "; ".join(reasons))
+            pre["prereg_id"] = rules["prereg_id"]
+
+    # The channel name is in the run id wherever the channel is not the whole arm. On a camera
+    # channel it is: `stub` can only carry `wo_vlm` and `vlm` only `full`, so the channel already
+    # discriminates. On the privileged channel P2-e runs four arms, so the condition joins the id
+    # exactly where the channel stopped identifying the batch — two arms of one comparison left in
+    # directories with the same name would be pooled by whoever globbed them next. The control
+    # policy joins it for the same reason: `full` under the v0.1 control and `full` under the
+    # payload-reading one are two experiments, not one run twice.
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    tags = ([arm.condition] if perceive == "privileged" and arm is not None else []) + \
+           ([perceive] if perceive != "privileged" else []) + \
+           ([policy] if policy in ("payload", "memory") else []) + \
+           (["memstore"] if experience_store is not None else []) + \
+           (["skillmem"] if skill_memory is not None else []) + \
+           ([f"propose-{propose}"] if skill_memory is not None and propose != "rule" else [])
+    run_id = f"{set_name}_{planner_kind}_{'_'.join(tags)}_{stamp}" if tags else \
+        f"{set_name}_{planner_kind}_{stamp}"
+    root = os.path.join(out_root, run_id)
+    os.makedirs(root, exist_ok=True)
 
     goal_log = goal_logger(root)
 
@@ -393,11 +824,98 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
     with open(os.path.join(root, "task_manifest.json"), "w", encoding="utf-8") as f:
         json.dump(frozen_manifest(), f, ensure_ascii=False, indent=1, sort_keys=True)
 
+    from ..acquisition.arm import PIPELINE  # the arm's own section list, not a restatement of it
+
     write_manifest(root, run_id=run_id, set=set_name, planner=planner_kind,
+                   perception={"channel": perceive,
+                               "arm": arm.condition if arm else "unset",
+                               "modules_off": list(arm.modules_off) if arm else [],
+                               "views": list(views or ()), "default_view": default_view,
+                               "note": ("v0.1 path: the loop reads the simulator's own "
+                                        "inventory, no camera is rendered"
+                                        if perceive == "privileged" and arm is None else
+                                        "9's planning arm on a privileged world: the loop reads "
+                                        "the simulator's own inventory and consults no vision "
+                                        "model, so this arm's `full` means planning-full and not "
+                                        "the whole system (the claim is in every episode's "
+                                        "`ablation` record too)"
+                                        if perceive == "privileged" else
+                                        "the loop's world comes from a rendered frame")},
                    modes=list(modes), repeats=repeats, cases=[c.task_id for c in cases],
+                   decision_source={"policy": policy or "rule",
+                                    "note": ("'rule' is v0.1's deterministic control: it reads "
+                                             "pending goals and the measured hold state and never a "
+                                             "plan, so an ablation of the plan changes nothing it "
+                                             "can see. 'payload' is planning.policy.PlanPolicy, "
+                                             "which reads only ctx.model_payload() — the same page "
+                                             "a model would read — so the arms differ by what is on "
+                                             "the page and not by who is reading it. 'memory' is "
+                                             "episodic.policy.MemoryPolicy: that same policy with "
+                                             "one extra input to *row order*, the sequence of "
+                                             "objects in the unrefuted recalled experiences, and "
+                                             "no power to add, remove or re-aim an action the plan "
+                                             "did not already ask for."
+                                             if policy in ("payload", "memory") else
+                                             "the v0.1 control, unchanged")},
+                   # Named at batch level and per episode, because the store is not a constant of
+                   # the batch: every episode that ran the arm appends a row, so the tenth episode
+                   # of a `full` batch queries a different store from the first. The fingerprint
+                   # here is the state the batch *started* from (a frozen seed, if there was one),
+                   # and each row's `episodic` block carries its own before/after ids.
+                   episodic={
+                       "installed": experience_store is not None,
+                       "store_path": getattr(experience_store, "path", None),
+                       "fingerprint_at_start": (experience_store.fingerprint()
+                                                if experience_store is not None else None),
+                       "size_at_start": (len(experience_store) if experience_store is not None
+                                         else 0),
+                       "task_kind": set_name,
+                       "module_off": bool(arm is not None
+                                          and not arm.enabled("episodic_memory")),
+                       "note": ("episodes write their residue to this file after `episode_end`, "
+                                "and a later episode retrieves from whatever the file holds at "
+                                "that moment, so §13's RQ3 is answered from the batch order named "
+                                "in `cases` below"
+                                if experience_store is not None else
+                                "no store installed: §5.4's module is absent from this batch, "
+                                "which is not the same fact as `wo_episodic_memory`, where it is "
+                                "installed and switched off")},
+                   # §5.6's library, at the same two levels as the store above: batch-level for the
+                   # state it started from, per-episode for what each episode found and left. The
+                   # names are recorded rather than a hash because the useful question is "could this
+                   # episode have been offered `pick_and_place`?", and a hash cannot answer it. The
+                   # note says the thing a reader would otherwise assume: an empty `names_at_start`
+                   # means every offer in the batch was cold, so §11's `skill reuse success` row is
+                   # about the batch's own later episodes and not about a pretrained library.
+                   skill_acquisition={
+                       "installed": skill_memory is not None,
+                       "store_path": getattr(skill_memory, "path", None),
+                       "names_at_start": (sorted(skill_memory.names()) if skill_memory is not None
+                                          else []),
+                       "size_at_start": (len(skill_memory.entries) if skill_memory is not None
+                                         else 0),
+                       "refusals_at_start": (len(skill_memory.refusals) if skill_memory is not None
+                                             else 0),
+                       "proposer": propose,
+                       "asker_wired": propose_ask is not None,
+                       "validation_budget_per_episode": int(validation_budget),
+                       "module_off": bool(arm is not None
+                                          and not arm.enabled("skill_acquisition")),
+                       "pipeline": list(PIPELINE),
+                       "note": ("§5.6's whole pipeline runs inside the episode: gap detection, "
+                                "proposal, sandbox + verifier, cross-instance validation, admission. "
+                                "The `rule` proposer spends nothing; a `model` proposer needs an "
+                                "asker and is not the zero-spend control. A reuse is measured from "
+                                "the primitives the loop actually executed, because the frozen "
+                                "action space cannot name an acquired program (D49)")
+                       if skill_memory is not None else
+                       "no library installed: §5.6's module is absent from this batch, which is "
+                       "not the same fact as `wo_skill_acquisition`, where it is installed and "
+                       "switched off"},
                    budget_profile={c.task_id: c.budgets.model_dump(mode="json") for c in cases},
                    scoring_version="IndependentEvaluator/EvalSpec.tolerance_version",
                    frozen=freeze,
+                   pre_registration=pre,
                    offline=planner_kind != "deepseek",
                    model={"provider": getattr(planner, "provider", "rule"),
                           "model": getattr(planner, "model", "rule-interpreter"),
@@ -419,7 +937,8 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
             except Exception as e:  # noqa: BLE001 - should be unreachable; still a row
                 for mode in modes:
                     rows.append(_infra_row(case, repeat, mode, "goal_resolution",
-                                           f"{type(e).__name__}: {e}", 0.0, set_name))
+                                           f"{type(e).__name__}: {e}", 0.0, set_name,
+                                           perceive=perceive))
                 # the table is the report's input, so the rows a crash produced
                 # have to be in it as much as the rows an episode produced
                 _write_rows(rows, root)
@@ -428,7 +947,8 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
                 # SPEC 11.2: the whole pair fails together; no mode is dropped.
                 for mode in modes:
                     row = _infra_row(case, repeat, mode, "goal_resolution",
-                                     str(resolution.error), resolution.wall_s, set_name)
+                                     str(resolution.error), resolution.wall_s, set_name,
+                                     perceive=perceive)
                     row["outcome"] = "goal_resolution_error"
                     row["goal_resolution"] = {"artifact": resolution.artifact,
                                               "counters": resolution.counters}
@@ -439,12 +959,18 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
                 t0 = time.time()
                 try:
                     summary = run_one_episode(case, repeat, mode, resolution, planner, root,
-                                              set_name, frames=frames)
+                                              set_name, frames=frames, perceive=perceive,
+                                              ablation=arm, views=views,
+                                              default_view=default_view, policy=policy,
+                                              experience_store=experience_store,
+                                              skill_memory=skill_memory, propose=propose,
+                                              propose_ask=propose_ask,
+                                              validation_budget=validation_budget)
                     rows.append(_row_of(summary))
                 except Exception as e:  # noqa: BLE001 - a crash is a sample, not an absence
                     rows.append(_infra_row(case, repeat, mode, "episode",
                                            f"{type(e).__name__}: {e}", time.time() - t0,
-                                           set_name))
+                                           set_name, perceive=perceive))
                     rows[-1]["infrastructure_error"]["traceback_tail"] = traceback.format_exc()[-2000:]
                     _append_jsonl(os.path.join(root, "errors.jsonl"), rows[-1]["infrastructure_error"]
                                   | {"episode_id": rows[-1]["episode_id"],
@@ -610,6 +1136,9 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--model-config")
     r.add_argument("--frozen", nargs="?", const=FROZEN_PATH, default=None, metavar="PATH",
                    help="refuse to run unless the task list matches this hash")
+    r.add_argument("--prereg", nargs="?", const=PREREG_PATH, default=None, metavar="PATH",
+                   help="refuse to run unless the pre-registration matches this file and "
+                        "this batch is the matrix it pre-registered")
     e = sub.add_parser("replay-recorded", help="read back a logged trajectory (no physics)")
     e.add_argument("--run-dir", required=True)
     q = sub.add_parser("rerun-plan", help="re-execute an episode's last plan in a fresh scene")
@@ -621,7 +1150,7 @@ def main(argv: list[str] | None = None) -> int:
                   planner_kind=a.planner, repeats=a.repeats, out_root=a.out_root,
                   case_ids=[c for c in a.cases.split(",") if c.strip()] or None,
                   limit=a.limit, frames=not a.no_frames, model_config=a.model_config,
-                  frozen_path=a.frozen)
+                  frozen_path=a.frozen, prereg_path=a.prereg)
     elif a.cmd == "replay-recorded":
         recorded_replay(a.run_dir)
     else:

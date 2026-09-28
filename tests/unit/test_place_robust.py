@@ -10,6 +10,8 @@ has to fail when it stops being true:
 * an actuator error changes where the object is let go, while the request and the
   named candidate stay what the decision asked for, so the model reads a
   consequence rather than a label.
+* a joint teleport is legal only outside execution, so no skill can take the
+  shortcut the clause above would otherwise only assert in prose.
 """
 import math
 
@@ -274,6 +276,24 @@ def test_no_object_teleports_and_no_joint_resets_during_a_skill(rig):
     assert rig.scene.entity_by_body(origin) == eid
     final = rig.pose(eid)
     assert abs(final[2] - cand.rest_z) < 0.02, f"resting height {final} vs seated {cand.rest_z}"
+
+
+def test_an_arm_reset_is_legal_while_setting_up_and_refused_once_a_skill_ran(rig):
+    """The guard behind the clause above, on the real scene and the real executor.
+
+    `reset_arm` teleports joints, and a mid-skill version of it used to shove
+    tabletop objects around through the solver. Interpolated motion is only a
+    rule the code follows if the shortcut fails loudly, so: legal while the
+    episode is being built, an error from the first skill call onward, and the
+    refusal must cost the held object nothing.
+    """
+    eid = rig.objects()[0]
+    rig.scene.reset_arm()
+    assert rig.pick(eid).status == SkillStatus.completed
+    held = rig.pose(eid)
+    with pytest.raises(RuntimeError, match="outside execution"):
+        rig.scene.reset_arm()
+    assert rig.pose(eid) == held, "the refused reset still moved the object it was guarding"
 
 
 def test_two_objects_in_one_region_both_end_inside_and_the_second_waits_for_room(rig):

@@ -1,0 +1,2096 @@
+{
+ "ablation_registered": [
+  "full",
+  "wo_episodic_memory",
+  "wo_planning",
+  "wo_replanning",
+  "wo_skill_acquisition",
+  "wo_vlm",
+  "wo_working_memory"
+ ],
+ "arms": {
+  "control": "ablation=wo_episodic_memory + policy=memory",
+  "note": "the same policy, the same store, the same budget, one module switch: with the gate off §5.4's retrieval never runs, so `working_memory.recalled` is empty and `MemoryPolicy` is `PlanPolicy` line for line",
+  "treatment": "ablation=full + policy=memory"
+ },
+ "budget_rationale": "declared before any em run: 6 nominal skill calls and 7 rounds for the longest case here, against 9-13 rounds measured for the 3-object episodes that exist; 14 rounds / 20 calls is ~2x that and identical in both arms",
+ "budgets": {
+  "max_decision_rounds": 14,
+  "max_skill_calls": 20
+ },
+ "cases": [
+  {
+   "budgets": {
+    "max_decision_rounds": 14,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 20,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_red_1",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_green_2",
+      "target_id": "tray_middle"
+     }
+    ],
+    "eval_id": "eval-em_p1_write_two",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 2,
+   "notes": "p1's writer. Green sorts after blue in row_key order, so this episode's first hand is green's, and that is the sequence the reader will be shown",
+   "objects": [
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cube"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_red_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_green_2",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    }
+   ],
+   "preflight": {
+    "geometry": {
+     "ok": true,
+     "per_object": {
+      "obj_green_2": {
+       "clear_slots": {
+        "tray_middle": 81
+       },
+       "grasp_candidates": 3
+      },
+      "obj_red_1": {
+       "clear_slots": {
+        "tray_left": 48
+       },
+       "grasp_candidates": 3
+      }
+     },
+     "targets_already_in_a_region": []
+    },
+    "ok": true,
+    "pair": {
+     "claims_the_reader_can_check": {
+      "obj_green_2": "placed:obj_green_2:tray_middle",
+      "obj_red_1": "placed:obj_red_1:tray_left"
+     },
+     "claims_the_reader_cannot_check": {},
+     "condition": "promotion",
+     "consistent": true,
+     "decline_branch_reachable": false,
+     "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+     "expectation": {
+      "control_first_pick": "obj_blue_3",
+      "declined_when_measured": [],
+      "rows_per_round": 1,
+      "stale_memory_governs": true,
+      "trajectory_changes": true,
+      "treatment_first_pick_after_guard": "obj_green_2",
+      "treatment_first_pick_round1": "obj_green_2"
+     },
+     "first_unremembered": true,
+     "pair": "em_p1_write_two→em_p1_read_three",
+     "pair_id": "em_p1",
+     "predicted_first_pick_after_guard": "obj_green_2",
+     "predicted_first_pick_round1": "obj_green_2",
+     "preregistration": {},
+     "reader": "em_p1_read_three",
+     "reader_objects": [
+      "obj_blue_3",
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "reader_owed": [
+      "placed:obj_blue_3:tray_middle",
+      "placed:obj_green_2:tray_middle",
+      "placed:obj_red_1:tray_left"
+     ],
+     "reader_plan_first": "obj_blue_3",
+     "reader_rows_satisfied_at_first_decision": [],
+     "recorded_truths": {
+      "obj_green_2": "true",
+      "obj_red_1": "true"
+     },
+     "refuted_and_not_owed": [],
+     "remembered_order": [
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "shared_objects": [
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "trajectory_will_change": true,
+     "writer": "em_p1_write_two",
+     "writer_claims": {
+      "obj_green_2": "placed:obj_green_2:tray_middle",
+      "obj_red_1": "placed:obj_red_1:tray_left"
+     },
+     "writer_objects": [
+      "obj_green_2",
+      "obj_red_1"
+     ]
+    },
+    "understanding": {
+     "bound_pairs": 2,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 2,
+     "well_formed": true
+    }
+   },
+   "seed": 405,
+   "subset": "episodic",
+   "targets": [
+    "obj_red_1",
+    "obj_green_2"
+   ],
+   "task_id": "em_p1_write_two",
+   "utterance": "把红色的方块放到左边托盘，把绿色的长方体放到中间托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 14,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 20,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_red_1",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_green_2",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_blue_3",
+      "target_id": "tray_middle"
+     }
+    ],
+    "eval_id": "eval-em_p1_read_three",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 3,
+   "notes": "p1's reader: the same scene plus obj_blue_3, the body no experience has acted on. Its row sorts first, so this is the pair where a recall has somewhere to push",
+   "objects": [
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cube"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_red_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_green_2",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_blue_3",
+     "shape": "cylinder",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    }
+   ],
+   "preflight": {
+    "geometry": {
+     "ok": true,
+     "per_object": {
+      "obj_blue_3": {
+       "clear_slots": {
+        "tray_middle": 81
+       },
+       "grasp_candidates": 3
+      },
+      "obj_green_2": {
+       "clear_slots": {
+        "tray_middle": 81
+       },
+       "grasp_candidates": 3
+      },
+      "obj_red_1": {
+       "clear_slots": {
+        "tray_left": 48
+       },
+       "grasp_candidates": 3
+      }
+     },
+     "targets_already_in_a_region": []
+    },
+    "ok": true,
+    "pair": {
+     "claims_the_reader_can_check": {
+      "obj_green_2": "placed:obj_green_2:tray_middle",
+      "obj_red_1": "placed:obj_red_1:tray_left"
+     },
+     "claims_the_reader_cannot_check": {},
+     "condition": "promotion",
+     "consistent": true,
+     "decline_branch_reachable": false,
+     "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+     "expectation": {
+      "control_first_pick": "obj_blue_3",
+      "declined_when_measured": [],
+      "rows_per_round": 1,
+      "stale_memory_governs": true,
+      "trajectory_changes": true,
+      "treatment_first_pick_after_guard": "obj_green_2",
+      "treatment_first_pick_round1": "obj_green_2"
+     },
+     "first_unremembered": true,
+     "pair": "em_p1_write_two→em_p1_read_three",
+     "pair_id": "em_p1",
+     "predicted_first_pick_after_guard": "obj_green_2",
+     "predicted_first_pick_round1": "obj_green_2",
+     "preregistration": {},
+     "reader": "em_p1_read_three",
+     "reader_objects": [
+      "obj_blue_3",
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "reader_owed": [
+      "placed:obj_blue_3:tray_middle",
+      "placed:obj_green_2:tray_middle",
+      "placed:obj_red_1:tray_left"
+     ],
+     "reader_plan_first": "obj_blue_3",
+     "reader_rows_satisfied_at_first_decision": [],
+     "recorded_truths": {
+      "obj_green_2": "true",
+      "obj_red_1": "true"
+     },
+     "refuted_and_not_owed": [],
+     "remembered_order": [
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "shared_objects": [
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "trajectory_will_change": true,
+     "writer": "em_p1_write_two",
+     "writer_claims": {
+      "obj_green_2": "placed:obj_green_2:tray_middle",
+      "obj_red_1": "placed:obj_red_1:tray_left"
+     },
+     "writer_objects": [
+      "obj_green_2",
+      "obj_red_1"
+     ]
+    },
+    "understanding": {
+     "bound_pairs": 3,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 3,
+     "well_formed": true
+    }
+   },
+   "seed": 405,
+   "subset": "episodic",
+   "targets": [
+    "obj_red_1",
+    "obj_green_2",
+    "obj_blue_3"
+   ],
+   "task_id": "em_p1_read_three",
+   "utterance": "把红色的方块放到左边托盘，把绿色的长方体放到中间托盘，把蓝色的圆柱放到中间托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 14,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 20,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_red_1",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_green_2",
+      "target_id": "tray_left"
+     }
+    ],
+    "eval_id": "eval-em_p2_write_two",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 2,
+   "notes": "p2's writer: red to tray_middle, green to tray_left",
+   "objects": [
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_red_1",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_green_2",
+     "shape": "cylinder",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    }
+   ],
+   "preflight": {
+    "geometry": {
+     "ok": true,
+     "per_object": {
+      "obj_green_2": {
+       "clear_slots": {
+        "tray_left": 48
+       },
+       "grasp_candidates": 3
+      },
+      "obj_red_1": {
+       "clear_slots": {
+        "tray_middle": 81
+       },
+       "grasp_candidates": 3
+      }
+     },
+     "targets_already_in_a_region": []
+    },
+    "ok": true,
+    "pair": {
+     "claims_the_reader_can_check": {},
+     "claims_the_reader_cannot_check": {
+      "obj_green_2": "placed:obj_green_2:tray_left",
+      "obj_red_1": "placed:obj_red_1:tray_middle"
+     },
+     "condition": "uncheckable_claims_govern",
+     "consistent": true,
+     "decline_branch_reachable": false,
+     "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+     "expectation": {
+      "control_first_pick": "obj_blue_3",
+      "declined_when_measured": [],
+      "rows_per_round": 1,
+      "stale_memory_governs": false,
+      "trajectory_changes": true,
+      "treatment_first_pick_after_guard": "obj_green_2",
+      "treatment_first_pick_round1": "obj_green_2"
+     },
+     "first_unremembered": true,
+     "pair": "em_p2_write_two→em_p2_read_three",
+     "pair_id": "em_p2",
+     "predicted_first_pick_after_guard": "obj_green_2",
+     "predicted_first_pick_round1": "obj_green_2",
+     "preregistration": {
+      "condition": "negative_transfer",
+      "expectation": {
+       "declined_when_measured": [
+        "obj_green_2",
+        "obj_red_1"
+       ],
+       "treatment_first_pick_after_guard": "obj_blue_3"
+      },
+      "falsified_by": [
+       "/tmp/em_full/pairs_measured.json",
+       "work/p3d_order_cost_scan.py"
+      ],
+      "filed": "before any em episode ran",
+      "reason": "three errors, all on my side of the instrument, and the pair that survived them is a different pair. (1) The expected decline assumed a claim about `obj_green_2` in the writer's region would be *measured* false here. `arm.py::_memory_query` builds `measured` from this episode's own plan rows, so `placed:X:R_w` with `R_w != R_r` is never looked up — and this pair is built so that every one of its claims misses: the writer is `shared=False` and the reader `shared=True`, so the two objects land in `tray_left`/`tray_middle` for the writer and both in `tray_right` for the reader. `claims_the_reader_can_check` is empty and the measurement agrees: `contradicted=false` on 7 of 7 rounds, while the recall still set the first pick. The guard is blind to this memory not for one round, as in p1, but for the whole episode — §5.4's check is a floor over the plan's own vocabulary, and this is the pair that measures where that floor stops. Where the regions *do* agree the claim is refuted only while the row is owed, which `policy.py` defines as positive transfer and promotes; the decline branch needs a recorded `false`, i.e. a failed writer. (2) The name was wrong even had the decline fired: a costed transfer needs an order that fails where another succeeds, and `work/p3d_order_cost_scan.py` walked every placement order of 15 em-shaped cases (all 8 cases of this set plus 7 shared-region seeds) — 78 of 78 orders completed with 0 refused calls. The family has no order-dependent cost channel: `_respect_region_capacity` and `MAX_OBJECTS_PER_REGION = 3` forbid the one physical route to it. (3) So a memory that overrides the plan order here is measured as free, and `negative_transfer` as a §11 row cannot be produced by this set at all. What p2 produces instead is the undetectable-staleness case above, which is the stronger of the two findings and is what this pair now pre-registers."
+     },
+     "reader": "em_p2_read_three",
+     "reader_objects": [
+      "obj_blue_3",
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "reader_owed": [
+      "placed:obj_blue_3:tray_left",
+      "placed:obj_green_2:tray_right",
+      "placed:obj_red_1:tray_right"
+     ],
+     "reader_plan_first": "obj_blue_3",
+     "reader_rows_satisfied_at_first_decision": [],
+     "recorded_truths": {
+      "obj_green_2": "true",
+      "obj_red_1": "true"
+     },
+     "refuted_and_not_owed": [],
+     "remembered_order": [
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "shared_objects": [
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "trajectory_will_change": true,
+     "writer": "em_p2_write_two",
+     "writer_claims": {
+      "obj_green_2": "placed:obj_green_2:tray_left",
+      "obj_red_1": "placed:obj_red_1:tray_middle"
+     },
+     "writer_objects": [
+      "obj_green_2",
+      "obj_red_1"
+     ]
+    },
+    "understanding": {
+     "bound_pairs": 2,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 2,
+     "well_formed": true
+    }
+   },
+   "seed": 415,
+   "subset": "episodic",
+   "targets": [
+    "obj_red_1",
+    "obj_green_2"
+   ],
+   "task_id": "em_p2_write_two",
+   "utterance": "把红色的长方体放到中间托盘，把绿色的圆柱放到左边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 14,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 20,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_red_1",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_green_2",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_blue_3",
+      "target_id": "tray_left"
+     }
+    ],
+    "eval_id": "eval-em_p2_read_three",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 3,
+   "notes": "p2's reader: the same three bodies, but the hidden truth wants red AND green in tray_right. Every remembered claim is then refuted on a region this plan does not owe, which is what a misleading experience has to be to count as one",
+   "objects": [
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_red_1",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_green_2",
+     "shape": "cylinder",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cube"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_blue_3",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    }
+   ],
+   "preflight": {
+    "geometry": {
+     "ok": true,
+     "per_object": {
+      "obj_blue_3": {
+       "clear_slots": {
+        "tray_left": 48
+       },
+       "grasp_candidates": 3
+      },
+      "obj_green_2": {
+       "clear_slots": {
+        "tray_right": 47
+       },
+       "grasp_candidates": 3
+      },
+      "obj_red_1": {
+       "clear_slots": {
+        "tray_right": 47
+       },
+       "grasp_candidates": 3
+      }
+     },
+     "targets_already_in_a_region": []
+    },
+    "ok": true,
+    "pair": {
+     "claims_the_reader_can_check": {},
+     "claims_the_reader_cannot_check": {
+      "obj_green_2": "placed:obj_green_2:tray_left",
+      "obj_red_1": "placed:obj_red_1:tray_middle"
+     },
+     "condition": "uncheckable_claims_govern",
+     "consistent": true,
+     "decline_branch_reachable": false,
+     "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+     "expectation": {
+      "control_first_pick": "obj_blue_3",
+      "declined_when_measured": [],
+      "rows_per_round": 1,
+      "stale_memory_governs": false,
+      "trajectory_changes": true,
+      "treatment_first_pick_after_guard": "obj_green_2",
+      "treatment_first_pick_round1": "obj_green_2"
+     },
+     "first_unremembered": true,
+     "pair": "em_p2_write_two→em_p2_read_three",
+     "pair_id": "em_p2",
+     "predicted_first_pick_after_guard": "obj_green_2",
+     "predicted_first_pick_round1": "obj_green_2",
+     "preregistration": {
+      "condition": "negative_transfer",
+      "expectation": {
+       "declined_when_measured": [
+        "obj_green_2",
+        "obj_red_1"
+       ],
+       "treatment_first_pick_after_guard": "obj_blue_3"
+      },
+      "falsified_by": [
+       "/tmp/em_full/pairs_measured.json",
+       "work/p3d_order_cost_scan.py"
+      ],
+      "filed": "before any em episode ran",
+      "reason": "three errors, all on my side of the instrument, and the pair that survived them is a different pair. (1) The expected decline assumed a claim about `obj_green_2` in the writer's region would be *measured* false here. `arm.py::_memory_query` builds `measured` from this episode's own plan rows, so `placed:X:R_w` with `R_w != R_r` is never looked up — and this pair is built so that every one of its claims misses: the writer is `shared=False` and the reader `shared=True`, so the two objects land in `tray_left`/`tray_middle` for the writer and both in `tray_right` for the reader. `claims_the_reader_can_check` is empty and the measurement agrees: `contradicted=false` on 7 of 7 rounds, while the recall still set the first pick. The guard is blind to this memory not for one round, as in p1, but for the whole episode — §5.4's check is a floor over the plan's own vocabulary, and this is the pair that measures where that floor stops. Where the regions *do* agree the claim is refuted only while the row is owed, which `policy.py` defines as positive transfer and promotes; the decline branch needs a recorded `false`, i.e. a failed writer. (2) The name was wrong even had the decline fired: a costed transfer needs an order that fails where another succeeds, and `work/p3d_order_cost_scan.py` walked every placement order of 15 em-shaped cases (all 8 cases of this set plus 7 shared-region seeds) — 78 of 78 orders completed with 0 refused calls. The family has no order-dependent cost channel: `_respect_region_capacity` and `MAX_OBJECTS_PER_REGION = 3` forbid the one physical route to it. (3) So a memory that overrides the plan order here is measured as free, and `negative_transfer` as a §11 row cannot be produced by this set at all. What p2 produces instead is the undetectable-staleness case above, which is the stronger of the two findings and is what this pair now pre-registers."
+     },
+     "reader": "em_p2_read_three",
+     "reader_objects": [
+      "obj_blue_3",
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "reader_owed": [
+      "placed:obj_blue_3:tray_left",
+      "placed:obj_green_2:tray_right",
+      "placed:obj_red_1:tray_right"
+     ],
+     "reader_plan_first": "obj_blue_3",
+     "reader_rows_satisfied_at_first_decision": [],
+     "recorded_truths": {
+      "obj_green_2": "true",
+      "obj_red_1": "true"
+     },
+     "refuted_and_not_owed": [],
+     "remembered_order": [
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "shared_objects": [
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "trajectory_will_change": true,
+     "writer": "em_p2_write_two",
+     "writer_claims": {
+      "obj_green_2": "placed:obj_green_2:tray_left",
+      "obj_red_1": "placed:obj_red_1:tray_middle"
+     },
+     "writer_objects": [
+      "obj_green_2",
+      "obj_red_1"
+     ]
+    },
+    "understanding": {
+     "bound_pairs": 3,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 3,
+     "well_formed": true
+    }
+   },
+   "seed": 415,
+   "subset": "episodic",
+   "targets": [
+    "obj_red_1",
+    "obj_green_2",
+    "obj_blue_3"
+   ],
+   "task_id": "em_p2_read_three",
+   "utterance": "把红色的长方体放到右边托盘，把绿色的圆柱放到右边托盘，把蓝色的方块放到左边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 14,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 20,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_green_1",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_blue_2",
+      "target_id": "tray_left"
+     }
+    ],
+    "eval_id": "eval-em_p3_write_two",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 2,
+   "notes": "p3's writer: obj_green_1 and obj_blue_2",
+   "objects": [
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_green_1",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_blue_2",
+     "shape": "cylinder",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    }
+   ],
+   "preflight": {
+    "geometry": {
+     "ok": true,
+     "per_object": {
+      "obj_blue_2": {
+       "clear_slots": {
+        "tray_left": 48
+       },
+       "grasp_candidates": 3
+      },
+      "obj_green_1": {
+       "clear_slots": {
+        "tray_right": 47
+       },
+       "grasp_candidates": 3
+      }
+     },
+     "targets_already_in_a_region": []
+    },
+    "ok": true,
+    "pair": {
+     "claims_the_reader_can_check": {},
+     "claims_the_reader_cannot_check": {},
+     "condition": "retrieved_not_attributable",
+     "consistent": true,
+     "decline_branch_reachable": false,
+     "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+     "expectation": {
+      "control_first_pick": null,
+      "declined_when_measured": [],
+      "rows_per_round": 1,
+      "stale_memory_governs": false,
+      "trajectory_changes": false,
+      "treatment_first_pick_after_guard": null,
+      "treatment_first_pick_round1": null
+     },
+     "first_unremembered": true,
+     "pair": "em_p3_write_two→em_p3_read_three",
+     "pair_id": "em_p3",
+     "predicted_first_pick_after_guard": "obj_blue_1",
+     "predicted_first_pick_round1": "obj_blue_1",
+     "preregistration": {},
+     "reader": "em_p3_read_three",
+     "reader_objects": [
+      "obj_blue_1",
+      "obj_purple_3",
+      "obj_yellow_2"
+     ],
+     "reader_owed": [
+      "placed:obj_blue_1:tray_middle",
+      "placed:obj_purple_3:tray_right",
+      "placed:obj_yellow_2:tray_middle"
+     ],
+     "reader_plan_first": "obj_blue_1",
+     "reader_rows_satisfied_at_first_decision": [],
+     "recorded_truths": {},
+     "refuted_and_not_owed": [],
+     "remembered_order": [],
+     "shared_objects": [],
+     "trajectory_will_change": false,
+     "writer": "em_p3_write_two",
+     "writer_claims": {},
+     "writer_objects": [
+      "obj_blue_2",
+      "obj_green_1"
+     ]
+    },
+    "understanding": {
+     "bound_pairs": 2,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 2,
+     "well_formed": true
+    }
+   },
+   "seed": 406,
+   "subset": "episodic",
+   "targets": [
+    "obj_green_1",
+    "obj_blue_2"
+   ],
+   "task_id": "em_p3_write_two",
+   "utterance": "把绿色的长方体放到右边托盘，把蓝色的圆柱放到左边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 14,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 20,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_blue_1",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_yellow_2",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_purple_3",
+      "target_id": "tray_right"
+     }
+    ],
+    "eval_id": "eval-em_p3_read_three",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 3,
+   "notes": "p3's reader: obj_blue_1, obj_yellow_2, obj_purple_3 — no id in common with the writer, so the recalled steps name entities this plan has no row for",
+   "objects": [
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_blue_1",
+     "shape": "cylinder",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "yellow",
+      "shape": "cube"
+     },
+     "color": [
+      0.9,
+      0.8,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_yellow_2",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "purple",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.5,
+      0.2,
+      0.7,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_purple_3",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    }
+   ],
+   "preflight": {
+    "geometry": {
+     "ok": true,
+     "per_object": {
+      "obj_blue_1": {
+       "clear_slots": {
+        "tray_middle": 81
+       },
+       "grasp_candidates": 3
+      },
+      "obj_purple_3": {
+       "clear_slots": {
+        "tray_right": 47
+       },
+       "grasp_candidates": 3
+      },
+      "obj_yellow_2": {
+       "clear_slots": {
+        "tray_middle": 81
+       },
+       "grasp_candidates": 3
+      }
+     },
+     "targets_already_in_a_region": []
+    },
+    "ok": true,
+    "pair": {
+     "claims_the_reader_can_check": {},
+     "claims_the_reader_cannot_check": {},
+     "condition": "retrieved_not_attributable",
+     "consistent": true,
+     "decline_branch_reachable": false,
+     "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+     "expectation": {
+      "control_first_pick": null,
+      "declined_when_measured": [],
+      "rows_per_round": 1,
+      "stale_memory_governs": false,
+      "trajectory_changes": false,
+      "treatment_first_pick_after_guard": null,
+      "treatment_first_pick_round1": null
+     },
+     "first_unremembered": true,
+     "pair": "em_p3_write_two→em_p3_read_three",
+     "pair_id": "em_p3",
+     "predicted_first_pick_after_guard": "obj_blue_1",
+     "predicted_first_pick_round1": "obj_blue_1",
+     "preregistration": {},
+     "reader": "em_p3_read_three",
+     "reader_objects": [
+      "obj_blue_1",
+      "obj_purple_3",
+      "obj_yellow_2"
+     ],
+     "reader_owed": [
+      "placed:obj_blue_1:tray_middle",
+      "placed:obj_purple_3:tray_right",
+      "placed:obj_yellow_2:tray_middle"
+     ],
+     "reader_plan_first": "obj_blue_1",
+     "reader_rows_satisfied_at_first_decision": [],
+     "recorded_truths": {},
+     "refuted_and_not_owed": [],
+     "remembered_order": [],
+     "shared_objects": [],
+     "trajectory_will_change": false,
+     "writer": "em_p3_write_two",
+     "writer_claims": {},
+     "writer_objects": [
+      "obj_blue_2",
+      "obj_green_1"
+     ]
+    },
+    "understanding": {
+     "bound_pairs": 3,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 3,
+     "well_formed": true
+    }
+   },
+   "seed": 407,
+   "subset": "episodic",
+   "targets": [
+    "obj_blue_1",
+    "obj_yellow_2",
+    "obj_purple_3"
+   ],
+   "task_id": "em_p3_read_three",
+   "utterance": "把蓝色的圆柱放到中间托盘，把黄色的方块放到中间托盘，把紫色的长方体放到右边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 14,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 20,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_yellow_1",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_purple_2",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_red_3",
+      "target_id": "tray_left"
+     }
+    ],
+    "eval_id": "eval-em_p4_write_three",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 3,
+   "notes": "p4's writer: the whole task, done once",
+   "objects": [
+    {
+     "attributes": {
+      "color": "yellow",
+      "shape": "cube"
+     },
+     "color": [
+      0.9,
+      0.8,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_yellow_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "purple",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.5,
+      0.2,
+      0.7,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_purple_2",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_red_3",
+     "shape": "cylinder",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    }
+   ],
+   "preflight": {
+    "geometry": {
+     "ok": true,
+     "per_object": {
+      "obj_purple_2": {
+       "clear_slots": {
+        "tray_middle": 81
+       },
+       "grasp_candidates": 3
+      },
+      "obj_red_3": {
+       "clear_slots": {
+        "tray_left": 48
+       },
+       "grasp_candidates": 3
+      },
+      "obj_yellow_1": {
+       "clear_slots": {
+        "tray_left": 48
+       },
+       "grasp_candidates": 3
+      }
+     },
+     "targets_already_in_a_region": []
+    },
+    "ok": true,
+    "pair": {
+     "claims_the_reader_can_check": {
+      "obj_purple_2": "placed:obj_purple_2:tray_middle",
+      "obj_red_3": "placed:obj_red_3:tray_left",
+      "obj_yellow_1": "placed:obj_yellow_1:tray_left"
+     },
+     "claims_the_reader_cannot_check": {},
+     "condition": "duplicate_agrees",
+     "consistent": true,
+     "decline_branch_reachable": false,
+     "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+     "expectation": {
+      "control_first_pick": null,
+      "declined_when_measured": [],
+      "rows_per_round": 1,
+      "stale_memory_governs": true,
+      "trajectory_changes": false,
+      "treatment_first_pick_after_guard": null,
+      "treatment_first_pick_round1": null
+     },
+     "first_unremembered": false,
+     "pair": "em_p4_write_three→em_p4_read_three",
+     "pair_id": "em_p4",
+     "predicted_first_pick_after_guard": "obj_purple_2",
+     "predicted_first_pick_round1": "obj_purple_2",
+     "preregistration": {
+      "expectation": {
+       "memory_followed": false
+      },
+      "falsified_by": [
+       "/tmp/em_full/pairs_measured.json"
+      ],
+      "filed": "before any em episode ran",
+      "reason": "the check read `expected: trajectory_changes`, i.e. I asserted that a memory is only 'followed' when it moves the trajectory. `policy.py` sets the flag from a different rule — the row that won was one the page ranked — so an agreeing memory reports followed on 6 of 6 decision rounds while `trajectory_changes` stays False. The measurement is right and my check was wrong, and the disagreement is the point: `memory_followed` counts *rankings that agree*, not reuse, so §11's successful-reuse row must be read off the two-arm trajectory split and never off this flag. The flag is still tested, against the ranking it claims to reflect (`memory_followed_is_the_ranking`)."
+     },
+     "reader": "em_p4_read_three",
+     "reader_objects": [
+      "obj_purple_2",
+      "obj_red_3",
+      "obj_yellow_1"
+     ],
+     "reader_owed": [
+      "placed:obj_purple_2:tray_middle",
+      "placed:obj_red_3:tray_left",
+      "placed:obj_yellow_1:tray_left"
+     ],
+     "reader_plan_first": "obj_purple_2",
+     "reader_rows_satisfied_at_first_decision": [],
+     "recorded_truths": {
+      "obj_purple_2": "true",
+      "obj_red_3": "true",
+      "obj_yellow_1": "true"
+     },
+     "refuted_and_not_owed": [],
+     "remembered_order": [
+      "obj_purple_2",
+      "obj_red_3",
+      "obj_yellow_1"
+     ],
+     "shared_objects": [
+      "obj_purple_2",
+      "obj_red_3",
+      "obj_yellow_1"
+     ],
+     "trajectory_will_change": false,
+     "writer": "em_p4_write_three",
+     "writer_claims": {
+      "obj_purple_2": "placed:obj_purple_2:tray_middle",
+      "obj_red_3": "placed:obj_red_3:tray_left",
+      "obj_yellow_1": "placed:obj_yellow_1:tray_left"
+     },
+     "writer_objects": [
+      "obj_purple_2",
+      "obj_red_3",
+      "obj_yellow_1"
+     ]
+    },
+    "understanding": {
+     "bound_pairs": 3,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 3,
+     "well_formed": true
+    }
+   },
+   "seed": 408,
+   "subset": "episodic",
+   "targets": [
+    "obj_yellow_1",
+    "obj_purple_2",
+    "obj_red_3"
+   ],
+   "task_id": "em_p4_write_three",
+   "utterance": "把黄色的方块放到左边托盘，把紫色的长方体放到中间托盘，把红色的圆柱放到左边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 14,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 20,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_yellow_1",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_purple_2",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_red_3",
+      "target_id": "tray_left"
+     }
+    ],
+    "eval_id": "eval-em_p4_read_three",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 3,
+   "notes": "p4's reader: the same task again — a memory of exactly this episode, which the arm must be able to follow without moving anything",
+   "objects": [
+    {
+     "attributes": {
+      "color": "yellow",
+      "shape": "cube"
+     },
+     "color": [
+      0.9,
+      0.8,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_yellow_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "purple",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.5,
+      0.2,
+      0.7,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_purple_2",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_red_3",
+     "shape": "cylinder",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    }
+   ],
+   "preflight": {
+    "geometry": {
+     "ok": true,
+     "per_object": {
+      "obj_purple_2": {
+       "clear_slots": {
+        "tray_middle": 81
+       },
+       "grasp_candidates": 3
+      },
+      "obj_red_3": {
+       "clear_slots": {
+        "tray_left": 48
+       },
+       "grasp_candidates": 3
+      },
+      "obj_yellow_1": {
+       "clear_slots": {
+        "tray_left": 48
+       },
+       "grasp_candidates": 3
+      }
+     },
+     "targets_already_in_a_region": []
+    },
+    "ok": true,
+    "pair": {
+     "claims_the_reader_can_check": {
+      "obj_purple_2": "placed:obj_purple_2:tray_middle",
+      "obj_red_3": "placed:obj_red_3:tray_left",
+      "obj_yellow_1": "placed:obj_yellow_1:tray_left"
+     },
+     "claims_the_reader_cannot_check": {},
+     "condition": "duplicate_agrees",
+     "consistent": true,
+     "decline_branch_reachable": false,
+     "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+     "expectation": {
+      "control_first_pick": null,
+      "declined_when_measured": [],
+      "rows_per_round": 1,
+      "stale_memory_governs": true,
+      "trajectory_changes": false,
+      "treatment_first_pick_after_guard": null,
+      "treatment_first_pick_round1": null
+     },
+     "first_unremembered": false,
+     "pair": "em_p4_write_three→em_p4_read_three",
+     "pair_id": "em_p4",
+     "predicted_first_pick_after_guard": "obj_purple_2",
+     "predicted_first_pick_round1": "obj_purple_2",
+     "preregistration": {
+      "expectation": {
+       "memory_followed": false
+      },
+      "falsified_by": [
+       "/tmp/em_full/pairs_measured.json"
+      ],
+      "filed": "before any em episode ran",
+      "reason": "the check read `expected: trajectory_changes`, i.e. I asserted that a memory is only 'followed' when it moves the trajectory. `policy.py` sets the flag from a different rule — the row that won was one the page ranked — so an agreeing memory reports followed on 6 of 6 decision rounds while `trajectory_changes` stays False. The measurement is right and my check was wrong, and the disagreement is the point: `memory_followed` counts *rankings that agree*, not reuse, so §11's successful-reuse row must be read off the two-arm trajectory split and never off this flag. The flag is still tested, against the ranking it claims to reflect (`memory_followed_is_the_ranking`)."
+     },
+     "reader": "em_p4_read_three",
+     "reader_objects": [
+      "obj_purple_2",
+      "obj_red_3",
+      "obj_yellow_1"
+     ],
+     "reader_owed": [
+      "placed:obj_purple_2:tray_middle",
+      "placed:obj_red_3:tray_left",
+      "placed:obj_yellow_1:tray_left"
+     ],
+     "reader_plan_first": "obj_purple_2",
+     "reader_rows_satisfied_at_first_decision": [],
+     "recorded_truths": {
+      "obj_purple_2": "true",
+      "obj_red_3": "true",
+      "obj_yellow_1": "true"
+     },
+     "refuted_and_not_owed": [],
+     "remembered_order": [
+      "obj_purple_2",
+      "obj_red_3",
+      "obj_yellow_1"
+     ],
+     "shared_objects": [
+      "obj_purple_2",
+      "obj_red_3",
+      "obj_yellow_1"
+     ],
+     "trajectory_will_change": false,
+     "writer": "em_p4_write_three",
+     "writer_claims": {
+      "obj_purple_2": "placed:obj_purple_2:tray_middle",
+      "obj_red_3": "placed:obj_red_3:tray_left",
+      "obj_yellow_1": "placed:obj_yellow_1:tray_left"
+     },
+     "writer_objects": [
+      "obj_purple_2",
+      "obj_red_3",
+      "obj_yellow_1"
+     ]
+    },
+    "understanding": {
+     "bound_pairs": 3,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 3,
+     "well_formed": true
+    }
+   },
+   "seed": 408,
+   "subset": "episodic",
+   "targets": [
+    "obj_yellow_1",
+    "obj_purple_2",
+    "obj_red_3"
+   ],
+   "task_id": "em_p4_read_three",
+   "utterance": "把黄色的方块放到左边托盘，把紫色的长方体放到中间托盘，把红色的圆柱放到左边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  }
+ ],
+ "decline_branch": {
+  "consequence": "§11's negative-transfer *detection* has no reachable input on a store this environment writes: the decline needs a recorded `false`, and a `false` is only refuted by a reader that succeeds where the writer failed. Where the branch can be reached the reader has by construction already completed that object, so no later pick is left to change — the flag is a record, not a brake. It is exercised in `tests/contract/test_v02_episodic_arm.py` on a hand-built recall, which is the only place its input can be made",
+  "measured": {
+   "em_arms": 2,
+   "em_declines": 0,
+   "em_pairs": 4,
+   "lh_pass1_experiences": 6,
+   "lh_pass1_false_claim_rows": [
+    "placed:obj_green_3:tray_right=false",
+    "placed:obj_red_2:tray_right=false"
+   ],
+   "lh_pass1_stored_false_claims": 2,
+   "lh_pass2_declines": 0,
+   "lh_pass2_divergent_cases": 0,
+   "lh_pass2_episodes": 12,
+   "lh_repeat_probe": "work/p3d_decline_reachability.py"
+  },
+  "reachable_on_this_store": {
+   "em_p1": false,
+   "em_p2": false,
+   "em_p3": false,
+   "em_p4": false
+  },
+  "reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+  "rule": "`policy.py::_remembered_order` declines an object when a predicate the recall asserted is refuted here *and* absent from the plan's unsatisfied rows",
+  "why_the_failed_writer_still_does_not_reach_it": "the two `false` claims exist only in `lh_c4_failed_grasp_recovery`'s residue, whose outcome is `partial`, and a claim of `false` is refuted by a snapshot that measures `true` — i.e. only by a reader that finishes the work the writer could not. The same deterministic policy repeats the same failure: pass 2 measured `failed` for that case in both arms, 11 rounds in both, no divergence. The branch needs a capable reader and an incapable writer, which one policy cannot supply"
+ },
+ "guard_timing": "two blindings, measured on different pairs. (a) In time: the refutation test needs a verdict on both sides and a freshly derived plan row reads `unknown`, so on every pair the reader's FIRST pick is made with the guard blind — p1 and p4 show a refuted row governing from round 2 onward (rounds [2,3,4] and [2,3,4,5,6]). (b) In vocabulary: `arm.py::_memory_query` builds `measured` from this episode's own plan rows, so a claim about a region this plan does not name is never looked up and never refuted at any round — p2 is built so that all of its claims miss, and it measured `contradicted=false` on 7 of 7 rounds while still setting the order. (a) is a one-round gap; (b) is permanent, and the set carries a pair for each because they need different fixes",
+ "negative_transfer_constructibility": {
+  "asked": "can any em-shaped case make one placement order cost more than another, which is what a measured negative transfer needs",
+  "cases": 15,
+  "consequence": "a memory that overrides the plan order in this family is measured as free: same rounds, same outcome, both arms complete. §11's negative transfer row is therefore reported as an absence with a mechanism, and the costed version belongs to a set with dependency-bearing work — the `lh` family, whose rows fail verification when the order is wrong",
+  "coverage": "every permutation of every assignment in all 8 cases of this set plus 7 `shared=True` seeds, driven through `SkillExecutor` on a real scene",
+  "orders_completed": 78,
+  "orders_tested": 78,
+  "probe": "work/p3d_order_cost_scan.py",
+  "refused_calls": 0,
+  "why": "`_respect_region_capacity` and `MAX_OBJECTS_PER_REGION = 3` refuse to author a region the hardware cannot hold, which removes the only physical channel through which an order could cost anything in a flat place-each-object task"
+ },
+ "order_lever_measurement": {
+  "consequence": "a subset of an alphabetical order is alphabetical, so a writer and a reader can only disagree via an object the reader has and the writer never acted on; that is the structure p1 and p2 are seeded for",
+  "episodes": 38,
+  "episodes_whose_remembered_order_differed_from_the_plan_order": 0,
+  "rounds": 370,
+  "rounds_that_took_a_row_other_than_the_first_published": 0,
+  "rounds_with_more_than_one_ready_row": 254,
+  "rows_that_were_not_placed_predicates": 0,
+  "source": [
+   "work/p3d_order_sweep.py",
+   "work/p3d_lever_scan.py"
+  ]
+ },
+ "page_constants": {
+  "CLASH_CAP": 3,
+  "DEFAULT_LIMIT": 3,
+  "MATCH_TERM_CAP": 3,
+  "RECALL_BUDGET_CHARS": 2400,
+  "RENDER_BUDGET_CHARS": 900,
+  "STEP_CAP": 8
+ },
+ "pairs": [
+  {
+   "claims_the_reader_can_check": {
+    "obj_green_2": "placed:obj_green_2:tray_middle",
+    "obj_red_1": "placed:obj_red_1:tray_left"
+   },
+   "claims_the_reader_cannot_check": {},
+   "condition": "promotion",
+   "decline_branch_reachable": false,
+   "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+   "expectation": {
+    "control_first_pick": "obj_blue_3",
+    "declined_when_measured": [],
+    "rows_per_round": 1,
+    "stale_memory_governs": true,
+    "trajectory_changes": true,
+    "treatment_first_pick_after_guard": "obj_green_2",
+    "treatment_first_pick_round1": "obj_green_2"
+   },
+   "first_unremembered": true,
+   "pair": "em_p1_write_two→em_p1_read_three",
+   "pair_id": "em_p1",
+   "predicted_first_pick_after_guard": "obj_green_2",
+   "predicted_first_pick_round1": "obj_green_2",
+   "preregistration": {},
+   "reader": "em_p1_read_three",
+   "reader_objects": [
+    "obj_blue_3",
+    "obj_green_2",
+    "obj_red_1"
+   ],
+   "reader_owed": [
+    "placed:obj_blue_3:tray_middle",
+    "placed:obj_green_2:tray_middle",
+    "placed:obj_red_1:tray_left"
+   ],
+   "reader_plan_first": "obj_blue_3",
+   "reader_rows_satisfied_at_first_decision": [],
+   "recorded_truths": {
+    "obj_green_2": "true",
+    "obj_red_1": "true"
+   },
+   "refuted_and_not_owed": [],
+   "remembered_order": [
+    "obj_green_2",
+    "obj_red_1"
+   ],
+   "shared_objects": [
+    "obj_green_2",
+    "obj_red_1"
+   ],
+   "trajectory_will_change": true,
+   "writer": "em_p1_write_two",
+   "writer_claims": {
+    "obj_green_2": "placed:obj_green_2:tray_middle",
+    "obj_red_1": "placed:obj_red_1:tray_left"
+   },
+   "writer_objects": [
+    "obj_green_2",
+    "obj_red_1"
+   ]
+  },
+  {
+   "claims_the_reader_can_check": {},
+   "claims_the_reader_cannot_check": {
+    "obj_green_2": "placed:obj_green_2:tray_left",
+    "obj_red_1": "placed:obj_red_1:tray_middle"
+   },
+   "condition": "uncheckable_claims_govern",
+   "decline_branch_reachable": false,
+   "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+   "expectation": {
+    "control_first_pick": "obj_blue_3",
+    "declined_when_measured": [],
+    "rows_per_round": 1,
+    "stale_memory_governs": false,
+    "trajectory_changes": true,
+    "treatment_first_pick_after_guard": "obj_green_2",
+    "treatment_first_pick_round1": "obj_green_2"
+   },
+   "first_unremembered": true,
+   "pair": "em_p2_write_two→em_p2_read_three",
+   "pair_id": "em_p2",
+   "predicted_first_pick_after_guard": "obj_green_2",
+   "predicted_first_pick_round1": "obj_green_2",
+   "preregistration": {
+    "condition": "negative_transfer",
+    "expectation": {
+     "declined_when_measured": [
+      "obj_green_2",
+      "obj_red_1"
+     ],
+     "treatment_first_pick_after_guard": "obj_blue_3"
+    },
+    "falsified_by": [
+     "/tmp/em_full/pairs_measured.json",
+     "work/p3d_order_cost_scan.py"
+    ],
+    "filed": "before any em episode ran",
+    "reason": "three errors, all on my side of the instrument, and the pair that survived them is a different pair. (1) The expected decline assumed a claim about `obj_green_2` in the writer's region would be *measured* false here. `arm.py::_memory_query` builds `measured` from this episode's own plan rows, so `placed:X:R_w` with `R_w != R_r` is never looked up — and this pair is built so that every one of its claims misses: the writer is `shared=False` and the reader `shared=True`, so the two objects land in `tray_left`/`tray_middle` for the writer and both in `tray_right` for the reader. `claims_the_reader_can_check` is empty and the measurement agrees: `contradicted=false` on 7 of 7 rounds, while the recall still set the first pick. The guard is blind to this memory not for one round, as in p1, but for the whole episode — §5.4's check is a floor over the plan's own vocabulary, and this is the pair that measures where that floor stops. Where the regions *do* agree the claim is refuted only while the row is owed, which `policy.py` defines as positive transfer and promotes; the decline branch needs a recorded `false`, i.e. a failed writer. (2) The name was wrong even had the decline fired: a costed transfer needs an order that fails where another succeeds, and `work/p3d_order_cost_scan.py` walked every placement order of 15 em-shaped cases (all 8 cases of this set plus 7 shared-region seeds) — 78 of 78 orders completed with 0 refused calls. The family has no order-dependent cost channel: `_respect_region_capacity` and `MAX_OBJECTS_PER_REGION = 3` forbid the one physical route to it. (3) So a memory that overrides the plan order here is measured as free, and `negative_transfer` as a §11 row cannot be produced by this set at all. What p2 produces instead is the undetectable-staleness case above, which is the stronger of the two findings and is what this pair now pre-registers."
+   },
+   "reader": "em_p2_read_three",
+   "reader_objects": [
+    "obj_blue_3",
+    "obj_green_2",
+    "obj_red_1"
+   ],
+   "reader_owed": [
+    "placed:obj_blue_3:tray_left",
+    "placed:obj_green_2:tray_right",
+    "placed:obj_red_1:tray_right"
+   ],
+   "reader_plan_first": "obj_blue_3",
+   "reader_rows_satisfied_at_first_decision": [],
+   "recorded_truths": {
+    "obj_green_2": "true",
+    "obj_red_1": "true"
+   },
+   "refuted_and_not_owed": [],
+   "remembered_order": [
+    "obj_green_2",
+    "obj_red_1"
+   ],
+   "shared_objects": [
+    "obj_green_2",
+    "obj_red_1"
+   ],
+   "trajectory_will_change": true,
+   "writer": "em_p2_write_two",
+   "writer_claims": {
+    "obj_green_2": "placed:obj_green_2:tray_left",
+    "obj_red_1": "placed:obj_red_1:tray_middle"
+   },
+   "writer_objects": [
+    "obj_green_2",
+    "obj_red_1"
+   ]
+  },
+  {
+   "claims_the_reader_can_check": {},
+   "claims_the_reader_cannot_check": {},
+   "condition": "retrieved_not_attributable",
+   "decline_branch_reachable": false,
+   "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+   "expectation": {
+    "control_first_pick": null,
+    "declined_when_measured": [],
+    "rows_per_round": 1,
+    "stale_memory_governs": false,
+    "trajectory_changes": false,
+    "treatment_first_pick_after_guard": null,
+    "treatment_first_pick_round1": null
+   },
+   "first_unremembered": true,
+   "pair": "em_p3_write_two→em_p3_read_three",
+   "pair_id": "em_p3",
+   "predicted_first_pick_after_guard": "obj_blue_1",
+   "predicted_first_pick_round1": "obj_blue_1",
+   "preregistration": {},
+   "reader": "em_p3_read_three",
+   "reader_objects": [
+    "obj_blue_1",
+    "obj_purple_3",
+    "obj_yellow_2"
+   ],
+   "reader_owed": [
+    "placed:obj_blue_1:tray_middle",
+    "placed:obj_purple_3:tray_right",
+    "placed:obj_yellow_2:tray_middle"
+   ],
+   "reader_plan_first": "obj_blue_1",
+   "reader_rows_satisfied_at_first_decision": [],
+   "recorded_truths": {},
+   "refuted_and_not_owed": [],
+   "remembered_order": [],
+   "shared_objects": [],
+   "trajectory_will_change": false,
+   "writer": "em_p3_write_two",
+   "writer_claims": {},
+   "writer_objects": [
+    "obj_blue_2",
+    "obj_green_1"
+   ]
+  },
+  {
+   "claims_the_reader_can_check": {
+    "obj_purple_2": "placed:obj_purple_2:tray_middle",
+    "obj_red_3": "placed:obj_red_3:tray_left",
+    "obj_yellow_1": "placed:obj_yellow_1:tray_left"
+   },
+   "claims_the_reader_cannot_check": {},
+   "condition": "duplicate_agrees",
+   "decline_branch_reachable": false,
+   "decline_branch_reason": "every claim on this page is a `true` assertion by a successful writer, and a `true` assertion is either refuted-while-owed (promoted) or confirmed-when-done (not refuted); the guard's decline branch needs a recorded `false`, which a success-only store cannot contain",
+   "expectation": {
+    "control_first_pick": null,
+    "declined_when_measured": [],
+    "rows_per_round": 1,
+    "stale_memory_governs": true,
+    "trajectory_changes": false,
+    "treatment_first_pick_after_guard": null,
+    "treatment_first_pick_round1": null
+   },
+   "first_unremembered": false,
+   "pair": "em_p4_write_three→em_p4_read_three",
+   "pair_id": "em_p4",
+   "predicted_first_pick_after_guard": "obj_purple_2",
+   "predicted_first_pick_round1": "obj_purple_2",
+   "preregistration": {
+    "expectation": {
+     "memory_followed": false
+    },
+    "falsified_by": [
+     "/tmp/em_full/pairs_measured.json"
+    ],
+    "filed": "before any em episode ran",
+    "reason": "the check read `expected: trajectory_changes`, i.e. I asserted that a memory is only 'followed' when it moves the trajectory. `policy.py` sets the flag from a different rule — the row that won was one the page ranked — so an agreeing memory reports followed on 6 of 6 decision rounds while `trajectory_changes` stays False. The measurement is right and my check was wrong, and the disagreement is the point: `memory_followed` counts *rankings that agree*, not reuse, so §11's successful-reuse row must be read off the two-arm trajectory split and never off this flag. The flag is still tested, against the ranking it claims to reflect (`memory_followed_is_the_ranking`)."
+   },
+   "reader": "em_p4_read_three",
+   "reader_objects": [
+    "obj_purple_2",
+    "obj_red_3",
+    "obj_yellow_1"
+   ],
+   "reader_owed": [
+    "placed:obj_purple_2:tray_middle",
+    "placed:obj_red_3:tray_left",
+    "placed:obj_yellow_1:tray_left"
+   ],
+   "reader_plan_first": "obj_purple_2",
+   "reader_rows_satisfied_at_first_decision": [],
+   "recorded_truths": {
+    "obj_purple_2": "true",
+    "obj_red_3": "true",
+    "obj_yellow_1": "true"
+   },
+   "refuted_and_not_owed": [],
+   "remembered_order": [
+    "obj_purple_2",
+    "obj_red_3",
+    "obj_yellow_1"
+   ],
+   "shared_objects": [
+    "obj_purple_2",
+    "obj_red_3",
+    "obj_yellow_1"
+   ],
+   "trajectory_will_change": false,
+   "writer": "em_p4_write_three",
+   "writer_claims": {
+    "obj_purple_2": "placed:obj_purple_2:tray_middle",
+    "obj_red_3": "placed:obj_red_3:tray_left",
+    "obj_yellow_1": "placed:obj_yellow_1:tray_left"
+   },
+   "writer_objects": [
+    "obj_purple_2",
+    "obj_red_3",
+    "obj_yellow_1"
+   ]
+  }
+ ],
+ "relevance_formula": {
+  "MIN_RELEVANCE": 1.0,
+  "weights": {
+   "failure_code": 1.0,
+   "kind": 2.0,
+   "predicate": 1.0,
+   "region": 2.0,
+   "task_kind": 3.0
+  }
+ },
+ "relevance_within_a_batch": "no em row can be filtered out as irrelevant: the query's task_kind term is the batch's set name, every stored row of the batch carries it, and that one term is worth 3.0 against MIN_RELEVANCE=1.0. Relevance orders rows; §5.4's page budget trims them",
+ "schema_version": "1",
+ "set": "em",
+ "sha256": "7df449ed2f4d6f0cc04555029df6e6ee998d485f90ef87075d6737d554ae0084",
+ "spec": "v0.2 §5.4 / §11 Memory / §13 P3"
+}

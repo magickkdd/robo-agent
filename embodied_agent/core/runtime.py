@@ -62,6 +62,11 @@ HISTORY_CAP = 12
 # one episode for another episode's traffic (SPEC 6.2, 11.4)
 SOURCE_COUNTERS = ("prompt_tokens", "completion_tokens", "api_errors", "transport_retries",
                    "format_repairs")
+#: what one opened request can move on a shared source — the HTTP ceiling plus the five
+#: counters above. A `model_calls.jsonl` row files the delta of each as `<name>_this_call`,
+#: and does it the same way for a decision request and for a camera request
+#: (`benchmark_mujoco/calls_log.py`, `perception/observe.py:VLMReader`).
+CALLED_COUNTERS = ("http_requests",) + SOURCE_COUNTERS
 
 
 class BudgetLedger:
@@ -168,7 +173,7 @@ class Runtime:
         (SPEC 5.1)."""
         self._obs_seq += 1
         self.state_version = self._obs_seq
-        w = build_world_state(self.scene, self.state_version, f"obs_{self._obs_seq:04d}", self.config)
+        w = self._capture_world(self.state_version, f"obs_{self._obs_seq:04d}")
         self.world = w
         rec = ObservationRecord(
             observation_ref=w.observation_ref, state_version=w.state_version, sim_time=w.sim_time,
@@ -176,6 +181,103 @@ class Runtime:
         self.observations.append(rec)
         self.store.log("observation", observation=rec.model_dump(mode="json"))
         return w
+
+    # ---------- backend seams ----------
+    # Every one of these is the *one* place this loop touches the world it is in.
+    # They exist so a second benchmark backend can be attached without copying the
+    # decision loop: what a subclass changes is how a snapshot is measured, how a
+    # catalogue is worded and how a terminal state is read — never when to act.
+    def _capture_world(self, state_version: int, observation_ref: str) -> WorldState:
+        return build_world_state(self.scene, state_version, observation_ref, self.config)
+
+    def _verifier(self, world: WorldState):
+        """The evidence reader for this backend. A text world cannot be verified by
+        the geometric verifier, so the return type is deliberately the duck-typed
+        pair of methods the loop actually calls: `progress` and `verify_goals`."""
+        return RuntimeVerifier(world, self.config)
+
+    def _verification_reports(self, call: SkillCall, result: SkillResult, pre_world: WorldState,
+                              post_world: WorldState, verifier) -> list:
+        reports = []
+        eid, tid = call.args.get("object_id"), call.args.get("target_id")
+        if eid and call.skill == "pick" and result.status == SkillStatus.completed:
+            reports.append(verifier.verify_grasp(eid, before=pre_world))
+        elif eid and tid and call.skill == "place":
+            reports.append(verifier.verify_placement(eid, tid))
+        return reports
+
+    def _outcome_status(self, result: SkillResult, reports: list, verifier) -> tuple[SkillStatus, str | None]:
+        """Layer 2's reading of what layer 1 reported as achieved (SPEC-v0.2 §5.8).
+
+        The actuator status and the verification verdict are different layers, and only a
+        channel that *cannot* measure the postcondition narrows the claim: a completed
+        place whose every predicate came back `unknown` is reported `uncertain`, which is
+        neither a failure the evidence does not support nor a success it does not. The
+        method is looked up rather than called because `_verifier` is duck-typed — a text
+        world's verifier has no geometric reports to reason about and keeps v0.1's
+        vocabulary untouched. This records what the evidence says; it does not retry,
+        re-plan or decide what happens next with it."""
+        decide = getattr(verifier, "outcome_status", None)
+        if decide is None:
+            return result.status, result.failure_code
+        override = decide(result, reports)
+        if override is None:
+            return result.status, result.failure_code
+        return override, (result.failure_code or FailureCode.STATE_UNCERTAIN.value)
+
+    def _before_execute(self, call: SkillCall) -> None:
+        """Noticed, not intercepted: the one place a backend may see what is about to be
+        asked.
+
+        It may not edit the call, refuse it or run anything of its own — the loop has
+        already validated the decision and executes whatever arrives (SPEC 6.1: the runtime
+        makes no strategic choice). A sensor backend uses it for one thing: to remember
+        which camera the model asked to look with, because the snapshot that follows is
+        taken *in answer to* that request and the view it names is a fact about the
+        measurement, not about the world."""
+        return None
+
+    def _begin_episode(self) -> None:
+        """The one place a backend records which arm it is about to run in.
+
+        Called once, after the `episode_start` envelope and before the first snapshot, so the
+        record precedes every event the arm is later held to. It publishes, it does not
+        configure: a backend that behaves differently here behaves differently everywhere,
+        and the §9 audit reads the log to find that out."""
+        return None
+
+    def _skill_catalogue(self) -> dict:
+        return SkillRegistry.CATALOGUE
+
+    # `_context_candidates` is a seam too, but its desktop implementation is the
+    # original one further down in this class — a stub here would be shadowed by it
+    # and read as the default behaviour. A backend that offers no candidates
+    # overrides that method, not this list.
+
+    def _fingerprint(self, world: WorldState) -> tuple:
+        return _world_fingerprint(world)
+
+    def _capture_terminal_snapshot(self) -> TerminalSnapshot:
+        return TerminalSnapshot.capture(self.scene, self.config.settle_time_s, "terminal", 0)
+
+    def _terminal_progress(self):
+        return self._verifier(self.terminal_world).progress(self.goal)
+
+    def _state_diff(self, pre_world: WorldState, post_world: WorldState) -> dict:
+        return diff_states(pre_world, post_world)
+
+    def _backend_termination(self):
+        """A lifecycle signal from the world itself, read *after* an action landed.
+
+        The desktop simulator's action budget is spent inside a skill call, so it
+        never ends an episode from outside; a benchmark environment can (its own
+        win/lose or its own step cap). Returning a triple ends the loop with that
+        status, failure code and note; returning None means nothing to report. It
+        is read for *stopping*, never fed back into a decision context."""
+        return None
+
+    def _episode_success(self, status: TerminalStatus, items, completed: int) -> bool:
+        return status == TerminalStatus.success and bool(items) and completed == len(items)
 
     # ---------- request accounting ----------
     @staticmethod
@@ -221,6 +323,7 @@ class Runtime:
                        prologue={k: v for k, v in prologue.items() if k != "wall_start"},
                        budgets=self.budgets.model_dump(mode="json"),
                        verify_config=self.config.model_dump(mode="json"))
+        self._begin_episode()
         if self.environment is not None:
             self.environment.bind_store(self.store)
 
@@ -240,10 +343,14 @@ class Runtime:
             if ledger.wall_remaining() <= 0:
                 return self._finalize(task, ledger, TerminalStatus.failed, FailureCode.TIMEOUT,
                                       "wall clock budget", mode)
+            trip = self._preflight_trip(ledger)
+            if trip is not None:
+                status, code, note = trip
+                return self._finalize(task, ledger, status, code, note, mode)
 
             # ---- 2. observe, and recompute every goal from current evidence ----
             world = self.observe()
-            verifier = RuntimeVerifier(world, self.config)
+            verifier = self._verifier(world)
             progress = verifier.progress(goal)
             ledger.charge_decision()
             ctx = self._build_context(task, goal, world, progress, ledger)
@@ -344,7 +451,7 @@ class Runtime:
                     pre_state_version=world.state_version, post_state_version=snapshot.state_version,
                     verification=report,
                     held_object_after=self.terminal_world.held_object,
-                    state_diff=diff_states(world, self.terminal_world)))
+                    state_diff=self._state_diff(world, self.terminal_world)))
                 self.store.log("finish_check", accepted=accepted, decision_id=decision.decision_id,
                                reports=[r.model_dump(mode="json") for r in report.reports])
                 if accepted:
@@ -372,6 +479,7 @@ class Runtime:
             self.store.log("skill_call", decision_id=decision.decision_id, context_id=ctx.context_id,
                            call=call.model_dump(mode="json"))
             pre_world = world
+            self._before_execute(call)
             result = self.executor.execute(call)
             ledger.charge_skill(call.skill, result.sim_seconds_used)
             if result.candidate_resolution == "runtime_fallback_rule":
@@ -391,6 +499,10 @@ class Runtime:
             if self._repeated_without_new_evidence(_signature(decision), post_world, ledger):
                 return self._finalize(task, ledger, TerminalStatus.failed, FailureCode.REPEATED_INVALID,
                                       "identical action with no new evidence", mode)
+            stop = self._backend_termination()
+            if stop is not None:
+                status, code, note = stop
+                return self._finalize(task, ledger, status, code, note, mode)
 
     # ---------- context ----------
     def initial_context(self, task: TaskInput, goal: GoalSpec) -> DecisionContext:
@@ -399,7 +511,7 @@ class Runtime:
         round, so the baseline is not given a poorer view than mode B, and the
         ledger it carries shows the untouched budget the plan was drawn under."""
         world = self.observe()
-        progress = RuntimeVerifier(world, self.config).progress(goal)
+        progress = self._verifier(world).progress(goal)
         ctx = self._build_context(task, goal, world, progress, BudgetLedger(self.budgets))
         self.store.log("decision_context", context_id=ctx.context_id, round_index=ctx.round_index,
                        state_version=ctx.state_version, observation_ref=ctx.observation_ref,
@@ -412,7 +524,24 @@ class Runtime:
 
     PER_GOAL_CANDIDATES = 3
 
-    def _build_context(self, task, goal, world, progress, ledger) -> DecisionContext:
+    # Which context class a round is built in. The payload a model sees is part of
+    # the mechanism under test, so a backend that must not show geometry replaces
+    # the *rendering* (`model_payload`), never the loop that asks.
+    context_class = DecisionContext
+    # Named by a backend whose budgets are not the ones `Budgets` was written for.
+    # SPEC-BST 5.3 caps one episode's *token* spend, and a token count is not a
+    # `Budgets` field: the field set is frozen for the v0.1 batch, so a second
+    # backend asks the loop to check its own pre-flight instead of editing that
+    # frozen record. The desktop loop returns None here, always.
+    termination_reason: str | None = None
+
+    def _preflight_trip(self, ledger) -> tuple | None:
+        """(status, failure_code, note) for a budget this backend bounds outside
+        `BudgetLedger`, or None. Checked where the other budgets are checked:
+        before the operation is started, never after it."""
+        return None
+
+    def _context_candidates(self, world: WorldState, progress) -> tuple[list, int]:
         """Candidates for pending goals are offered even while the gripper is
         empty: a geometric option existing is distinct from an action being
         executable now, and the model must see both (SPEC 5.5).
@@ -421,9 +550,8 @@ class Runtime:
         left out is reported. An empty list in the payload then means "these are
         the ones we showed you", never "this is all there is".
         """
-        candidates = []
+        candidates, truncated = [], 0
         seen: set[str] = set()
-        truncated = 0
         pending = [p for p in progress if p.value != PredicateVerdict.true]
         for p in pending[:4]:
             if not world.has_entity(p.entity_id) or world.target(p.target_id) is None:
@@ -439,20 +567,35 @@ class Runtime:
                 if chk.candidate.candidate_id not in seen:
                     seen.add(chk.candidate.candidate_id)
                     candidates.append(chk.candidate)
-        return DecisionContext(
+        return candidates, truncated
+
+    def _build_context(self, task, goal, world, progress, ledger) -> DecisionContext:
+        candidates, truncated = self._context_candidates(world, progress)
+        return self.context_class(
             episode_id=self.episode_id, round_index=ledger.decision_rounds, task=task, goal=goal,
             public_constraints=list(task.declared_constraints),
             state_version=world.state_version, observation_ref=world.observation_ref,
             sim_time=world.sim_time, world=world, progress=progress,
             last_feedback=self.feedback_history[-1] if self.feedback_history else None,
             recent_feedbacks=list(self.feedback_history), attempts=list(self.attempts),
-            skill_catalogue=SkillRegistry.CATALOGUE, candidates=candidates,
+            skill_catalogue=self._skill_catalogue(), candidates=candidates,
             candidates_truncated=truncated,
             budget=ledger.remaining_payload())
 
     # ---------- decision validation ----------
     def _validate_decision(self, decision: Decision, ctx: DecisionContext,
                            world: WorldState) -> tuple[bool, list[str]]:
+        errs = self._validate_envelope(decision, ctx, world)
+        if decision.action != "execute":
+            return (not errs), errs
+        ok, plan_errs = self._validate_execution(decision, ctx, world)
+        return (ok and not errs), errs + plan_errs
+
+    def _validate_envelope(self, decision: Decision, ctx: DecisionContext,
+                           world: WorldState) -> list[str]:
+        """The claims a decision makes about *this* round. A backend replaces the
+        execution half, never this half: an answer to another context, another
+        goal or a future state version is not a legal action in any of them."""
         errs: list[str] = []
         if decision.context_id != ctx.context_id:
             errs.append(f"decision names context {decision.context_id}, not {ctx.context_id}")
@@ -468,13 +611,16 @@ class Runtime:
                            latest=world.state_version, decision_id=decision.decision_id,
                            note="re-checked against the latest snapshot; the version step by "
                                 "itself is not a rejection reason")
-        if decision.action != "execute":
-            return (not errs), errs
-        step = PlanStep(id="d0", skill=decision.execute.skill, args=dict(decision.execute.args))
+        return errs
+
+    def _validate_execution(self, decision: Decision, ctx: DecisionContext,
+                            world: WorldState) -> tuple[bool, list[str]]:
+        """Desktop legality: the geometric preconditions this world can prove."""
+        step = PlanStep(id="d0", skill=decision.execute.skill,
+                        args=dict(decision.execute.args))
         single = Plan(plan_id="decision", based_on_state_version=world.state_version,
                       goal_ref=decision.goal_ref, steps=[step])
-        ok, plan_errs = PlanValidator(world, self.config).validate(single)
-        return (ok and not errs), (errs + plan_errs)
+        return PlanValidator(world, self.config).validate(single)
 
     def _repeated_without_new_evidence(self, signature, world: WorldState, ledger) -> bool:
         """Same action, same arguments, same candidate, and a world that is not
@@ -483,7 +629,7 @@ class Runtime:
         outcome (SPEC 6.2: 相同无效尝试, "在无相关新证据下重复")."""
         if signature is None:
             return False
-        fp = _world_fingerprint(world)
+        fp = self._fingerprint(world)
         if signature == self._last_signature and fp == self._last_signature_fp:
             ledger.identical_invalid += 1
             ledger.identical_repeats_total += 1
@@ -503,16 +649,27 @@ class Runtime:
     def _billed(self, key: str) -> int:
         return int(self.usage[key]) + int(self._usage_offset.get(key, 0))
 
+    def settle_usage(self, source) -> dict:
+        """Bill this episode for every request it opened, however the loop ended.
+
+        The round's own `_accumulate_usage` sits after the decision, so an exception raised
+        anywhere the round does not guard — a perception request inside `observe()` — leaves
+        the ledger behind it while the shared adapter has already counted the attempt.
+        `benchmark_mujoco/runner.py` calls this on that path before filing `model_usage`.
+        """
+        if getattr(self, "_usage_base", None) is not None:
+            self._accumulate_usage(source)
+        return dict(self.usage)
+
     # ---------- feedback ----------
     def _build_feedback(self, decision, ctx, call: SkillCall, result: SkillResult,
                         pre_world: WorldState, post_world: WorldState, goal: GoalSpec) -> ExecutionFeedback:
-        verifier = RuntimeVerifier(post_world, self.config)
+        verifier = self._verifier(post_world)
         eid, tid = call.args.get("object_id"), call.args.get("target_id")
-        reports = []
-        if eid and call.skill == "pick" and result.status == SkillStatus.completed:
-            reports.append(verifier.verify_grasp(eid, before=pre_world))
-        elif eid and tid and call.skill == "place":
-            reports.append(verifier.verify_placement(eid, tid))
+        reports = self._verification_reports(call, result, pre_world, post_world, verifier)
+        # `uncertain` can only come from a verifier that measured the postcondition and
+        # could not answer it; the reports below are the evidence for that same word.
+        outcome, outcome_failure = self._outcome_status(result, reports, verifier)
         report = VerificationReport(
             reports=reports, source=post_world.source, tolerance_version=self.config.tolerance_version,
             world_observation_ref=post_world.observation_ref, state_version=post_world.state_version)
@@ -521,7 +678,7 @@ class Runtime:
                     "from": before_prog.get(f"{p.entity_id}->{p.target_id}", "absent"), "to": p.value.value}
                    for p in verifier.progress(goal)
                    if before_prog.get(f"{p.entity_id}->{p.target_id}") != p.value.value]
-        diff = diff_states(pre_world, post_world)
+        diff = self._state_diff(pre_world, post_world)
         affected = sorted(({m["entity_id"] for m in diff["moved"]}
                            | {c["entity_id"] for c in diff["state_changed"]}) - {eid or ""})
         return ExecutionFeedback(
@@ -530,7 +687,7 @@ class Runtime:
             candidate_resolution=result.candidate_resolution,
             executed=result.status != SkillStatus.rejected,
             stages_executed=list(result.stages_executed),
-            status=result.status.value, failure_code=result.failure_code,
+            status=outcome.value, failure_code=outcome_failure,
             # The refs must name the same measurements the versions and the diff
             # are computed from: this record describes what the *loop* measured
             # around the action, and a skill's own intermediate snapshot is a
@@ -545,6 +702,9 @@ class Runtime:
             progress_changes=changes, affected_entities=affected,
             measurements={k: round(v, 4) for k, v in result.measurements.items()},
             state_diff=diff,
+            # a text backend's feedback *is* the environment's own sentence; a
+            # desktop snapshot has no such text and the field stays None
+            environment_text=post_world.raw_observation,
             rejection_reasons=list(result.notes) if result.status == SkillStatus.rejected else [],
             sim_seconds_used=result.sim_seconds_used)
 
@@ -580,23 +740,23 @@ class Runtime:
     def _finish_check(self, goal: GoalSpec):
         """The single end-of-episode protocol: settle once, freeze one snapshot,
         and let both judges work from *that* sample (SPEC 7)."""
-        snapshot = TerminalSnapshot.capture(self.scene, self.config.settle_time_s, "terminal", 0)
+        snapshot = self._capture_terminal_snapshot()
         world = self.observe()
         snapshot = snapshot.model_copy(update={"observation_ref": world.observation_ref,
                                                "state_version": world.state_version})
         self.terminal_world = world
         self.terminal_snapshot = snapshot
-        report = RuntimeVerifier(world, self.config).verify_goals(goal)
+        report = self._verifier(world).verify_goals(goal)
         return report.overall == PredicateVerdict.true, report, snapshot
 
     def _finalize(self, task: TaskInput, ledger: BudgetLedger, status: TerminalStatus,
                   failure: FailureCode | None, note: str, mode: str) -> EpisodeResult:
         if self.terminal_world is None:
             self._finish_check(self.goal)
-        items = RuntimeVerifier(self.terminal_world, self.config).progress(self.goal)
+        items = self._terminal_progress()
         completed = sum(1 for i in items if i.value == PredicateVerdict.true)
         unknown = sum(1 for i in items if i.value == PredicateVerdict.unknown)
-        success = (status == TerminalStatus.success and bool(items) and completed == len(items))
+        success = self._episode_success(status, items, completed)
         result = EpisodeResult(
             episode_id=self.episode_id, task_id=task.task_id, terminal_status=status, mode=mode,
             decision_rounds=ledger.decision_rounds, skill_calls=ledger.skill_calls,
@@ -611,9 +771,19 @@ class Runtime:
             provider_counters={k: self._billed(k) for k in SOURCE_COUNTERS
                                if k not in ("prompt_tokens", "completion_tokens")},
             score_complete_success=success, objects_total=len(items), objects_completed=completed,
+            # Two of the three counters `EpisodeResult` declares were never filled by this loop, so
+            # an episode that filed five `recovery_action` records reported `0`. The tallies live on
+            # the rolling-plan arm (the only thing that files those events); reading them here,
+            # before the `episode_end` record is written, keeps the event log and the result the
+            # same account. A loop without that arm has no such attribute and keeps the declared
+            # zero. `retry_events` stays unfilled on purpose: nothing counts it — a retry is the
+            # `choice` field of a `recovery_action` record, not its own event.
+            recovery_events=getattr(self, "recovery_events", 0),
+            replan_events=getattr(self, "revision_events", 0),
             failure_type=failure, sim_time_s=round(self.scene.sim_time, 2),
             wall_time_s=round(time.time() - ledger.t_start_wall, 2),
             slot_resolution_fallbacks=self.slot_resolution_fallbacks,
+            termination_reason=self.termination_reason,
             artifacts={"terminal_state_version": str(self.terminal_world.state_version),
                        "terminal_observation_ref": str(self.terminal_world.observation_ref),
                        "unknown_goals": str(unknown), "note": note})
@@ -637,7 +807,18 @@ def _signature(decision) -> tuple | None:
 
 def _world_fingerprint(world: WorldState) -> tuple:
     """Millimetre-level summary of what the world looks like. Two attempts made
-    under the same fingerprint cannot be distinguished by any new measurement."""
+    under the same fingerprint cannot be distinguished by any new measurement.
+
+    `None` where a body was not located: an unmeasured position keeps the body in the
+    fingerprint — it is still a named body in the snapshot — but says nothing about where,
+    so two frames that both failed to locate it repeat, and a frame that finally locates
+    it does not. Ordered by name rather than by the whole row, because a row with a `None`
+    in it is not comparable to one with a number and the order here is only a canonical form.
+    """
     return (str(world.held_object),
-            tuple(sorted((e.entity_id, round(e.pose.position.x, 3), round(e.pose.position.y, 3),
-                          round(e.pose.position.z, 3), str(e.held)) for e in world.entities)))
+            tuple(sorted(((e.entity_id,
+                           None if e.pose is None else round(e.pose.position.x, 3),
+                           None if e.pose is None else round(e.pose.position.y, 3),
+                           None if e.pose is None else round(e.pose.position.z, 3),
+                           str(e.held)) for e in world.entities),
+                         key=lambda row: row[0])))

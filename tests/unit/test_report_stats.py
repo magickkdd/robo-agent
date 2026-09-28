@@ -27,6 +27,7 @@ from embodied_agent.evaluation.report import (
     cost_metrics,
     failure_attribution,
     load_rows,
+    model_identities,
     model_latency,
     render_markdown,
     state_utilization,
@@ -423,6 +424,69 @@ def test_latency_is_read_off_the_calls_rather_than_a_mode_being_credited_for_non
     # the shared goal parse stays out of the decision numbers: it is billed once per
     # case and every mode reads it
     assert lat["goal_parse"]["calls"] == 1 and lat["goal_parse"]["max_s"] == 1.093
+
+
+def test_who_answered_is_reported_beside_who_was_asked_and_a_swap_inside_a_batch_shows(tmp_path):
+    """SPEC 11.2 freezes the model identifier we *send*, which is the only thing
+    freezing can reach: the identifier the provider answers with is its claim about
+    what ran. Read per arm, because a model that changed mid-batch must appear as two
+    rows in one arm, not average into one — the interleaved order would otherwise
+    spread the change over all three arms and make it look like the world moved."""
+    rows = [_row("c1", "B", 0, http_requests=3), _row("c1", "B", 1, http_requests=2),
+            _row("c1", "A", 0, http_requests=1)]
+    run_dir = _write_run(tmp_path, rows)
+
+    def call(req, ret, kind="decision", **extra):
+        return {"kind": kind, "requested_model": req, "returned_model": ret, **extra}
+
+    _model_calls(os.path.join(run_dir, "episodes", "c1.B.r0", "model_calls.jsonl"),
+                 call("deepseek-chat", "deepseek-flash"),
+                 call("deepseek-chat", "deepseek-flash"),
+                 call("deepseek-chat", None, error="DecisionSchemaError: action"))
+    _model_calls(os.path.join(run_dir, "episodes", "c1.B.r1", "model_calls.jsonl"),
+                 call("deepseek-chat", "deepseek-chat"))
+    _model_calls(os.path.join(run_dir, "episodes", "c1.A.r0", "model_calls.jsonl"),
+                 call("deepseek-chat", "deepseek-flash", kind="one_shot_plan"))
+    _model_calls(os.path.join(run_dir, "goal_resolutions", "goal_calls.jsonl"),
+                 call("deepseek-chat", "deepseek-flash", kind="goal_parse"))
+    _model_calls(os.path.join(run_dir, "model_calls.jsonl"),
+                 call("deepseek-chat", "deepseek-flash"))
+
+    ident = model_identities(run_dir, rows)
+    assert ident["requested_as"] == ["deepseek-chat"], "what we sent is still one fixed parameter"
+    assert ident["answered_as"] == ["deepseek-chat", "deepseek-flash"]
+    assert ident["one_identity_throughout"] is False
+    assert ident["calls_by_group"]["B"] == {"deepseek-chat -> deepseek-chat": 1,
+                                            "deepseek-chat -> deepseek-flash": 2}
+    assert ident["calls_without_an_answered_identifier"] == 1, \
+        "an error record names no model, and is never credited to the one we asked for"
+    assert ident["calls_by_group"]["goal_parse"] == {"deepseek-chat -> deepseek-flash": 1}, \
+        "the shared parse is its own group: billed once per case, not once per arm"
+    assert ident["calls_by_group"]["state_util_diagnostic"] == {"deepseek-chat -> deepseek-flash": 1}
+    assert "other than what was requested" in ident["note"]
+
+    # and the report says it out loud rather than leaving it in 1,500 jsonl lines
+    report = build_report(run_dir)
+    assert report["model_identities_observed"]["identities"] == ident["identities"]
+    text = render_markdown(report)
+    assert "more than one identity served this batch" in text
+    assert "`deepseek-chat -> deepseek-flash` x2" in text, "the per-group counts are on the page"
+
+
+def test_a_uniformly_answered_batch_says_so_without_crying_swap(tmp_path):
+    rows = [_row("c1", "B", 0, http_requests=2), _row("c1", "A", 0, http_requests=1)]
+    run_dir = _write_run(tmp_path, rows)
+    _model_calls(os.path.join(run_dir, "episodes", "c1.B.r0", "model_calls.jsonl"),
+                 {"kind": "decision", "requested_model": "deepseek-chat",
+                  "returned_model": "deepseek-chat"})
+    _model_calls(os.path.join(run_dir, "episodes", "c1.B.r0", "model_calls.jsonl"),
+                 {"kind": "decision", "requested_model": "deepseek-chat",
+                  "returned_model": "deepseek-chat"})
+
+    ident = model_identities(run_dir, rows)
+    assert ident["one_identity_throughout"] is True and ident["requested_as"] == ["deepseek-chat"]
+    assert ident["note"] == "every call was answered by the identifier we requested"
+    assert "more than one identity" not in render_markdown(build_report(run_dir))
 
 
 def test_the_diagnostic_reports_its_request_latency_and_says_so_when_it_made_none(tmp_path):

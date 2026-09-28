@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 
 .env
+
+# a GLFW initialisation log from a failed GUI attempt; a runtime artefact, not evidence
+MUJOCO_LOG.TXT

@@ -13,6 +13,12 @@ Accounting rules this module exists to enforce:
   hide from the episode ledger (SPEC 6.2: 网络重试不能藏在请求适配器内部).
 * The raw response text is returned in full. Cutting it to fit a log line
   destroys the evidence a rejection needs (SPEC 7).
+* Absence of an answer is not an empty answer (任务 `#155`). A provider that sends
+  `choices[0].message` with no `content` key at all — what this endpoint does when it runs out
+  of budget mid-reasoning — is reported as a billed generation that never became readable, and
+  it earns no format repair. That the repair cost a second one of the same thing, rather than
+  only possibly doing so, is in the ledger it left behind: one look, `http_requests_this_call=2`
+  and `completion_tokens` 9600 against a ceiling of 4800 — the pair, each half truncated.
 * Structure is validated here (pydantic); semantics are never "fixed". A payload
   that is not a `Decision` raises `DecisionSchemaError` with the field-level
   reasons so the **Runtime** rejects it and charges the bounded semantic-repair
@@ -26,6 +32,8 @@ Accounting rules this module exists to enforce:
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import time
@@ -59,23 +67,48 @@ class LLMError(Exception):
         self.meta = meta or {}
 
 
-# --------------------------------------------------------------- HTTP client --
+def strip_env_quotes(value: str) -> str:
+    """Drop one matched pair of surrounding quotes from a `.env` value.
 
+    `. ./.env` in a shell strips them, so a reader that doesn't sends a bearer
+    token with literal quote characters in it and the API answers 401 — a message
+    that cannot name the cause, because the value is never logged (SPEC 7)."""
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
+#: The provider-documented values of the thinking-budget request field, as a set so a config
+#: that names one of them is accepted and anything else is refused before the first request.
+#: `None` (the default, and what every config in `configs/models/` holds today) sends no such
+#: field at all, which leaves the choice with the endpoint.
+REASONING_EFFORTS = ("low", "medium", "high", "none")
+
+
+# --------------------------------------------------------------- HTTP client --
 
 class DeepSeekAdapter:
     def __init__(self, api_key: str, model: str = "deepseek-chat",
                  base_url: str = "https://api.deepseek.com", temperature: float = 0.2,
                  max_tokens: int = 1200, timeout_s: float = 60.0, max_retries: int = 2,
-                 proxy: str | None = "__direct__", pricing_usd_per_mtok: dict | None = None):
+                 proxy: str | None = "__direct__", pricing_usd_per_mtok: dict | None = None,
+                 provider: str = "deepseek", reasoning_effort: str | None = None):
         if not api_key:
             raise LLMError("no API key in the environment: online model acceptance requires a real "
                            "key (SPEC 10: fixture doubles are offline-only)")
+        if reasoning_effort is not None and reasoning_effort not in REASONING_EFFORTS:
+            # A config typo is checked here rather than at the endpoint because the endpoint's
+            # answer to an unknown value is a billed request (400 or a silent default), and
+            # this process does not find out how a run was configured by paying for it.
+            raise LLMError(f"reasoning_effort {reasoning_effort!r} is not one of "
+                           f"{REASONING_EFFORTS} (the provider's documented values)")
         self.api_key = api_key
-        self.provider = "deepseek"
+        self.provider = provider
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.reasoning_effort = reasoning_effort
         self.timeout_s = timeout_s
         self.max_retries = max_retries
         self.pricing = pricing_usd_per_mtok or {}
@@ -108,9 +141,18 @@ class DeepSeekAdapter:
         The proxy is recorded as its kind only — a proxy URL can carry credentials."""
         return {"model": self.model, "base_url": self.base_url,
                 "temperature": self.temperature, "max_tokens": self.max_tokens,
+                "reasoning_effort": self.reasoning_effort,
                 "response_format": "json_object", "stream": False,
                 "timeout_s": self.timeout_s, "max_retries": self.max_retries,
                 "proxy": self.proxy_kind}
+
+    def _thinking_fields(self) -> dict:
+        """The thinking-budget field, present in the request only when a config named it.
+
+        Writing a default here would put a number in the request that no config asked for, and
+        `sampling` — which is what a frozen run records as *what was sent* — would describe this
+        process rather than the wire. `None` therefore means "absent from the body", not "none"."""
+        return {"reasoning_effort": self.reasoning_effort} if self.reasoning_effort else {}
 
     # ---------- one request ----------
     def _post(self, body: dict) -> tuple[dict, int]:
@@ -147,6 +189,72 @@ class DeepSeekAdapter:
         raise LLMError(f"request failed after {attempts} attempts: {type(last_err).__name__}: "
                        f"{last_err}", requests_made=attempts) from last_err
 
+    def _sent_meta(self, body: dict, *, attempts: int, t0: float, prompt_chars: int,
+                   raw: str = "", extra: dict | None = None) -> dict:
+        """What this process can say about a request it *sent*, answer or no answer.
+
+        Split out of `chat`/`chat_vision` so the two paths that need it use one set of
+        expressions: 任务 `#138` measured a refusal row 14 keys short of the returning row it
+        shared a log with, and `model_calls.jsonl` is the document a batch is billed from and
+        is read column-wise. Nothing here depends on a reply, so nothing is invented for a
+        reply that never came — the keys that do depend on one live in `_answer_meta` and are
+        simply not produced on that path."""
+        return {
+            "provider": self.provider,
+            "requested_model": self.model,
+            "temperature": self.temperature,
+            "max_tokens": body["max_tokens"],
+            "http_requests_total": self.http_requests,
+            "transport_attempts": attempts,
+            "transport_retries": max(0, attempts - 1),
+            "latency_s": round(time.time() - t0, 3),
+            "prompt_chars": prompt_chars,
+            "raw_chars": len(raw),
+            **(extra or {}),
+        }
+
+    @staticmethod
+    def _answer_meta(payload: dict) -> dict:
+        """The fields only an answer can supply. Empty payload on none — a call that died
+        files these as null, which is the difference between *no answer* and *no row*.
+
+        The three `*_field_*` keys are 任务 `#155`: on a mid-reasoning truncation this provider
+        sends `choices[0].message` with keys `['reasoning', 'role']` and **no `content` key at
+        all**, and `(message or {}).get("content") or ""` reads that the same as a model that
+        answered with an empty string. The distinction is the whole content of the row — one is
+        a channel that billed a generation and never opened it for reading, the other is a
+        refusal to answer — and it is only visible in the payload's own key set, so that is
+        what gets filed here: presence, and the length of the field that *did* arrive."""
+        choice = DeepSeekAdapter._choice_of(payload)
+        message = choice.get("message")
+        message = message if isinstance(message, dict) else {}
+        reasoning = message.get("reasoning")
+        return {
+            "returned_model": payload.get("model"),
+            "completion_id": payload.get("id"),
+            "created": payload.get("created"),
+            "finish_reason": choice.get("finish_reason"),
+            "usage": payload.get("usage"),
+            "content_field_present": "content" in message,
+            "reasoning_field_present": "reasoning" in message,
+            "reasoning_chars": len(reasoning) if isinstance(reasoning, str) else 0,
+        }
+
+    @staticmethod
+    def _choice_of(payload: dict) -> dict:
+        choices = payload.get("choices") or []
+        return choices[0] if isinstance(choices, list) and choices else {}
+
+    @staticmethod
+    def _content_of(payload: dict) -> str:
+        """The answer text, read the same way `_answer_meta` reads its presence flag.
+
+        Two expressions of "what did it say" would be two chances for `raw_chars` and
+        `content_field_present` to describe different objects."""
+        message = DeepSeekAdapter._choice_of(payload).get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        return content or ""
+
     def chat(self, system: str, user: str, *, max_tokens: int | None = None) -> tuple[str, dict]:
         """One logical completion request -> raw text + provider metadata."""
         t0 = time.time()
@@ -157,36 +265,37 @@ class DeepSeekAdapter:
             "max_tokens": max_tokens or self.max_tokens,
             "response_format": {"type": "json_object"},
             "stream": False,
+            **self._thinking_fields(),
         }
-        payload, attempts = self._post(body)
-        choice = (payload.get("choices") or [{}])[0]
-        raw = (choice.get("message") or {}).get("content") or ""
-        return raw, {
-            "provider": self.provider,
-            "requested_model": self.model,
-            "returned_model": payload.get("model"),
-            "completion_id": payload.get("id"),
-            "created": payload.get("created"),
-            "finish_reason": choice.get("finish_reason"),
-            "usage": payload.get("usage"),
-            "temperature": self.temperature,
-            "max_tokens": body["max_tokens"],
-            "http_requests_total": self.http_requests,
-            "transport_attempts": attempts,
-            "transport_retries": max(0, attempts - 1),
-            "latency_s": round(time.time() - t0, 3),
-            "prompt_chars": len(system) + len(user),
-            "raw_chars": len(raw),
-        }
+        chars = len(system) + len(user)
+        try:
+            payload, attempts = self._post(body)
+        except LLMError as e:
+            # The message and `requests_made` are the ones `_post` chose; only the metadata is
+            # added here, so a reader that matched on this sentence still matches.
+            raise LLMError(str(e), requests_made=e.requests_made,
+                           meta=self._sent_meta(body, attempts=e.requests_made, t0=t0,
+                                                prompt_chars=chars)) from e
+        raw = self._content_of(payload)
+        return raw, {**self._sent_meta(body, attempts=attempts, t0=t0, prompt_chars=chars,
+                                        raw=raw),
+                     **self._answer_meta(payload)}
 
     def chat_json(self, system: str, user: str, *, kind: str, prompt_version: str,
                   max_tokens: int | None = None):
         """Request + parse, with at most one *format* repair request.
 
         The repair re-asks the model for the same object; nothing here edits a
-        payload towards validity."""
+        payload towards validity. A message that arrived with no `content` field is
+        raised, not re-asked — see `chat_vision_json`, whose gate is the same one."""
         raw, meta = self.chat(system, user, max_tokens=max_tokens)
         meta = {**meta, "kind": kind, "prompt_version": prompt_version, "raw_response": raw}
+        absent = _content_absent_diagnosis(meta)
+        if absent:
+            # Not re-asked: the repair below would re-send the same user turn with a complaint
+            # about an empty string appended to it, bill a second generation, and arrive at the
+            # same raise. `_content_absent_diagnosis` carries the ledger row that measured it.
+            raise LLMError(absent, requests_made=meta["transport_attempts"], meta=meta)
         parsed, err = _loads_lenient(raw)
         if err is None:
             return parsed, meta
@@ -200,7 +309,8 @@ class DeepSeekAdapter:
         meta2["parse_error"] = str(err2)
         raise LLMError(f"unparseable JSON after 1 format repair: {err2}",
                        requests_made=meta["transport_attempts"] + meta2["transport_attempts"],
-                       meta=meta2)
+                       meta={**meta2, "usage": _sum_usage(meta.get("usage"),
+                                                          meta2.get("usage"))})
 
     def cost_estimate(self) -> float | None:
         """Money is reported only when pricing is configured; never guessed."""
@@ -209,6 +319,139 @@ class DeepSeekAdapter:
         pin = float(self.pricing.get("input", 0.0))
         pout = float(self.pricing.get("output", 0.0))
         return round(self.prompt_tokens / 1e6 * pin + self.completion_tokens / 1e6 * pout, 6)
+
+    # ---------- multimodal request (SPEC-v0.2 §5.1: the VLM channel) ----------
+    #
+    # One user turn carrying image parts + text, OpenAI-compatible `content` list
+    # form. This is the *only* place an image leaves this process, and it leaves as
+    # a data URL built here from bytes read off the run directory: the base64 never
+    # reaches a log, a prompt string or an exception message (SPEC-v0.2 §7 / the
+    # credential-and-payload policy v0.1 already follows for error bodies). The
+    # record keeps the file reference, the byte count and the digest instead, which
+    # is what lets a later reader prove which frame produced which percept.
+    def chat_vision(self, system: str, user: str, images: list[str], *,
+                    max_tokens: int | None = None, modality: str = "rgb") -> tuple[str, dict]:
+        """One logical vision request -> raw text + provider metadata.
+
+        `images` are PNG paths, sent in order; the text prompt names them as
+        `image[0]`, `image[1]`… so a percept can cite the frame it looked at."""
+        parts = []
+        image_audit = []
+        for n, path in enumerate(images):
+            with open(path, "rb") as f:
+                blob = f.read()
+            parts.append({"type": "image_url",
+                          "image_url": {"url": f"data:image/png;base64,{base64.b64encode(blob).decode()}"}})
+            image_audit.append({"index": n, "ref": path, "bytes": len(blob),
+                                "sha256": hashlib.sha256(blob).hexdigest()})
+        parts.append({"type": "text", "text": user})
+        audit = {"modality": modality, "images": image_audit}
+        t0 = time.time()
+        body = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system},
+                         {"role": "user", "content": parts}],
+            "temperature": self.temperature,
+            "max_tokens": max_tokens or self.max_tokens,
+            "response_format": {"type": "json_object"},
+            "stream": False,
+            **self._thinking_fields(),
+        }
+        try:
+            payload, attempts = self._post(body)
+        except LLMError as e:
+            raise LLMError(str(e), requests_made=e.requests_made,
+                           meta=self._sent_meta(body, attempts=e.requests_made, t0=t0,
+                                                prompt_chars=len(system) + len(user),
+                                                extra=audit)) from e
+        raw = self._content_of(payload)
+        return raw, {**self._sent_meta(body, attempts=attempts, t0=t0,
+                                        prompt_chars=len(system) + len(user), raw=raw,
+                                        extra=audit),
+                     **self._answer_meta(payload)}
+
+    def chat_vision_json(self, system: str, user: str, images: list[str], *, kind: str,
+                         prompt_version: str, max_tokens: int | None = None,
+                         modality: str = "rgb"):
+        """Vision request + parse, with at most one *format* repair re-ask.
+
+        The repair re-sends the same frames — a picture cannot be described to the
+        model in words instead — so it is charged as the second request it is.
+
+        The one case that gets no re-ask is a message the provider sent with no `content`
+        field at all (see `_content_absent_diagnosis`): there is nothing to describe back to
+        the model, and a second generation would be billed to learn what the first row already
+        says."""
+        raw, meta = self.chat_vision(system, user, images, max_tokens=max_tokens,
+                                     modality=modality)
+        meta = {**meta, "kind": kind, "prompt_version": prompt_version, "raw_response": raw}
+        absent = _content_absent_diagnosis(meta)
+        if absent:
+            raise LLMError(absent, requests_made=meta["transport_attempts"], meta=meta)
+        parsed, err = _loads_lenient(raw)
+        if err is None:
+            return parsed, meta
+        self.format_repairs += 1
+        raw2, meta2 = self.chat_vision(system, _repair_prompt(user, raw, err), images,
+                                       max_tokens=max_tokens, modality=modality)
+        meta2 = {**meta2, "kind": f"{kind}_format_repair", "prompt_version": prompt_version,
+                 "raw_response": raw2, "first_parse_error": str(err), "repaired_from": raw}
+        parsed2, err2 = _loads_lenient(raw2)
+        if err2 is None:
+            return parsed2, meta2
+        meta2["parse_error"] = str(err2)
+        raise LLMError(f"unparseable JSON from the vision model after 1 format repair: {err2}",
+                       requests_made=meta["transport_attempts"] + meta2["transport_attempts"],
+                       meta={**meta2, "usage": _sum_usage(meta.get("usage"),
+                                                          meta2.get("usage"))})
+
+
+def _content_absent_diagnosis(meta: dict) -> str:
+    """A sentence for an answer the provider never opened for reading, or `""`.
+
+    任务 `#155`, and the gate is on the payload's key set, not on its length. Measured shape on
+    this endpoint, mid-reasoning truncation (`/tmp/mw117/h55/p1p2_sensenova.out` at
+    max_tokens=8: `choices[0].message` carries `['reasoning', 'role']` — no `content` key —
+    `finish_reason="length"`, `completion_tokens=8`, i.e. the whole ceiling spent on thinking).
+
+    What that looked like in the ledger, read back off batch24's only look row
+    (`/tmp/mw_vlm_live_batch24/episodes/peg-insert-side-v3__L0__s0__full__model__perceive-vlm`):
+
+        ok=False  raw_chars=0  finish=length  max_tokens=4800
+        usage.completion_tokens=9600  http_requests_this_call=2  format_repairs_this_call=1
+
+    9600 is 2.00 x the ceiling because the empty string went to `_loads_lenient`, was read as
+    "unparseable JSON", and was re-asked once — each of the two requests billed the ceiling in
+    full. A message with `content: ""` still takes that path: the model answered, with nothing,
+    which is a different fact and gets a different row.
+
+    Returns text rather than raising so `chat_json` and `chat_vision_json` share one wording.
+    It names the numbers a reader needs in its first 90 characters because that is what
+    `/tmp/mw117/h55/watch_rows.py` prints live off the `error` column."""
+    if meta.get("content_field_present") is not False:
+        return ""
+    usage = meta.get("usage") or {}
+    return (f"provider sent a message with no `content` field "
+            f"(reasoning {meta.get('reasoning_chars')} chars, finish_reason="
+            f"{meta.get('finish_reason')}, completion_tokens={usage.get('completion_tokens')} "
+            f"of ceiling max_tokens={meta.get('max_tokens')}): a billed generation that never "
+            f"became a readable answer, so it is not re-asked as a format error (#155)")
+
+
+def _sum_usage(*usages) -> dict:
+    """Tokens of every request one logical call opened, added.
+
+    A format repair is two HTTP requests behind one row, so the row's `usage` has to be the
+    pair or the column understates the bill — the same reason `observe.py` adds the *schema*
+    repairs' usage on its own path. The two additions are not one rule with two homes: one
+    covers the adapter's format re-ask, the other the reader's schema re-ask, and a call can
+    contain either, neither, or both."""
+    out: dict[str, int] = {}
+    for usage in usages:
+        for k, v in (usage or {}).items():
+            if isinstance(v, (int, float)):
+                out[k] = out.get(k, 0) + int(v)
+    return out
 
 
 def _loads_lenient(raw: str):
@@ -329,6 +572,9 @@ class DeepSeekPlanner:
                  feedback_depth: int = 3):
         self.adapter = adapter
         self.model = adapter.model
+        # the label a manifest and every ledger record carries: which endpoint this
+        # adapter actually talks to, not which class it happens to be
+        self.provider = adapter.provider
         self.goal_prompt = goal_prompt
         self.decision_prompt = decision_prompt
         self.plan_prompt = plan_prompt
@@ -479,7 +725,7 @@ class DeepSeekPlanner:
                     for line in f:
                         line = line.strip()
                         if line.startswith(f"{key_env}="):
-                            api_key = line.split("=", 1)[1].strip()
+                            api_key = strip_env_quotes(line.split("=", 1)[1].strip())
                             break
         prompts = cfg.get("prompts") or {}
         return cls(
@@ -494,6 +740,8 @@ class DeepSeekPlanner:
                 max_retries=int(cfg.get("max_retries", 2)),
                 proxy=cfg.get("proxy", "__direct__"),
                 pricing_usd_per_mtok=cfg.get("pricing_usd_per_mtok"),
+                provider=str(cfg.get("provider", "deepseek")),
+                reasoning_effort=cfg.get("reasoning_effort"),
             ),
             goal_prompt=prompts.get("goal", "s2-goal-v1"),
             decision_prompt=prompts.get("decision", "s2-decide-v1"),

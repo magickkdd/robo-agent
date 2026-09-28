@@ -86,6 +86,14 @@ class IndependentEvaluator:
             "eval_id": self.spec.eval_id,
             "scored_observation_ref": self.snapshot.observation_ref,
             "scored_state_version": self.snapshot.state_version,
+            # Which instrument produced the rows judged above. The ref and version above are
+            # the *loop's* terminal sample on purpose (§7: one sample, both judges), but on a
+            # sensing arm that ref names a rendered frame while every `entities` row here came
+            # out of the simulator through `TerminalSnapshot.capture`. Saying only the first
+            # would let §5.8's third layer be read as inheriting the first two's instrument,
+            # and a contrast of two arms (§12.1) needs a key that provably did not move with
+            # the channel being measured.
+            "scored_entities_from": "simulator (TerminalSnapshot.capture)",
             "scored_sim_time": round(self.snapshot.sim_time, 3),
             "settle_seconds": self.snapshot.settle_seconds,
             "objects_total": n,

@@ -1,0 +1,1694 @@
+{
+ "budget_rationale": "declared before any run: 20 nominal skill calls for the longest case (12 placements + 2 restore + 4 retry), 30 rounds / 40 calls with slack, identical for every arm",
+ "budgets": {
+  "max_decision_rounds": 30,
+  "max_skill_calls": 40
+ },
+ "cases": [
+  {
+   "budgets": {
+    "max_decision_rounds": 30,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 40,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [
+    {
+     "action": "impulse",
+     "at_match": 2,
+     "entity_id": "obj_green_1",
+     "event_id": "lh_c1_shared_pair_restore-displace-tray_right-obj_green_1-m2",
+     "impulse_xy": [
+      -0.07,
+      0.0
+     ],
+     "offset": null,
+     "once": true,
+     "skill": "place",
+     "target_id": "tray_right",
+     "trigger": "after_skill",
+     "when_entity_id": null,
+     "when_target_id": "tray_right"
+    }
+   ],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_green_1",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_blue_2",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_yellow_3",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_purple_4",
+      "target_id": "tray_right"
+     }
+    ],
+    "eval_id": "eval-lh_c1_shared_pair_restore",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 4,
+   "notes": "§8: 4 objects / 3 regions, a shared region (dependency between two placements), a finite region capacity, and a completion that the *second* handoff undoes — the agent has to notice a satisfied relation went false and restore it. This is the only form of the mechanism with an observed true->false flip",
+   "objects": [
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cube"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_green_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_blue_2",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "yellow",
+      "shape": "cube"
+     },
+     "color": [
+      0.9,
+      0.8,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_yellow_3",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "purple",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.5,
+      0.2,
+      0.7,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_purple_4",
+     "shape": "cylinder",
+     "xy": [
+      0.445,
+      -0.16
+     ]
+    }
+   ],
+   "preflight": {
+    "occupancy_v1": {
+     "tray_left": [],
+     "tray_middle": [],
+     "tray_right": []
+    },
+    "ok": true,
+    "per_object": {
+     "obj_blue_2": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_green_1": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_purple_4": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_yellow_3": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     }
+    },
+    "shared_region": {
+     "clear_after": {
+      "obj_green_1": 13,
+      "obj_purple_4": 13
+     },
+     "measured_inside": [
+      "obj_blue_2"
+     ],
+     "ok": true,
+     "region": "tray_right",
+     "seated": "obj_blue_2",
+     "v1_clear": {
+      "obj_blue_2": 47,
+      "obj_green_1": 47,
+      "obj_purple_4": 47
+     }
+    },
+    "understanding": {
+     "bound_pairs": 4,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 4,
+     "well_formed": true
+    }
+   },
+   "seed": 301,
+   "subset": "long_horizon",
+   "targets": [
+    "obj_green_1",
+    "obj_blue_2",
+    "obj_yellow_3",
+    "obj_purple_4"
+   ],
+   "task_id": "lh_c1_shared_pair_restore",
+   "utterance": "把绿色的方块放到右边托盘，把蓝色的长方体放到右边托盘，把黄色的方块放到左边托盘，把紫色的圆柱放到右边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 30,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 40,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [
+    {
+     "action": "impulse",
+     "at_match": 1,
+     "entity_id": "obj_blue_1",
+     "event_id": "lh_c2_displaced_completion-displace-tray_left-obj_blue_1-m1",
+     "impulse_xy": [
+      -0.07,
+      0.0
+     ],
+     "offset": null,
+     "once": true,
+     "skill": "place",
+     "target_id": "tray_left",
+     "trigger": "after_skill",
+     "when_entity_id": "obj_blue_1",
+     "when_target_id": "tray_left"
+    }
+   ],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_blue_1",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_yellow_2",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_purple_3",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_red_4",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_green_5",
+      "target_id": "tray_left"
+     }
+    ],
+    "eval_id": "eval-lh_c2_displaced_completion",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 5,
+   "notes": "§8 at 5 objects: the disturbance lands on the object's own handoff, so the plan is valid when written and wrong on the next round; three completions must survive one invalidated completion",
+   "objects": [
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cube"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_blue_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "yellow",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.9,
+      0.8,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_yellow_2",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "purple",
+      "shape": "cube"
+     },
+     "color": [
+      0.5,
+      0.2,
+      0.7,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_purple_3",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_red_4",
+     "shape": "cylinder",
+     "xy": [
+      0.445,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cube"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_green_5",
+     "shape": "cube",
+     "xy": [
+      0.445,
+      0.0
+     ]
+    }
+   ],
+   "preflight": {
+    "occupancy_v1": {
+     "tray_left": [],
+     "tray_middle": [],
+     "tray_right": []
+    },
+    "ok": true,
+    "per_object": {
+     "obj_blue_1": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     },
+     "obj_green_5": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     },
+     "obj_purple_3": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_red_4": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_yellow_2": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     }
+    },
+    "shared_region": {
+     "clear_after": {
+      "obj_green_5": 19,
+      "obj_yellow_2": 19
+     },
+     "measured_inside": [
+      "obj_blue_1"
+     ],
+     "ok": true,
+     "region": "tray_left",
+     "seated": "obj_blue_1",
+     "v1_clear": {
+      "obj_blue_1": 48,
+      "obj_green_5": 48,
+      "obj_yellow_2": 48
+     }
+    },
+    "understanding": {
+     "bound_pairs": 5,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 5,
+     "well_formed": true
+    }
+   },
+   "seed": 302,
+   "subset": "long_horizon",
+   "targets": [
+    "obj_blue_1",
+    "obj_yellow_2",
+    "obj_purple_3",
+    "obj_red_4",
+    "obj_green_5"
+   ],
+   "task_id": "lh_c2_displaced_completion",
+   "utterance": "把蓝色的方块放到左边托盘，把黄色的长方体放到左边托盘，把紫色的方块放到右边托盘，把红色的圆柱放到右边托盘，把绿色的方块放到左边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 30,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 40,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [
+    {
+     "action": "impulse",
+     "at_match": 1,
+     "entity_id": "obj_blue_5",
+     "event_id": "lh_c3_capacity_and_shift-displace-tray_middle-obj_blue_5-m1",
+     "impulse_xy": [
+      -0.03,
+      0.0
+     ],
+     "offset": null,
+     "once": true,
+     "skill": "place",
+     "target_id": "tray_middle",
+     "trigger": "after_skill",
+     "when_entity_id": null,
+     "when_target_id": "tray_middle"
+    }
+   ],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_yellow_1",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_purple_2",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_red_3",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_green_4",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_blue_5",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_yellow_6",
+      "target_id": "tray_left"
+     }
+    ],
+    "eval_id": "eval-lh_c3_capacity_and_shift",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 6,
+   "notes": "§8's resource constraint taken seriously: 6 objects over 3 regions is at MAX_OBJECTS_PER_REGION=3 per region, and the shift leaves every completed relation true while the slots the plan assumed are no longer the same geometry — rework pressure without a violation",
+   "objects": [
+    {
+     "attributes": {
+      "color": "yellow",
+      "shape": "cube"
+     },
+     "color": [
+      0.9,
+      0.8,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_yellow_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "purple",
+      "shape": "cube"
+     },
+     "color": [
+      0.5,
+      0.2,
+      0.7,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_purple_2",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_red_3",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_green_4",
+     "shape": "cylinder",
+     "xy": [
+      0.445,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cube"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_blue_5",
+     "shape": "cube",
+     "xy": [
+      0.445,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "yellow",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.9,
+      0.8,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_yellow_6",
+     "shape": "cuboid",
+     "xy": [
+      0.445,
+      0.16
+     ]
+    }
+   ],
+   "preflight": {
+    "occupancy_v1": {
+     "tray_left": [],
+     "tray_middle": [],
+     "tray_right": []
+    },
+    "ok": true,
+    "per_object": {
+     "obj_blue_5": {
+      "clear_slots": {
+       "tray_middle": 81
+      },
+      "grasp_candidates": 3
+     },
+     "obj_green_4": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     },
+     "obj_purple_2": {
+      "clear_slots": {
+       "tray_middle": 81
+      },
+      "grasp_candidates": 3
+     },
+     "obj_red_3": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_yellow_1": {
+      "clear_slots": {
+       "tray_middle": 81
+      },
+      "grasp_candidates": 3
+     },
+     "obj_yellow_6": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     }
+    },
+    "shared_region": {
+     "clear_after": {
+      "obj_purple_2": 36,
+      "obj_yellow_1": 36
+     },
+     "measured_inside": [
+      "obj_blue_5"
+     ],
+     "ok": true,
+     "region": "tray_middle",
+     "seated": "obj_blue_5",
+     "v1_clear": {
+      "obj_blue_5": 81,
+      "obj_purple_2": 81,
+      "obj_yellow_1": 81
+     }
+    },
+    "understanding": {
+     "bound_pairs": 6,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 6,
+     "well_formed": true
+    }
+   },
+   "seed": 303,
+   "subset": "long_horizon",
+   "targets": [
+    "obj_yellow_1",
+    "obj_purple_2",
+    "obj_red_3",
+    "obj_green_4",
+    "obj_blue_5",
+    "obj_yellow_6"
+   ],
+   "task_id": "lh_c3_capacity_and_shift",
+   "utterance": "把黄色的方块放到中间托盘，把紫色的方块放到中间托盘，把红色的长方体放到右边托盘，把绿色的圆柱放到左边托盘，把蓝色的方块放到中间托盘，把黄色的长方体放到左边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 30,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 40,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [
+    {
+     "action": "grasp_calibration",
+     "at_match": 1,
+     "entity_id": "obj_purple_1",
+     "event_id": "lh_c4_failed_grasp_recovery-grasp_calibration-obj_purple_1-m1",
+     "impulse_xy": [
+      0.0,
+      0.0
+     ],
+     "offset": [
+      0.05,
+      0.05,
+      0.0
+     ],
+     "once": true,
+     "skill": "pick",
+     "target_id": null,
+     "trigger": "before_skill",
+     "when_entity_id": "obj_purple_1",
+     "when_target_id": null
+    }
+   ],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_purple_1",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_red_2",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_green_3",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_blue_4",
+      "target_id": "tray_left"
+     }
+    ],
+    "eval_id": "eval-lh_c4_failed_grasp_recovery",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 4,
+   "notes": "§8's execution failure: the first grasp is actuated beside the object, so the round ends in a measured failure and the decision of what to do about it is the subject (retry, change candidate, or re-observe are all legitimate; ignoring it is not)",
+   "objects": [
+    {
+     "attributes": {
+      "color": "purple",
+      "shape": "cube"
+     },
+     "color": [
+      0.5,
+      0.2,
+      0.7,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_purple_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_red_2",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_green_3",
+     "shape": "cylinder",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cube"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_blue_4",
+     "shape": "cube",
+     "xy": [
+      0.445,
+      -0.16
+     ]
+    }
+   ],
+   "preflight": {
+    "occupancy_v1": {
+     "tray_left": [],
+     "tray_middle": [],
+     "tray_right": []
+    },
+    "ok": true,
+    "per_object": {
+     "obj_blue_4": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     },
+     "obj_green_3": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_purple_1": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_red_2": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     }
+    },
+    "shared_region": {
+     "clear_after": {
+      "obj_purple_1": 19,
+      "obj_red_2": 19
+     },
+     "measured_inside": [
+      "obj_green_3"
+     ],
+     "ok": true,
+     "region": "tray_right",
+     "seated": "obj_green_3",
+     "v1_clear": {
+      "obj_green_3": 47,
+      "obj_purple_1": 47,
+      "obj_red_2": 47
+     }
+    },
+    "understanding": {
+     "bound_pairs": 4,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 4,
+     "well_formed": true
+    }
+   },
+   "seed": 304,
+   "subset": "long_horizon",
+   "targets": [
+    "obj_purple_1",
+    "obj_red_2",
+    "obj_green_3",
+    "obj_blue_4"
+   ],
+   "task_id": "lh_c4_failed_grasp_recovery",
+   "utterance": "把紫色的方块放到右边托盘，把红色的长方体放到右边托盘，把绿色的圆柱放到右边托盘，把蓝色的方块放到左边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 30,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 40,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [
+    {
+     "action": "place_calibration",
+     "at_match": 1,
+     "entity_id": null,
+     "event_id": "lh_c5_release_deviation-place_calibration-tray_left-m1",
+     "impulse_xy": [
+      0.0,
+      0.0
+     ],
+     "offset": [
+      0.0,
+      0.0,
+      0.055
+     ],
+     "once": true,
+     "skill": "place",
+     "target_id": "tray_left",
+     "trigger": "before_skill",
+     "when_entity_id": null,
+     "when_target_id": "tray_left"
+    }
+   ],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_red_1",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_green_2",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_blue_3",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_yellow_4",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_purple_5",
+      "target_id": "tray_left"
+     }
+    ],
+    "eval_id": "eval-lh_c5_release_deviation",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 5,
+   "notes": "the hand-off happens and the object is not where the candidate promised: layer 1 of §5.8 must catch it before the relation is believed",
+   "objects": [
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cube"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_red_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_green_2",
+     "shape": "cylinder",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cube"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_blue_3",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "yellow",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.9,
+      0.8,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_yellow_4",
+     "shape": "cuboid",
+     "xy": [
+      0.445,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "purple",
+      "shape": "cube"
+     },
+     "color": [
+      0.5,
+      0.2,
+      0.7,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_purple_5",
+     "shape": "cube",
+     "xy": [
+      0.445,
+      0.0
+     ]
+    }
+   ],
+   "preflight": {
+    "occupancy_v1": {
+     "tray_left": [],
+     "tray_middle": [],
+     "tray_right": []
+    },
+    "ok": true,
+    "per_object": {
+     "obj_blue_3": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_green_2": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     },
+     "obj_purple_5": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     },
+     "obj_red_1": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     },
+     "obj_yellow_4": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     }
+    },
+    "shared_region": {
+     "clear_after": {
+      "obj_purple_5": 19,
+      "obj_red_1": 19
+     },
+     "measured_inside": [
+      "obj_green_2"
+     ],
+     "ok": true,
+     "region": "tray_left",
+     "seated": "obj_green_2",
+     "v1_clear": {
+      "obj_green_2": 48,
+      "obj_purple_5": 48,
+      "obj_red_1": 48
+     }
+    },
+    "understanding": {
+     "bound_pairs": 5,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 5,
+     "well_formed": true
+    }
+   },
+   "seed": 305,
+   "subset": "long_horizon",
+   "targets": [
+    "obj_red_1",
+    "obj_green_2",
+    "obj_blue_3",
+    "obj_yellow_4",
+    "obj_purple_5"
+   ],
+   "task_id": "lh_c5_release_deviation",
+   "utterance": "把红色的方块放到左边托盘，把绿色的圆柱放到左边托盘，把蓝色的方块放到右边托盘，把黄色的长方体放到右边托盘，把紫色的方块放到左边托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  },
+  {
+   "budgets": {
+    "max_decision_rounds": 30,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 40,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "events": [
+    {
+     "action": "impulse",
+     "at_match": 1,
+     "entity_id": "obj_green_6",
+     "event_id": "lh_c6_two_disruptions-impulse-obj_green_6",
+     "impulse_xy": [
+      0.0,
+      0.055
+     ],
+     "offset": null,
+     "once": true,
+     "skill": "pick",
+     "target_id": null,
+     "trigger": "after_skill",
+     "when_entity_id": null,
+     "when_target_id": null
+    },
+    {
+     "action": "grasp_calibration",
+     "at_match": 1,
+     "entity_id": "obj_blue_2",
+     "event_id": "lh_c6_two_disruptions-grasp_calibration-obj_blue_2-m1",
+     "impulse_xy": [
+      0.0,
+      0.0
+     ],
+     "offset": [
+      0.05,
+      0.05,
+      0.0
+     ],
+     "once": true,
+     "skill": "pick",
+     "target_id": null,
+     "trigger": "before_skill",
+     "when_entity_id": "obj_blue_2",
+     "when_target_id": null
+    }
+   ],
+   "expected": "success",
+   "hidden_eval_spec": {
+    "ang_speed_tol_rps": 0.2,
+    "assignments": [
+     {
+      "entity_id": "obj_green_1",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_blue_2",
+      "target_id": "tray_middle"
+     },
+     {
+      "entity_id": "obj_yellow_3",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_purple_4",
+      "target_id": "tray_left"
+     },
+     {
+      "entity_id": "obj_red_5",
+      "target_id": "tray_right"
+     },
+     {
+      "entity_id": "obj_green_6",
+      "target_id": "tray_middle"
+     }
+    ],
+    "eval_id": "eval-lh_c6_two_disruptions",
+    "footprint_margin_m": 0.005,
+    "lift_gain_min_m": 0.03,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   },
+   "n_objects": 6,
+   "notes": "two independent disturbances on a 6-object horizon: a still-pending object slides across the table when it is first picked at, and an actuator error costs a grasp later. The rolling plan is the point — a flat progress list cannot say which of its rows each one invalidates. `style` is left at the default explicit mention (colour *and* shape) rather than the class phrasing: `make_objects` cycles five colours, so at 6 objects two share one, and a colour-only utterance names that colour twice — the interpreter marks the goal ambiguous and no plan can be derived at all. `preflight` now refuses that, which is how the collision was found",
+   "objects": [
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cube"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_green_1",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "blue",
+      "shape": "cube"
+     },
+     "color": [
+      0.1,
+      0.2,
+      0.85,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_blue_2",
+     "shape": "cube",
+     "xy": [
+      0.38,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "yellow",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.9,
+      0.8,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_yellow_3",
+     "shape": "cuboid",
+     "xy": [
+      0.38,
+      0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "purple",
+      "shape": "cube"
+     },
+     "color": [
+      0.5,
+      0.2,
+      0.7,
+      1
+     ],
+     "dims": [
+      0.021,
+      0.021,
+      0.021
+     ],
+     "entity_id": "obj_purple_4",
+     "shape": "cube",
+     "xy": [
+      0.445,
+      -0.16
+     ]
+    },
+    {
+     "attributes": {
+      "color": "red",
+      "shape": "cylinder"
+     },
+     "color": [
+      0.85,
+      0.1,
+      0.1,
+      1
+     ],
+     "dims": [
+      0.023,
+      0.042
+     ],
+     "entity_id": "obj_red_5",
+     "shape": "cylinder",
+     "xy": [
+      0.445,
+      0.0
+     ]
+    },
+    {
+     "attributes": {
+      "color": "green",
+      "shape": "cuboid"
+     },
+     "color": [
+      0.1,
+      0.7,
+      0.2,
+      1
+     ],
+     "dims": [
+      0.027,
+      0.019,
+      0.035
+     ],
+     "entity_id": "obj_green_6",
+     "shape": "cuboid",
+     "xy": [
+      0.445,
+      0.16
+     ]
+    }
+   ],
+   "preflight": {
+    "occupancy_v1": {
+     "tray_left": [],
+     "tray_middle": [],
+     "tray_right": []
+    },
+    "ok": true,
+    "per_object": {
+     "obj_blue_2": {
+      "clear_slots": {
+       "tray_middle": 81
+      },
+      "grasp_candidates": 3
+     },
+     "obj_green_1": {
+      "clear_slots": {
+       "tray_middle": 81
+      },
+      "grasp_candidates": 3
+     },
+     "obj_green_6": {
+      "clear_slots": {
+       "tray_middle": 81
+      },
+      "grasp_candidates": 3
+     },
+     "obj_purple_4": {
+      "clear_slots": {
+       "tray_left": 48
+      },
+      "grasp_candidates": 3
+     },
+     "obj_red_5": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     },
+     "obj_yellow_3": {
+      "clear_slots": {
+       "tray_right": 47
+      },
+      "grasp_candidates": 3
+     }
+    },
+    "shared_region": {
+     "clear_after": {
+      "obj_green_1": 36,
+      "obj_green_6": 36
+     },
+     "measured_inside": [
+      "obj_blue_2"
+     ],
+     "ok": true,
+     "region": "tray_middle",
+     "seated": "obj_blue_2",
+     "v1_clear": {
+      "obj_blue_2": 81,
+      "obj_green_1": 81,
+      "obj_green_6": 81
+     }
+    },
+    "understanding": {
+     "bound_pairs": 6,
+     "clarification": null,
+     "matches_truth": true,
+     "ok": true,
+     "truth_pairs": 6,
+     "well_formed": true
+    }
+   },
+   "seed": 306,
+   "subset": "long_horizon",
+   "targets": [
+    "obj_green_1",
+    "obj_blue_2",
+    "obj_yellow_3",
+    "obj_purple_4",
+    "obj_red_5",
+    "obj_green_6"
+   ],
+   "task_id": "lh_c6_two_disruptions",
+   "utterance": "把绿色的方块放到中间托盘，把蓝色的方块放到中间托盘，把黄色的长方体放到右边托盘，把紫色的方块放到左边托盘，把红色的圆柱放到右边托盘，把绿色的长方体放到中间托盘。",
+   "verify": {
+    "ang_speed_tol_rps": 0.2,
+    "footprint_margin_m": 0.005,
+    "grasp_follow_tol_m": 0.03,
+    "lift_gain_min_m": 0.03,
+    "settle_time_s": 0.5,
+    "speed_tol_mps": 0.02,
+    "support_height_tol_m": 0.012,
+    "tolerance_version": "v2"
+   }
+  }
+ ],
+ "schema_version": "1",
+ "set": "long_horizon",
+ "sha256": "ae012f12ce0c6ca61b140473125754a1ee9418239fd21d2ae05600989dcdcefd",
+ "spec": "v0.2 §8",
+ "spec8_shape_2_reachability": {
+  "candidate_lattice_step_m": 0.02,
+  "consequence": "the `recover` row is exercised through shape 1 (displacement) in this set; shape 2 stays authored-by-the-planner and measured-unreachable, so the metric for it is reported as not applicable rather than as a zero",
+  "f1_single_occupant_blocks_only_at_half_extent_ge": 0.05,
+  "f2_lift_out_of_tray_works_for": [
+   "cube 0.021",
+   "cuboid 0.027x0.019x0.035",
+   "cylinder r0.023",
+   "cuboid 0.040x0.040x0.020 (in a tray, not on the table)"
+  ],
+  "f2_never_graspable": [
+   "cuboid 0.050x0.050x0.020",
+   "cuboid 0.060 and wider"
+  ],
+  "f3_real_sequence_over_9_such_layouts": {
+   "completed_temp_move_but_restore_infeasible": 1,
+   "lift_failed": 6,
+   "release_unconfirmed": 2
+  },
+  "f3_two_80mm_occupants_at_pm45mm_leave_clear_slots_for_victim": 0,
+  "f5_arrangements_scanned": 8,
+  "f5_arrangements_whose_return_leg_closes": 1,
+  "f6_that_layout_executed": {
+   "blocker_lift": "completed",
+   "first_failure": "lift to transfer height, tcp_err_m=0.018",
+   "temp_place": "completed",
+   "temporary_slots_in_other_tray": 47,
+   "victim_clear_slots_at_execution": 6,
+   "victim_placements_attempted": 6,
+   "victim_placements_completed": 0
+  },
+  "hand_descent_envelope_radius_m": 0.05,
+  "probes": [
+   "work/p2d_reach.py",
+   "work/p2d_pick_from_tray.py",
+   "work/p2d_block_matrix.py",
+   "work/p2d_temp_dest.py",
+   "work/p2d_slot_sweep.py",
+   "work/p2d_shape2.py"
+  ],
+  "transfer_z_m": 0.8,
+  "tray_interior_half_m": 0.131,
+  "verdict": "not authorable in S1 at this object scale"
+ }
+}

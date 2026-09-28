@@ -105,14 +105,23 @@ class LLMDecisionSource(_PlannerBacked):
     def decide(self, ctx: DecisionContext) -> Decision:
         t0 = time.time()
         before = self.http_requests
+        tok_before = (self.prompt_tokens, self.completion_tokens)
         try:
             decision, meta = self.planner.decide(ctx)
         except Exception as e:  # noqa: BLE001 - the call still belongs in the cost ledger
             if self.log:
+                # the counters travel with the row even when the payload was
+                # rejected: a schema refusal still spent the request it was billed
+                # for, and an offline recomputation must not have to trust a number
+                # it cannot see (SPEC-BST 10.4, 13-9)
+                ta, ca = self.prompt_tokens, self.completion_tokens
                 self.log({"provider": self.provider, "model": self.model,
                           "prompt_version": self.prompt_version, "kind": "decision",
                           "round_index": ctx.round_index, "context_id": ctx.context_id,
                           "http_requests_this_call": self.http_requests - before,
+                          "usage": {"prompt_tokens": ta - tok_before[0],
+                                    "completion_tokens": ca - tok_before[1],
+                                    "source": "provider counter delta across the failed call"},
                           "error": f"{type(e).__name__}: {e}",
                           "error_reasons": list(getattr(e, "reasons", [])),
                           "raw_response": getattr(e, "meta", {}).get("raw_response")},

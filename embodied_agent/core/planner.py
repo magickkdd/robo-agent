@@ -32,7 +32,7 @@ REQUIRED_ARGS = {
 OPTIONAL_ARGS = {
     "pick": {"grasp_candidate_index"},
     "place": {"candidate_id"},
-    "observe": set(),
+    "observe": {"view"},
     "safe_retreat": set(),
 }
 

@@ -1,0 +1,884 @@
+{
+ "provenance": "official AlfredExpert trajectories captured by embodied_agent/benchmark/probe.py on the pinned ALFWorld 0.4.2 / TextWorld 1.6.2 install, json_2.1.1 data",
+ "used_as": "a plumbing fixture for tests/integration/test_bst_alfworld_live.py: it drives ScriptedSource, never a model, and never enters an Observation, Feedback or DecisionContext (SPEC-BST 4.5)",
+ "data_dir_note": "game paths are relative to $ALFWORLD_DATA and pinned by sha256 of game.tw-pddl, so a data install that moved fails loudly",
+ "replays": [
+  {
+   "fixture": "look_at_obj_in_light|0",
+   "task_type": "look_at_obj_in_light",
+   "split": "train",
+   "game_rel": "json_2.1.1/train/look_at_obj_in_light-Pillow-None-DeskLamp-205/trial_T20190909_014913_726205/game.tw-pddl",
+   "game_tw_pddl_sha256": "11038b930da82b1d0ef80658330c98d2d21109f585502893e13bfe50a028fa70",
+   "instruction": "look at pillow under the desklamp",
+   "actions": [
+    "look",
+    "go to sofa 1",
+    "take pillow 1 from sofa 1",
+    "go to sidetable 1",
+    "go to sidetable 2",
+    "go to sidetable 3",
+    "use desklamp 1"
+   ],
+   "skills": [
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sofa 1"
+     }
+    },
+    {
+     "skill": "alfred_take",
+     "args": {
+      "object_id": "pillow 1",
+      "target_id": "sofa 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sidetable 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sidetable 2"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sidetable 3"
+     }
+    },
+    {
+     "skill": "alfred_use",
+     "args": {
+      "target_id": "desklamp 1"
+     }
+    }
+   ],
+   "help_queries_dropped": 0,
+   "official_won": true,
+   "env_actions_to_done": 7
+  },
+  {
+   "fixture": "look_at_obj_in_light|1",
+   "task_type": "look_at_obj_in_light",
+   "split": "train",
+   "game_rel": "json_2.1.1/train/look_at_obj_in_light-Pillow-None-DeskLamp-205/trial_T20190909_014955_096321/game.tw-pddl",
+   "game_tw_pddl_sha256": "99b9a5af6d920537a55b583e0afaf718d21a12c2dd00fbbc532e1289587d2970",
+   "instruction": "look at pillow under the desklamp",
+   "actions": [
+    "look",
+    "go to sofa 1",
+    "take pillow 1 from sofa 1",
+    "go to sidetable 1",
+    "go to sidetable 2",
+    "go to sidetable 3",
+    "use desklamp 1"
+   ],
+   "skills": [
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sofa 1"
+     }
+    },
+    {
+     "skill": "alfred_take",
+     "args": {
+      "object_id": "pillow 1",
+      "target_id": "sofa 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sidetable 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sidetable 2"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sidetable 3"
+     }
+    },
+    {
+     "skill": "alfred_use",
+     "args": {
+      "target_id": "desklamp 1"
+     }
+    }
+   ],
+   "help_queries_dropped": 0,
+   "official_won": true,
+   "env_actions_to_done": 7
+  },
+  {
+   "fixture": "pick_and_place_simple|0",
+   "task_type": "pick_and_place_simple",
+   "split": "train",
+   "game_rel": "json_2.1.1/train/pick_and_place_simple-SprayBottle-None-Toilet-403/trial_T20190908_042208_991561/game.tw-pddl",
+   "game_tw_pddl_sha256": "910172f340042cfe9a07d8589e1a37ebf6032a6e3eec9ae4503f12a7a2a4e498",
+   "instruction": "put some spraybottle on toilet",
+   "actions": [
+    "look",
+    "go to toilet 1",
+    "go to shelf 1",
+    "go to garbagecan 1",
+    "go to countertop 1",
+    "take spraybottle 2 from countertop 1",
+    "go to toilet 1",
+    "move spraybottle 2 to toilet 1"
+   ],
+   "skills": [
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "toilet 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "shelf 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "garbagecan 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "countertop 1"
+     }
+    },
+    {
+     "skill": "alfred_take",
+     "args": {
+      "object_id": "spraybottle 2",
+      "target_id": "countertop 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "toilet 1"
+     }
+    },
+    {
+     "skill": "alfred_move",
+     "args": {
+      "object_id": "spraybottle 2",
+      "target_id": "toilet 1"
+     }
+    }
+   ],
+   "help_queries_dropped": 0,
+   "official_won": true,
+   "env_actions_to_done": 8
+  },
+  {
+   "fixture": "pick_and_place_simple|1",
+   "task_type": "pick_and_place_simple",
+   "split": "train",
+   "game_rel": "json_2.1.1/train/pick_and_place_simple-SprayBottle-None-Toilet-403/trial_T20190908_042148_900573/game.tw-pddl",
+   "game_tw_pddl_sha256": "2dcfc836ebc31386e1f6f7e06e50d76f5ab01173cf503db56907737b4851cdb1",
+   "instruction": "put some spraybottle on toilet",
+   "actions": [
+    "look",
+    "go to toilet 1",
+    "go to shelf 1",
+    "go to garbagecan 1",
+    "go to countertop 1",
+    "take spraybottle 2 from countertop 1",
+    "go to toilet 1",
+    "move spraybottle 2 to toilet 1"
+   ],
+   "skills": [
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "toilet 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "shelf 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "garbagecan 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "countertop 1"
+     }
+    },
+    {
+     "skill": "alfred_take",
+     "args": {
+      "object_id": "spraybottle 2",
+      "target_id": "countertop 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "toilet 1"
+     }
+    },
+    {
+     "skill": "alfred_move",
+     "args": {
+      "object_id": "spraybottle 2",
+      "target_id": "toilet 1"
+     }
+    }
+   ],
+   "help_queries_dropped": 0,
+   "official_won": true,
+   "env_actions_to_done": 8
+  },
+  {
+   "fixture": "pick_clean_then_place_in_recep|0",
+   "task_type": "pick_clean_then_place_in_recep",
+   "split": "train",
+   "game_rel": "json_2.1.1/train/pick_clean_then_place_in_recep-Kettle-None-StoveBurner-3/trial_T20190907_054206_228086/game.tw-pddl",
+   "game_tw_pddl_sha256": "eb0e3189f464334d54aa3d7fae4198a7f981758ac03a5e3e58a5508813d289e8",
+   "instruction": "clean some kettle and put it in stoveburner",
+   "actions": [
+    "look",
+    "go to stoveburner 1",
+    "look",
+    "go to drawer 1",
+    "open drawer 1",
+    "close drawer 1",
+    "go to stoveburner 2",
+    "go to stoveburner 3",
+    "look",
+    "go to toaster 1",
+    "go to stoveburner 4",
+    "go to sinkbasin 1",
+    "go to sidetable 1",
+    "go to countertop 1",
+    "take kettle 1 from countertop 1",
+    "go to sinkbasin 1",
+    "clean kettle 1 with sinkbasin 1",
+    "go to stoveburner 1",
+    "move kettle 1 to stoveburner 1"
+   ],
+   "skills": [
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 1"
+     }
+    },
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "drawer 1"
+     }
+    },
+    {
+     "skill": "alfred_open",
+     "args": {
+      "target_id": "drawer 1"
+     }
+    },
+    {
+     "skill": "alfred_close",
+     "args": {
+      "target_id": "drawer 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 2"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 3"
+     }
+    },
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "toaster 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 4"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sinkbasin 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sidetable 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "countertop 1"
+     }
+    },
+    {
+     "skill": "alfred_take",
+     "args": {
+      "object_id": "kettle 1",
+      "target_id": "countertop 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sinkbasin 1"
+     }
+    },
+    {
+     "skill": "alfred_clean",
+     "args": {
+      "object_id": "kettle 1",
+      "target_id": "sinkbasin 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 1"
+     }
+    },
+    {
+     "skill": "alfred_move",
+     "args": {
+      "object_id": "kettle 1",
+      "target_id": "stoveburner 1"
+     }
+    }
+   ],
+   "help_queries_dropped": 0,
+   "official_won": true,
+   "env_actions_to_done": 19
+  },
+  {
+   "fixture": "pick_clean_then_place_in_recep|1",
+   "task_type": "pick_clean_then_place_in_recep",
+   "split": "train",
+   "game_rel": "json_2.1.1/train/pick_clean_then_place_in_recep-Kettle-None-StoveBurner-3/trial_T20190907_054347_572902/game.tw-pddl",
+   "game_tw_pddl_sha256": "bd4bd077e7d9f41e3aabd5f68c31cf7a5de004cf49803c68b069d036feb54715",
+   "instruction": "put a clean kettle in stoveburner",
+   "actions": [
+    "look",
+    "go to stoveburner 1",
+    "take kettle 1 from stoveburner 1",
+    "go to sinkbasin 1",
+    "clean kettle 1 with sinkbasin 1",
+    "go to stoveburner 1",
+    "move kettle 1 to stoveburner 1"
+   ],
+   "skills": [
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 1"
+     }
+    },
+    {
+     "skill": "alfred_take",
+     "args": {
+      "object_id": "kettle 1",
+      "target_id": "stoveburner 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sinkbasin 1"
+     }
+    },
+    {
+     "skill": "alfred_clean",
+     "args": {
+      "object_id": "kettle 1",
+      "target_id": "sinkbasin 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 1"
+     }
+    },
+    {
+     "skill": "alfred_move",
+     "args": {
+      "object_id": "kettle 1",
+      "target_id": "stoveburner 1"
+     }
+    }
+   ],
+   "help_queries_dropped": 0,
+   "official_won": true,
+   "env_actions_to_done": 7
+  },
+  {
+   "fixture": "pick_cool_then_place_in_recep|0",
+   "task_type": "pick_cool_then_place_in_recep",
+   "split": "train",
+   "game_rel": "json_2.1.1/train/pick_cool_then_place_in_recep-Mug-None-CoffeeMachine-20/trial_T20190906_161428_039508/game.tw-pddl",
+   "game_tw_pddl_sha256": "b8c6c90513f7f55d33bd42fae487af3a08d6359f7cabbdca14c0d64d773e5c67",
+   "instruction": "cool some mug and put it in coffeemachine",
+   "actions": [
+    "look",
+    "go to toaster 1",
+    "go to stoveburner 1",
+    "go to stoveburner 2",
+    "go to stoveburner 3",
+    "go to stoveburner 4",
+    "go to sinkbasin 1",
+    "go to shelf 1",
+    "go to shelf 2",
+    "take mug 1 from shelf 2",
+    "go to fridge 1",
+    "cool mug 1 with fridge 1",
+    "go to coffeemachine 1",
+    "move mug 1 to coffeemachine 1"
+   ],
+   "skills": [
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "toaster 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 2"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 3"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 4"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sinkbasin 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "shelf 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "shelf 2"
+     }
+    },
+    {
+     "skill": "alfred_take",
+     "args": {
+      "object_id": "mug 1",
+      "target_id": "shelf 2"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "fridge 1"
+     }
+    },
+    {
+     "skill": "alfred_cool",
+     "args": {
+      "object_id": "mug 1",
+      "target_id": "fridge 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "coffeemachine 1"
+     }
+    },
+    {
+     "skill": "alfred_move",
+     "args": {
+      "object_id": "mug 1",
+      "target_id": "coffeemachine 1"
+     }
+    }
+   ],
+   "help_queries_dropped": 0,
+   "official_won": true,
+   "env_actions_to_done": 14
+  },
+  {
+   "fixture": "pick_cool_then_place_in_recep|1",
+   "task_type": "pick_cool_then_place_in_recep",
+   "split": "train",
+   "game_rel": "json_2.1.1/train/pick_cool_then_place_in_recep-Mug-None-CoffeeMachine-20/trial_T20190906_161453_754806/game.tw-pddl",
+   "game_tw_pddl_sha256": "5e087cfd096b2cabeaa5968edbbcb4ad72a4bdda8e5c1e4c25f5cccf4fa04add",
+   "instruction": "cool some mug and put it in coffeemachine",
+   "actions": [
+    "look",
+    "go to toaster 1",
+    "go to stoveburner 1",
+    "go to stoveburner 2",
+    "go to stoveburner 3",
+    "go to stoveburner 4",
+    "go to sinkbasin 1",
+    "go to shelf 1",
+    "go to shelf 2",
+    "take mug 2 from shelf 2",
+    "go to fridge 1",
+    "cool mug 2 with fridge 1",
+    "go to coffeemachine 1",
+    "move mug 2 to coffeemachine 1"
+   ],
+   "skills": [
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "toaster 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 2"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 3"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 4"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sinkbasin 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "shelf 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "shelf 2"
+     }
+    },
+    {
+     "skill": "alfred_take",
+     "args": {
+      "object_id": "mug 2",
+      "target_id": "shelf 2"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "fridge 1"
+     }
+    },
+    {
+     "skill": "alfred_cool",
+     "args": {
+      "object_id": "mug 2",
+      "target_id": "fridge 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "coffeemachine 1"
+     }
+    },
+    {
+     "skill": "alfred_move",
+     "args": {
+      "object_id": "mug 2",
+      "target_id": "coffeemachine 1"
+     }
+    }
+   ],
+   "help_queries_dropped": 0,
+   "official_won": true,
+   "env_actions_to_done": 14
+  },
+  {
+   "fixture": "pick_heat_then_place_in_recep|1",
+   "task_type": "pick_heat_then_place_in_recep",
+   "split": "train",
+   "game_rel": "json_2.1.1/train/pick_heat_then_place_in_recep-Cup-None-Cabinet-12/trial_T20190908_145944_296356/game.tw-pddl",
+   "game_tw_pddl_sha256": "8df130afc88281e3cf5b34eb50bc14d2b6ad9ad1765a4cf1431a9ae290927dce",
+   "instruction": "put a hot cup in cabinet",
+   "actions": [
+    "look",
+    "go to toaster 1",
+    "go to stoveburner 1",
+    "go to stoveburner 2",
+    "go to stoveburner 3",
+    "go to stoveburner 4",
+    "go to sinkbasin 1",
+    "go to microwave 1",
+    "open microwave 1",
+    "close microwave 1",
+    "go to garbagecan 1",
+    "go to fridge 1",
+    "open fridge 1",
+    "take cup 4 from fridge 1",
+    "go to microwave 1",
+    "heat cup 4 with microwave 1",
+    "look",
+    "go to cabinet 1",
+    "open cabinet 1",
+    "move cup 4 to cabinet 1"
+   ],
+   "skills": [
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "toaster 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 2"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 3"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "stoveburner 4"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "sinkbasin 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "microwave 1"
+     }
+    },
+    {
+     "skill": "alfred_open",
+     "args": {
+      "target_id": "microwave 1"
+     }
+    },
+    {
+     "skill": "alfred_close",
+     "args": {
+      "target_id": "microwave 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "garbagecan 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "fridge 1"
+     }
+    },
+    {
+     "skill": "alfred_open",
+     "args": {
+      "target_id": "fridge 1"
+     }
+    },
+    {
+     "skill": "alfred_take",
+     "args": {
+      "object_id": "cup 4",
+      "target_id": "fridge 1"
+     }
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "microwave 1"
+     }
+    },
+    {
+     "skill": "alfred_heat",
+     "args": {
+      "object_id": "cup 4",
+      "target_id": "microwave 1"
+     }
+    },
+    {
+     "skill": "observe",
+     "args": {}
+    },
+    {
+     "skill": "alfred_go",
+     "args": {
+      "target_id": "cabinet 1"
+     }
+    },
+    {
+     "skill": "alfred_open",
+     "args": {
+      "target_id": "cabinet 1"
+     }
+    },
+    {
+     "skill": "alfred_move",
+     "args": {
+      "object_id": "cup 4",
+      "target_id": "cabinet 1"
+     }
+    }
+   ],
+   "help_queries_dropped": 0,
+   "official_won": true,
+   "env_actions_to_done": 20
+  }
+ ],
+ "skipped": [
+  {
+   "fixture": "pick_heat_then_place_in_recep|0",
+   "steps_recorded": 60,
+   "why": "the official expert's own trajectory did not reach `done` inside the 60-action probe horizon"
+  },
+  {
+   "fixture": "pick_two_obj_and_place|0",
+   "steps_recorded": 60,
+   "why": "the official expert's own trajectory did not reach `done` inside the 60-action probe horizon"
+  },
+  {
+   "fixture": "pick_two_obj_and_place|1",
+   "steps_recorded": 60,
+   "why": "the official expert's own trajectory did not reach `done` inside the 60-action probe horizon"
+  }
+ ]
+}

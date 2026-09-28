@@ -1,0 +1,592 @@
+{
+ "provenance": {
+  "code": {
+   "changed_files": [
+    "gitignore",
+    "README.md",
+    "docs/continuous-decision-phase-log.md",
+    "docs/mini-spec.md",
+    "embodied_agent/__init__.py",
+    "embodied_agent/agent.py",
+    "embodied_agent/demo.py",
+    "embodied_agent/llm.py",
+    "embodied_agent/memory.py",
+    "embodied_agent/models.py",
+    "embodied_agent/planner.py",
+    "embodied_agent/simulator.py",
+    "embodied_agent/skills.py",
+    "embodied_agent/verification.py",
+    "outputs/s2_w2_1/error_attribution.csv",
+    "tests/test_mvp.py",
+    "embodied_agent/evaluation/preregistration.py",
+    "runs/smoke_3obj_s11_20260918_154311_170/",
+    "runs/smoke_3obj_s11_20260918_154315_865/",
+    "work/p0_capacity.py",
+    "work/p0_diag.py",
+    "work/p0_diag_dev.py",
+    "work/p0_envelope.py",
+    "work/p0_grasp.py",
+    "work/p0_handoff.py",
+    "work/p0_impulse.py",
+    "work/p0_impulse2.py",
+    "work/p0_impulse3.py",
+    "work/p0_load.py",
+    "work/p0_load2.py",
+    "work/p0_place_diag.py",
+    "work/p0_reach.py",
+    "work/p0_reach2.py",
+    "work/p0_reach3.py",
+    "work/p0_release.py",
+    "work/p0_releasez.py",
+    "work/p0_servo.py",
+    "work/p0_shared.py",
+    "work/p0_sitdiag.py",
+    "work/p0_slotprobe.py",
+    "work/p0_spin.py",
+    "work/p0_sweep.py",
+    "work/p0_trace.py",
+    "work/p0_trace2.py",
+    "work/p0_transfer.py",
+    "work/p0_traygeom.py",
+    "work/p0_wire.py",
+    "work/p0_wire2.py",
+    "work/p0_wire3.py",
+    "work/p0_wire4.py",
+    "work/p0_wire5.py",
+    "work/p0_wire6.py"
+   ],
+   "commit": "4e960a2d2d189cb6d20e19910f83c6f76361f906",
+   "dirty": true,
+   "dirty_diff_sha256": "09f008bba5b04890",
+   "dirty_diff_stat": ".gitignore                            |  0\n README.md                             |  0\n docs/continuous-decision-phase-log.md | 32 ++++++++++++++++++++++++++++----\n docs/mini-spec.md                     |  0\n embodied_agent/__init__.py            |  0\n embodied_agent/agent.py               |  0\n embodied_agent/demo.py                |  0\n embodied_agent/llm.py                 |  0\n embodied_agent/memory.py              |  0\n embodied_agent/models.py              |  0\n embodied_agent/planner.py             |  0\n embodied_agent/simulator.py           |  0\n embodied_agent/skills.py              |  0\n embodied_agent/verification.py        |  0\n outputs/s2_w2_1/error_attribution.csv | 26 +++++++++++++-------------\n tests/test_mvp.py                     |  0\n 16 files changed, 41 insertions(+), 17 deletions(-)",
+   "repo_dir": "/home/czx/embodied-agent-robot-agent-embodied-agent-4"
+  },
+  "dependencies": {
+   "Pillow": "12.3.0",
+   "http_transport": "stdlib urllib (no third-party HTTP client in use)",
+   "numpy": "2.4.6",
+   "pybullet": "3.2.7",
+   "pydantic": "2.13.5"
+  },
+  "dirty_note": "an uncommitted tree is recorded, not hidden: what is frozen is a commit identity plus a diff hash, not a claim of a clean checkout",
+  "environment_variables": "not recorded (SPEC 7: no credentials or full env)",
+  "generated_at": "2026-09-19T09:26:58+00:00",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "python": "3.11.16"
+ },
+ "rules": {
+  "arms": {
+   "A": {
+    "decider": "one plan request, then execution only",
+    "name": "one-shot plan",
+    "no_replanning": true,
+    "rule": "on verification failure, while the precondition still holds, repeat the identical skill/object/candidate at most per_action_extra_repeats times; terminate when a new action would be needed, the budget is spent, or the repeats fail"
+   },
+   "B": {
+    "decider": "the same model, one decision per skill boundary, on the freshest context",
+    "name": "continuous decision"
+   },
+   "C": {
+    "decider": "as B, on a context with the detailed execution diagnostics, attempt history and verification summary removed",
+    "name": "ablated feedback",
+    "still_keeps": "execution verification, safety protections and a WorldState that can still reveal effects; it is not a no-feedback arm"
+   },
+   "identical_across_arms": "goal source and its shared parse, skill catalogue, executor, verifier, budgets, candidate registry, scene, evaluator and scoring",
+   "not_an_arm": "the legacy full-plan+replan reference path stays available in code and may not be labelled one-shot planning (SPEC 11.2)"
+  },
+  "blind_review": {
+   "adverse_values": {
+    "fork_answer_outside_both_label_sets": "unreasonable",
+    "place_of_already_satisfied": "redundant"
+   },
+   "empty_is_a_result": "a batch with no contested items reports an empty blind review; predicates are not loosened to manufacture items",
+   "kinds": [
+    "place_of_already_satisfied",
+    "fork_answer_outside_both_label_sets"
+   ],
+   "path": "configs/experiment/blind_review_rubric_v1.json",
+   "prohibitions": [
+    "不得由被试模型自评，也不得用模型生成的判定充当人审（SPEC 11.4）。记分为 model 的记录一律拒收。",
+    "不得为让比率好看而事后改本准则的判据、抽样集合或分母定义；要改只能改下一版 rubric_id 并重跑。",
+    "不得把 divided（两名审阅人分歧）条目折中、平均或由第三人推翻：分歧本身就是要报告的结果。",
+    "不得把未审条目当作 0 或当作'合理'：未审就是未审，分母必须点名。"
+   ],
+   "published_rates": [
+    "adverse_rate_strict",
+    "adverse_rate_counting_divided_as_adverse"
+   ],
+   "registered_before_any_p3_run": true,
+   "reviewers": 2,
+   "rubric_id": "blind-review-v1",
+   "sampling": "100%：产物里 `needs_blind_review` 指名的每一条都要审，不是抽样；指针缺失（无证据可看）的条目记为 not_reviewable 并如实报告",
+   "sha256": "95811983da059e5e44c7452aa76654cf26c3579536f24bfeaeb7a7b3af39853a"
+  },
+  "budgets": {
+   "declared_in": "embodied_agent/core/contracts.py::Budgets",
+   "defaults": {
+    "max_decision_rounds": 24,
+    "max_global_replans": 3,
+    "max_http_requests": 32,
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "max_skill_calls": 30,
+    "per_action_extra_repeats": 2,
+    "per_skill_sim_timeout_s": 30.0,
+    "wall_clock_s": 900.0
+   },
+   "per_case_overrides": "the frozen task list's budget_profile, hashed with the rest",
+   "protections": {
+    "max_identical_invalid_attempts": 3,
+    "max_semantic_repairs": 2,
+    "note": "mode A's bounded repeat of the identical skill/object/candidate is the pre-registered baseline rule (SPEC 11.2), not a strategy: B uses the same protection and the same attempt ceiling, and only differs in who decides to retry",
+    "per_action_extra_repeats_mode_A": 2
+   },
+   "shared_across_arms": true
+  },
+  "change_policy": {
+   "hashed": "every block of this file except `provenance`",
+   "never": [
+    "lower a gate after results exist",
+    "drop a sample from a denominator",
+    "change a prompt, budget, event or seed mid-batch",
+    "let a model grade the policy it is part of",
+    "swap the provider or model inside a batch without re-freezing"
+   ],
+   "recorded_but_not_hashed": [
+    "code identity (commit, dirty, dirty_diff_sha256)",
+    "dependency versions",
+    "generated_at"
+   ],
+   "self_certification_limit": "this file cannot prove it was written before the results; the rules hash inside every run manifest, and the git history of this path, are that evidence",
+   "to_amend": "`cli prereg --out <new path>` then `--amend` prints the hash it replaced; the old file stays readable, and a run recorded under the old hash stops being gradeable against the new one",
+   "why": "a commit that only touches docs must not invalidate the rules, and a rules change must be visible rather than silent; each run pairs the rules hash it was started under with its own code identity"
+  },
+  "code_invariants": [
+   {
+    "check": {
+     "function": "DeepSeekAdapter.chat",
+     "needle": "\"response_format\": {\"type\": \"json_object\"}"
+    },
+    "claim": "every request asks for a JSON object and never streams",
+    "file": "embodied_agent/adapters/deepseek.py",
+    "id": "I1"
+   },
+   {
+    "check": {
+     "function": "DeepSeekAdapter._post",
+     "needle": "(body not read)"
+    },
+    "claim": "a provider error body is never read into a message, so it cannot carry the key into a log",
+    "file": "embodied_agent/adapters/deepseek.py",
+    "id": "I2"
+   },
+   {
+    "check": {
+     "function": "write_manifest",
+     "needle": "not recorded (SPEC 7: no credentials or full env)"
+    },
+    "claim": "run manifests record no credentials and no environment",
+    "file": "embodied_agent/core/events.py",
+    "id": "I3"
+   },
+   {
+    "check": {
+     "absent": true,
+     "needle": "eval_spec"
+    },
+    "claim": "the hidden EvalSpec is read only by the evaluator, never by a runtime that builds a decision context",
+    "file": "embodied_agent/core/runtime.py",
+    "id": "I4"
+   },
+   {
+    "check": {
+     "function": "validate_verdicts",
+     "needle": "row.get(\"reviewer_kind\") != \"human\""
+    },
+    "claim": "a verdict row is accepted only from a human reviewer, so a model cannot grade the policy it is part of (SPEC 11.4)",
+    "file": "embodied_agent/evaluation/blind_review.py",
+    "id": "I5"
+   },
+   {
+    "check": {
+     "function": "OneShotPlanSource._settle_pending",
+     "needle": "self.per_action_extra_repeats"
+    },
+    "claim": "the mode-A baseline's only permitted reaction is the frozen bounded repeat of the identical action; it never adds or reorders a step (SPEC 11.2)",
+    "file": "embodied_agent/core/planner.py",
+    "id": "I6"
+   },
+   {
+    "check": {
+     "function": "Runtime.run_episode",
+     "needle": "prologue.get(\"http_requests\")"
+    },
+    "claim": "the shared goal parse is billed into every arm of a pair, so no arm gets a cheaper budget than the run that paid for it",
+    "file": "embodied_agent/core/runtime.py",
+    "id": "I7"
+   }
+  ],
+  "diagnostics": {
+   "boundary_cases_total": 22,
+   "note": "SPEC 11.1 asks for at least 12 boundary cases that do not enter the success denominator; both halves are counted, and neither is reported as a task success rate",
+   "protocol_cases_in_the_scene": {
+    "case_ids": [
+     "pr_unknown_entity_id",
+     "pr_unknown_target",
+     "pr_no_assignment",
+     "pr_partial_binding",
+     "pr_stacking_out_of_scope",
+     "pr_target_full",
+     "pr_skill_budget",
+     "pr_round_budget",
+     "pr_wall_budget",
+     "pr_zero_skill_budget",
+     "pr_goal_truth_mismatch"
+    ],
+    "cases": 11,
+    "set": "protocol"
+   },
+   "protocol_cases_owned_by_tests": {
+    "harness_entries": 11,
+    "names": [
+     "h_hold_state_conflict",
+     "h_missing_argument",
+     "h_stale_candidate",
+     "h_infeasible_candidate",
+     "h_unknown_predicate",
+     "h_false_finish",
+     "h_repeated_invalid",
+     "h_semantic_repair_limit",
+     "h_empty_model_response",
+     "h_schema_error",
+     "h_api_timeout"
+    ]
+   },
+   "state_utilization": {
+    "acceptable_sets_authored_from": "public preconditions and task constraints, written before any model answered (SPEC 11.3: 不以单一动作字符串作答案)",
+    "differences": [
+     "all_satisfied_vs_one_pending",
+     "candidate_free_vs_occupied",
+     "candidate_order_permuted",
+     "failed_vs_completed_feedback",
+     "grasp_point_moved",
+     "held_vs_released",
+     "pending_order",
+     "region_free_vs_full",
+     "satisfied_vs_displaced",
+     "unknown_vs_known_hold"
+    ],
+    "excluded_from_success_denominator": true,
+    "pair_ids": [
+     "sp01",
+     "sp02",
+     "sp03",
+     "sp04",
+     "sp05",
+     "sp06",
+     "sp07",
+     "sp08",
+     "sp09",
+     "sp10",
+     "sp11",
+     "sp12"
+    ],
+    "pairs": 12,
+    "requests_per_arm": 24
+   }
+  },
+  "gates": {
+   "also_required_to_claim": {
+    "G4_interval_lower_bound": "> 0 (paired, configuration-clustered bootstrap)",
+    "cost_reported": "an improvement in success bought with a large cost increase is reported as such, not as a capability gain (SPEC 12.2)"
+   },
+   "declared_in": "SPEC 12.2 (本初稿建议值，正式测试前冻结)",
+   "if_engineering_passes_and_gates_do_not": "the conclusion is 持续决策闭环已实现，预期能力增益未证实, decided by the error distribution — not by widening the module count until the number moves",
+   "items": [
+    {
+     "id": "G1",
+     "metric": "b_clean_success_point_estimate",
+     "op": ">=",
+     "threshold": 0.8,
+     "unit": "rate"
+    },
+    {
+     "id": "G2",
+     "metric": "a_minus_b_clean_success",
+     "op": "<=",
+     "threshold": 0.05,
+     "unit": "rate difference"
+    },
+    {
+     "id": "G3",
+     "metric": "b_perturbed_success_point_estimate",
+     "op": ">=",
+     "threshold": 0.7,
+     "unit": "rate"
+    },
+    {
+     "id": "G4",
+     "metric": "b_minus_a_perturbed_paired_mean",
+     "op": ">=",
+     "threshold": 0.15,
+     "unit": "paired mean difference of per-case rates"
+    },
+    {
+     "id": "G5",
+     "metric": "state_pairs_with_both_arms_fitting",
+     "op": ">=",
+     "threshold": 10,
+     "unit": "of 12 pairs"
+    }
+   ],
+   "may_not_be_relaxed_after_results": true,
+   "status": "阶段目标，不是已达到的结果，也不是总体能力保证"
+  },
+  "prereg_id": "p3-formal-v1",
+  "prompts": {
+   "feedback_depth": 3,
+   "history_cap": 12,
+   "note": "the version string is what a manifest labels a prompt with; the hash is what proves the labelled text is still the text that gets sent",
+   "sha256_by_kind": {
+    "decision": "04da4dd022c52f5461df553ce4ca2972b27cc916be79a81aecdcea731581849f",
+    "goal": "3bd9d7ff8b167e457d936c91e68b70f6577b7e8b8988d02a186a8b0ef15e528f",
+    "plan": "d2474ed2c0a45ab5802398a36a954f96438c18796acea0fc8af48672a8b2d22e"
+   },
+   "source_of_the_hashed_text": "embodied_agent/adapters/deepseek.py",
+   "versions": {
+    "decision_prompt": "s2-decide-v1",
+    "goal_prompt": "s2-goal-v1",
+    "plan_prompt": "s2-plan-v1"
+   }
+  },
+  "run_matrix": {
+   "batch_http_upper_bound": 6912,
+   "budget_estimate": {
+    "prompt_tokens_m": "6-7",
+    "requests": "1400-1600",
+    "status": "an estimate for planning only; the limit that binds is per_episode_http_cap, and no estimate enters a denominator",
+    "wall_clock_h": "1.5-2.5"
+   },
+   "case_ids": [
+    "clean_c1",
+    "clean_c2",
+    "clean_c3",
+    "clean_c4",
+    "clean_c5",
+    "clean_c6",
+    "clean_c7",
+    "clean_c8",
+    "sc_c1",
+    "sc_c2",
+    "sc_c3",
+    "sc_c4",
+    "sc_c5",
+    "sc_c6",
+    "sc_c7",
+    "sc_c8",
+    "ed_c1",
+    "ed_c2",
+    "ed_c3",
+    "ed_c4",
+    "ed_c5",
+    "ed_c6",
+    "ed_c7",
+    "ed_c8"
+   ],
+   "cases": 24,
+   "episodes": 216,
+   "execution_order": "modes interleaved inside each (case, repeat): a provider that changes behaviour mid-batch perturbs all three arms of a pair equally (SPEC 11.2)",
+   "modes": [
+    "A",
+    "B",
+    "C"
+   ],
+   "per_episode_budgets": "the per-case `Budgets` in the frozen task list, not a number restated here; the http cap is the widest of them and is the only one quoted as an upper bound",
+   "per_episode_http_cap": 32,
+   "pilot": {
+    "enforced_by_prereg": false,
+    "modes": [
+     "A",
+     "B",
+     "C"
+    ],
+    "purpose": "measures the cost of one batch and the request count per episode before the formal run; its episodes are never folded into a formal rate",
+    "repeats": 1,
+    "set": "smoke",
+    "why": "`--prereg` refuses any matrix but the formal one, so a pilot cannot run under the pre-registration and be mistaken for part of it; the shape is recorded here so the pilot that was run is checkable"
+   },
+   "planner": "deepseek",
+   "repeats": 3,
+   "seed_policy": "repeat n reuses the case seed, so the scene is fixed; the model run is still an independent sample and is recorded by its own episode id and completion id (SPEC 11.1)",
+   "seeds": {
+    "clean_c1": 201,
+    "clean_c2": 202,
+    "clean_c3": 203,
+    "clean_c4": 204,
+    "clean_c5": 205,
+    "clean_c6": 206,
+    "clean_c7": 207,
+    "clean_c8": 208,
+    "ed_c1": 221,
+    "ed_c2": 222,
+    "ed_c3": 223,
+    "ed_c4": 224,
+    "ed_c5": 225,
+    "ed_c6": 226,
+    "ed_c7": 227,
+    "ed_c8": 228,
+    "sc_c1": 211,
+    "sc_c2": 212,
+    "sc_c3": 213,
+    "sc_c4": 214,
+    "sc_c5": 215,
+    "sc_c6": 216,
+    "sc_c7": 217,
+    "sc_c8": 218
+   },
+   "set": "formal",
+   "shared_goal_parses": 72,
+   "subset_counts": {
+    "clean": 8,
+    "execution_deviation": 8,
+    "state_change": 8
+   }
+  },
+  "sampling": {
+   "api_cost_estimate": null,
+   "credential_policy": "api_key_env names the variable; the value is in the environment or the gitignored .env and appears in no config, snapshot, prompt or log (SPEC 7)",
+   "declared_in": "configs/models/deepseek.yaml",
+   "declared_sha256": "e4fceaa63478f71b25053f302ecab4131122d624f7d8359761d26a7d4e9609d2",
+   "defaults_in_code": {
+    "base_url": "https://api.deepseek.com",
+    "max_retries": 2,
+    "max_tokens": 1200,
+    "model": "deepseek-chat",
+    "temperature": 0.2,
+    "timeout_s": 60.0
+   },
+   "effective_source": "DeepSeekAdapter.sampling, recorded per run as model.sampling; the runner compares the live object against this block (SPEC 11.2: 固定 provider、实际模型标识、采样参数)",
+   "env_overridable": [
+    "DEEPSEEK_MODEL",
+    "DEEPSEEK_BASE_URL"
+   ],
+   "pricing_configured": false,
+   "pricing_note": "no rate is asserted for a provider whose price was not read from a source in this repository; requests and tokens are reported instead of an invented cost, and `api_cost_estimate` stays null until a price is configured (SPEC 11.4 成本指标)",
+   "provider": "deepseek"
+  },
+  "spec": {
+   "note": "the SPEC is the only source of terms; this file records the numbers it left to be frozen, and where a value is the code's rather than the document's, the code is named as the source",
+   "path": "Continuous-Decision-Embodied-Agent-SPEC-v0.1.md",
+   "sections_frozen_by_this_file": [
+    "9 P3",
+    "10.1",
+    "10.2",
+    "10.3",
+    "11.1",
+    "11.2",
+    "11.3",
+    "11.4",
+    "12.1",
+    "12.2"
+   ],
+   "sha256": "ab3aceac81657cd3b6c9051029365b3775721c251a5cff874a7a33180b01141d"
+  },
+  "statistics": {
+   "aggregation": "per case over its repeats first, then paired differences per case, bootstrapped over cases; three rollouts of one configuration are not three tasks (SPEC 11.1, 11.4)",
+   "behaviour_metrics": [
+    "state_fork_action_fit",
+    "repeated_failure_without_new_evidence",
+    "redundant_rework_of_satisfied_goals",
+    "disturbed_targets_reincorporated",
+    "illegal_decisions",
+    "rejections",
+    "false_finishes"
+   ],
+   "bootstrap": {
+    "cluster": "case",
+    "interval": "percentile 2.5/97.5",
+    "note": "the seed is fixed so the interval of a frozen report is reproducible rather than re-drawn on every render",
+    "replicates": 2000,
+    "seed": 20260919,
+    "source_of_truth": "embodied_agent/evaluation/report.py"
+   },
+   "claim_rule": "only a paired difference whose 95% lower bound is above zero is worded as a supported gain; a point estimate that clears the bar with an interval crossing zero is worded 初步收益，证据不足",
+   "cost_metrics": [
+    "skill_calls",
+    "decision_rounds",
+    "http_requests",
+    "prompt_tokens",
+    "completion_tokens",
+    "wall_clock_s",
+    "sim_time_s",
+    "api_errors",
+    "infrastructure_errors",
+    "provider_latency"
+   ],
+   "denominator": "every planned run: report.planned_runs",
+   "exclusions_permitted": "none after the fact; an API error, a simulation crash, an unfired declared event and a wrong goal parse are reported as themselves (SPEC 11.4: 合法性排除规则必须事先冻结；不因任务难或事件未触发而事后删样本)",
+   "infra_outcomes_stay_in_the_denominator": [
+    "infrastructure_error",
+    "goal_resolution_error"
+   ],
+   "layering": "clean / state_change / execution_deviation, and by object count, each with its own numerator and denominator",
+   "needs_human_reading": [
+    "place_of_already_satisfied",
+    "fork_answer_outside_both_label_sets"
+   ],
+   "perturbed_subset_for_gate_G3_G4": [
+    "state_change",
+    "execution_deviation"
+   ],
+   "primary_metric": "independent complete-task success rate judged by IndependentEvaluator against the hidden EvalSpec",
+   "wilson": {
+    "role": "descriptive only; it never carries the claim",
+    "z": 1.96
+   }
+  },
+  "task_list": {
+   "constants": {
+    "grasp_offset": [
+     0.05,
+     0.05,
+     0.0
+    ],
+    "impulse_pin_to_wall": [
+     -0.07,
+     0.0
+    ],
+    "impulse_shift_inside": [
+     -0.03,
+     0.0
+    ],
+    "impulse_table": [
+     0.0,
+     0.055
+    ],
+    "max_objects_per_region": 3,
+    "release_offset_high": [
+     0.0,
+     0.0,
+     0.055
+    ],
+    "release_offset_lateral": [
+     -0.05,
+     0.0,
+     0.0
+    ]
+   },
+   "events_note": "environment events are inside that hash: a perturbation changed after a result was produced is drift, not tuning (SPEC 10.3)",
+   "path": "configs/experiment/frozen_tasks_v1.json",
+   "sets": {
+    "dev": 8,
+    "formal": 24,
+    "protocol": 11,
+    "smoke": 4
+   },
+   "sha256": "2f1c74f52e910073b1877bb75686c379754ff35ca4abdd32b6408baf7fc75450",
+   "what_is_hashed": "task_id, subset, seed, n_objects, utterance, objects, targets, budgets, verify, events, expected, probe, hidden EvalSpec, the protocol harness, the state-pair specs and the physics constants"
+  }
+ },
+ "rules_sha256": "23abe58ff33372ffa6f62a608221dfc1af2006f85ae50f7651a0f28451aae7b3",
+ "schema_version": "1"
+}

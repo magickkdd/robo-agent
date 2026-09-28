@@ -735,6 +735,21 @@ def _all_cases() -> list[TaskCase]:
     return out
 
 
+# The v0.2 §8 long-horizon batch, defined in its own module.
+def _long_horizon_set() -> list["TaskCase"]:
+    """Deferred import: `long_horizon_tasks` imports this module, so the cycle is broken at call."""
+    from .long_horizon_tasks import build_long_horizon_set
+
+    return build_long_horizon_set()
+
+
+def _episodic_set() -> list["TaskCase"]:
+    """The same deferred import for the same reason: `episodic_tasks` imports this module."""
+    from .episodic_tasks import build_episodic_set
+
+    return build_episodic_set()
+
+
 # One dict, so the names a caller may ask for and the names that resolve are the
 # same fact. `clean`/`state_change`/`execution_deviation` are the SPEC 11.1 formal
 # subsets, and `all` is every registered set at once.
@@ -746,6 +761,15 @@ _SET_BUILDERS = {
     "execution_deviation": lambda: _build([c for c in FORMAL_CONFIGS if c["subset"] == "execution_deviation"]),
     "formal": lambda: _build(FORMAL_CONFIGS),
     "protocol": lambda: _build(PROTOCOL_CONFIGS),
+    # SPEC v0.2 §8's long-horizon batch. Resolvable by name so the runner can drive it, and *not*
+    # in `_REGISTERED_SETS`: it is authored after the frozen 47 exist, so folding it in would move
+    # a hash that published results already depend on. It freezes to its own file
+    # (`long_horizon_tasks.LH_FROZEN_PATH`), and a test asserts both halves of that separation.
+    "long_horizon": _long_horizon_set,
+    # SPEC v0.2 §5.4/§13 P3's experience pairs. Same rule as above: resolvable by name so the
+    # runner can drive it, absent from `_REGISTERED_SETS` so the frozen 47's hash does not move, and
+    # frozen to its own file (`episodic_tasks.EM_FROZEN_PATH`).
+    "em": _episodic_set,
     "all": _all_cases,
 }
 

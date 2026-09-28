@@ -1,0 +1,33 @@
+schema_version: "1"
+# BST-1.0 文本批次的被试配置。与 agnes.yaml 的唯一差别是 max_tokens: 2048 ——
+# SPEC-BST 5.3 把单次请求的生成上限定为 2,048，`benchmark/source.py` 会取
+# min(本文件值, 2048)，写 1200 也是合规的更严格读法，但决策 JSON 被截断会产生
+# 与能力无关的格式错误，所以按规格声明的上限发放。
+# 本文件不在任何 rules_sha256 里；冻结时它的 sha256 由 manifest.model.config_sha256 记录。
+provider: agnes
+api_key_env: LLM_API_KEY   # 只记录变量名；密钥本身只在环境变量/仓库内 .env（SPEC 7）
+base_url: https://api.agnes-ai.cn/v1
+model: agnes-2.5-flash
+# prompts 对文本批次**不生效**：决策 prompt 由 `embodied_agent/benchmark/prompts.py`
+# 提供并以 prompts_sha256 记录（s2-decide-v1 是桌面物理环境的版本名，沿用会谎报题目）。
+# 保留这三项只为让 `DeepSeekPlanner.from_env` 构造适配器时代码路径不变。
+prompts:
+  goal: s2-goal-v1
+  decision: s2-decide-v1
+  plan: s2-plan-v1
+temperature: 0.2
+max_tokens: 2048
+timeout_s: 60
+# Phase 2 train 预检实测：这个免费端点在 20 次探测请求里返回 5 次 HTTP 429（另一组
+# 20 次为 0 次），且与本地发送间隔无关（1.0s 间隔那组反而更差），说明限速是端点侧、
+# 突发性质的。deepseek.yaml 的 max_retries: 2 意味着最多 3 次尝试，单次请求失败概率
+# ~0.25^3=1.5%，在筛查的约 1000 次请求上会稳定制造 MODEL_ERROR 终止，把端点抖动记成
+# 被试能力。这里升到 4（5 次尝试，退避 1.5/3/4.5/6s）把期望损失降到 <1 次。
+# 这是 SPEC-BST 5.2 允许的唯一一次 Phase 2 调整，理由是可测的基础设施事实而不是分数；
+# 记录于 docs/bst/compatibility_delta.md 与 phase-log。所有尝试都计入 http_requests，
+# 每集 90 次的硬上限不变（SPEC 6.2：transport retry 不得藏在账本外）。
+max_retries: 4
+feedback_depth: 3
+# 单价未知：pricing 缺省 => api_cost_estimate / cost_estimate_usd 保持 null，
+# 只报请求数与 tokens（SPEC 11.4：不臆造价格）。
+# proxy: "__direct__"(默认)绕过系统代理直连；填 URL 则强制走该代理。

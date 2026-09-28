@@ -56,7 +56,7 @@ class SkillRegistry:
     CATALOGUE = {
         "observe": {
             "description": "Take a fresh measurement of the scene.",
-            "args": {},
+            "args": {"view": "str (optional: which declared camera to measure with)"},
             "pre": ["none"],
             "post": ["a new WorldState snapshot with a fresh observation_ref"],
         },
@@ -113,6 +113,17 @@ class SkillExecutor:
         r.failure_code = code.value
         r.notes = reasons
         return r
+
+    def held_state(self):
+        """The gripper's own report of what is in it, asked now rather than remembered.
+
+        This is §5.8's first layer: what the actuators did, from the same call
+        `_do_pick` and `_do_place` consult before they move. A perception-backed Runtime
+        reads it here instead of a snapshot's `held_object`, because no camera pointed at
+        a table answers what the hand holds — and a name it does answer with is the
+        entity's, which is why the value needs grounding before a percept snapshot can
+        use it."""
+        return self._held_state()
 
     def _held_state(self):
         held_bodies = self.scene.held_bodies()

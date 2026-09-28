@@ -210,6 +210,15 @@ class PlacementPlanner:
         clash = []
         for oid in sorted(occupants):
             other = world.entity(oid)
+            if other.pose is None:
+                # A neighbour this snapshot placed nowhere is not clearance to descend:
+                # the envelope is defined by a position and there is none to check
+                # against. Failing the slot is the conservative direction, and the reason
+                # says which of the two it is — "somewhere out there, unmeasured" is not
+                # the same claim as "in the way".
+                clash.append(f"{oid} (no measured position this frame: its sweep cannot be "
+                             f"checked)")
+                continue
             dist = math.hypot(other.pose.position.x - c.position_xy[0],
                               other.pose.position.y - c.position_xy[1])
             need = self.HAND_SWEEP_RADIUS_M + self.circumscribed_radius(oid)

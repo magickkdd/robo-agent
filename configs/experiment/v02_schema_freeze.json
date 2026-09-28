@@ -1,0 +1,135 @@
+{
+  "_purpose": "SPEC-v0.2 P0 '固化 v0.2 schema'. The fingerprint of the v0.2 contract layer, so that a later edit to a field cannot be described as 'the same schema' and so that records from different generations are never pooled. Checked by tests/contract/test_v02_contracts.py::test_freeze_file_matches_the_code.",
+  "regenerate_with": "PYTHONPATH=. python -c \"import json;from embodied_agent.core import v02;print(json.dumps(v02.schema_fingerprint(),indent=2))\"  # then append a history entry; a re-freeze also needs a compatibility_delta line naming what moved",
+  "schema_fingerprint": {
+    "schema_version": "4",
+    "v01_schema_version": "3",
+    "module_sha256": "65f2b2402c192a1b5e19456664487dc8f193241e9921050448cd7dc1683ba5f1",
+    "records_sha256": "112b2df87820f870e3bf15f20c6717d4d7de472eac3103e2bbff6dcc419c6a38",
+    "all_records_sha256": "ac2f73562cfb4e6a3bf80a5b6a91118bb8d13e0a979c63759f47c5f65093e17f",
+    "event_types_sha256": "58f691b89e8c8da7f890473d40bbbadce150fcbbfdd99c24939e010958a393a5",
+    "ablation_registry_sha256": "db486f631dedbc48780992a9307facbefa6c03a49e9e84cf85e9528964a88a08"
+  },
+  "records_frozen": [
+    "TaskPlan",
+    "Subgoal",
+    "Dependency",
+    "WorkingMemoryState",
+    "EpisodicExperience",
+    "SkillSpec",
+    "SkillCandidate",
+    "SkillValidationReport",
+    "PerceptionObservation"
+  ],
+  "record_classes_covered_by_all_records_sha256": [
+    "Assumption",
+    "Commitment",
+    "Dependency",
+    "EpisodicExperience",
+    "PerceptionObservation",
+    "PlanRevision",
+    "RecalledExperience",
+    "SkillCandidate",
+    "SkillGap",
+    "SkillSpec",
+    "SkillValidationReport",
+    "Subgoal",
+    "SuspendedRelation",
+    "TaskPlan",
+    "TaskUnderstanding",
+    "WorkingMemoryState",
+    "Ablation",
+    "FailedAttempt"
+  ],
+  "event_types_frozen": [
+    "task_understanding",
+    "plan",
+    "plan_revision",
+    "perception",
+    "working_memory",
+    "memory_write",
+    "memory_retrieval",
+    "memory_use",
+    "skill_gap",
+    "skill_candidate",
+    "skill_validation",
+    "skill_library",
+    "recovery_action",
+    "obligation_check",
+    "ablation"
+  ],
+  "ablation_registry": {
+    "modules": [
+      "vlm",
+      "planning",
+      "working_memory",
+      "episodic_memory",
+      "replanning",
+      "skill_retrieval",
+      "skill_acquisition"
+    ],
+    "conditions": {
+      "full": [],
+      "wo_vlm": [
+        "vlm"
+      ],
+      "wo_planning": [
+        "planning"
+      ],
+      "wo_working_memory": [
+        "working_memory"
+      ],
+      "wo_episodic_memory": [
+        "episodic_memory"
+      ],
+      "wo_replanning": [
+        "replanning"
+      ],
+      "wo_skill_acquisition": [
+        "skill_acquisition"
+      ]
+    },
+    "known_gap": "skill_retrieval is one of the seven capabilities in SPEC-v0.2 9 but has no dedicated core condition in 9's ablation list and no record type of its own yet, so an arm cannot currently prove retrieval was off. Recorded rather than papered over; see phase log P0 open item."
+  },
+  "measured_baseline": {
+    "v02_contract_tests": "see docs/continuous-decision-v0.2-phase-log.md P0 for the count and the run time",
+    "v01_regression_after_p0": "see the same section; it is re-measured after every P0 edit",
+    "v01_rules_sha256_before_and_after_p0": "23abe58ff33372ffa6f62a608221dfc1af2006f85ae50f7651a0f28451aae7b3 (unchanged)",
+    "rules_check_command": "PYTHONPATH=. python -m embodied_agent.cli prereg --check configs/experiment/p3_preregistration_v1.json",
+    "interpreter": "Python 3.11 (/home/czx/miniforge3/envs/embodied/bin/python), pybullet present, textworld/alfworld absent"
+  },
+  "p0_cleanup": [
+    "deleted embodied_agent/core/recovery_stub.py (0 bytes, referenced by no source or test)",
+    "deleted embodied_agent/llm.py (a 35-line duplicate DeepSeekAdapter with no importers; it bypassed the instrumented adapter's response_format, retry accounting and '(body not read)' error-body rule)",
+    "added embodied_agent/core/v02.py: the schema-4 contract layer plus the ablation registry",
+    "embodied_agent/core/events.py: EpisodeStore.log takes an explicit contract generation, log_record derives it from the record, a payload that disagrees with the envelope is refused, and read_all can filter by version",
+    "tightened core/v02.py: an unrun ValidationInstance cannot carry a verdict, ArmAudit rejects unattributed event types, the fingerprint hashes every Record subclass, and the unused GoalSpec/TaskInput re-exports and the new_record alias are gone"
+  ],
+  "not_covered_by_this_freeze": [
+    "prompt text (v0.2 builders do not exist yet; the three v0.1 prompt constants and benchmark/prompts.py are untouched so the sealed batches stay reproducible)",
+    "task lists and statistics definitions (unchanged; SPEC-v0.2 8/9 task sets are P2 and P5 work)",
+    "the v0.1 frozen rule hash is deliberately unaffected by this layer; a schema-4 event is separated at the log boundary by the envelope version, and v02.Record refuses to claim version 3"
+  ],
+  "history": [
+    {
+      "taken_at": "2026-09-20",
+      "reason": "P0 initial freeze",
+      "module_sha256": "eb32825c733f6ae6f03c65e2984028e3b62f4d122d704ff7c447d2e3808680c6",
+      "replaces": null
+    },
+    {
+      "taken_at": "2026-09-20",
+      "reason": "P0 self-consistency pass: all_records_sha256 added, unrun-instance and unattributed-event gates added, dead re-exports removed",
+      "module_sha256": "70b0fce1d0444424f36c9068f544a92baa759ae246d10f4b67e3d895b035b438",
+      "replaces": "eb32825c733f6ae6f03c65e2984028e3b62f4d122d704ff7c447d2e3808680c6"
+    },
+    {
+      "taken_at": "2026-09-20",
+      "reason": "P1-b perception: ChangeRecord.modality documented as vlm | sensor | privileged | text so a state-change row can say which channel reported it (SPEC-v0.2 11 measures change detection per channel)",
+      "module_sha256": "65f2b2402c192a1b5e19456664487dc8f193241e9921050448cd7dc1683ba5f1",
+      "replaces": "70b0fce1d0444424f36c9068f544a92baa759ae246d10f4b67e3d895b035b438",
+      "compatibility_delta": "docstring only: no field, type, default or literal moved, so records_sha256 / all_records_sha256 / event_types_sha256 / ablation_registry_sha256 are all byte-identical to the previous freeze and only module_sha256 changed. A schema-4 record written before this re-freeze validates exactly as one written after it; the re-freeze exists because the fingerprint hashes module source, and an unrecorded source edit would make 'same schema' unfalsifiable."
+    }
+  ],
+  "credentials": "not recorded (SPEC 7: no credentials or full env)"
+}

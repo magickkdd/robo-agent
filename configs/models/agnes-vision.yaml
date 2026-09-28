@@ -1,0 +1,29 @@
+schema_version: "1"
+# 视觉通道（SPEC-v0.2 §5.5 / §13 P1）的被试配置。**新文件，不是改 `agnes.yaml`**：
+# `agnes.yaml` 的字节属于已经跑完的批次（每份 manifest 里都记着它的 `config_sha256`），
+# 而 §9 的 `--perceive vlm` 与 §13 P1-e 的桌面批次是两件事——一个只声明"能不能看图"的
+# 字段，不该让所有拿它当决策端的旧批次一起改哈希。同一端点、同一模型、同一 prompt 版本，
+# 多出来的只有下面那一行 `capabilities`。
+provider: agnes
+api_key_env: LLM_API_KEY   # 只记录变量名；密钥本身只在环境变量/仓库内 .env（SPEC 7）
+base_url: https://api.agnes-ai.cn/v1
+model: agnes-2.5-flash
+
+# 这一行是本文件存在的唯一理由。`channel_readiness("vlm", adapter)` 问的是"有没有适配器"，
+# 而 `DeepSeekAdapter` 上永远有 `chat_vision` 这个方法——方法是结构，能不能看图是端点的事实。
+# 所以看图这件事由配置声明，由 `benchmark_mujoco/runner.py:vision_capability` 读出来，
+# 一个没有这一行的 config 拿去做 `--perceive vlm` 会在第一帧之前被拒（SPEC 7：不臆造能力）。
+capabilities: [text, vision]
+
+# prompt 版本与 deepseek.yaml / agnes.yaml 逐项相同：换了被试没换题，结果至少可比。
+prompts:
+  goal: s2-goal-v1
+  decision: s2-decide-v1
+  plan: s2-plan-v1
+temperature: 0.2
+max_tokens: 1200
+timeout_s: 60
+max_retries: 2
+feedback_depth: 3
+# 单价未知就留空：`api_cost_estimate`/`cost_estimate_usd` 保持 null，只报请求数与 tokens
+# （SPEC 11.4：不臆造价格）。

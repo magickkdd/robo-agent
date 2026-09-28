@@ -216,6 +216,10 @@ def test_the_offline_twin_exercises_the_real_online_path(tmp_path):
                                 "max_tokens": adapter.max_tokens,
                                 "response_format": "json_object", "stream": False,
                                 "timeout_s": 7.0, "max_retries": adapter.max_retries,
+                                # unset here, and `null` in the manifest is the truthful record:
+                                # a default written into the body would be this process choosing
+                                # the endpoint's behaviour under a claim that it recorded one
+                                "reasoning_effort": None,
                                 "proxy": "direct"}, adapter.sampling
     assert (sent["temperature"], sent["max_tokens"], sent["stream"]) == \
         (adapter.sampling["temperature"], adapter.sampling["max_tokens"],

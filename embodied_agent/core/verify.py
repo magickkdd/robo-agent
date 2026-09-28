@@ -40,6 +40,7 @@ from .contracts import (
     Vec3,
     WorldState,
     footprint_half_xy_from_quat,
+    orientation_invariant_footprint_half_xy,
     rotation_rows_from_quat_xyzw,
     vertical_half_extent,
 )
@@ -99,12 +100,26 @@ def seated_rest_z(geom: GeometrySpec, region: TargetRegion, quaternion_xyzw) -> 
 
 
 def entity_footprint_half_xy(entity: EntityState) -> tuple[float, float]:
+    """Horizontal half-extents to check this entity against, honouring what the
+    snapshot actually measured.
+
+    With an unmeasured orientation there is no heading to multiply the geometry by, and
+    the upright pair is the optimistic answer — the one that lets a box standing on a
+    corner read as inside a tray wall it crosses. So such an entity gets the bound that
+    is true at any orientation, and a placement verdict can only be reached *despite*
+    the missing fact, never because of it."""
     if entity.geometry is None:
         raise ValueError(f"entity {entity.entity_id} has no geometry in this snapshot")
+    if not entity.orientation_measured:
+        return orientation_invariant_footprint_half_xy(entity.geometry)
+    if entity.pose is None:
+        raise ValueError(f"entity {entity.entity_id} claims a measured orientation with no pose")
     return footprint_half_xy_from_quat(entity.geometry, entity.pose.quaternion_xyzw)
 
 
 def entity_position(entity: EntityState) -> np.ndarray:
+    if entity.pose is None:
+        raise ValueError(f"entity {entity.entity_id} has no measured position in this snapshot")
     return np.array([entity.pose.position.x, entity.pose.position.y, entity.pose.position.z])
 
 
@@ -226,6 +241,11 @@ def measure_occupancy(entities: list[EntityState], targets: list[TargetRegion],
             region = by_target.get(pid)
             if region is None:
                 continue
+            if e.pose is None:
+                # a reader can name a surface it was told about without measuring a
+                # position for the body on it; an occupancy row is a statement about where
+                # something is, so there is nothing to record and no row is the answer
+                continue
             # relaxed boundary: an object jammed against a wall still occupies
             # the region it physically blocks
             inside, _ = footprint_inside_region(
@@ -291,11 +311,20 @@ class RuntimeVerifier:
 
     `unknown` is a real answer: an unmeasurable entity, an absent target or an
     unconfirmed hold state report unknown instead of true or false (SPEC 5.1,
-    6.1). The verifier never steps the simulator and never sees scoring truth."""
+    6.1). The verifier never steps the simulator and never sees scoring truth.
 
-    def __init__(self, world: WorldState, config: VerifyConfig | None = None):
+    `source` names the channel the snapshot came from, and every report this object
+    produces carries it. It is a constructor argument rather than a literal because a
+    percept-derived snapshot is not privileged evidence — and a report that says
+    otherwise is the one mistake §5.8's three-layer separation exists to prevent.
+    `perception.verify_percept.PerceptVerifier` is the channel that passes something
+    else."""
+
+    def __init__(self, world: WorldState, config: VerifyConfig | None = None, *,
+                 source: Source = Source.privileged):
         self.world = world
         self.config = config or VerifyConfig()
+        self.source = source
 
     def _unknown(self, predicate_id: str, why: str,
                  unmeasured: tuple[str, ...] = ()) -> PredicateReport:
@@ -303,8 +332,20 @@ class RuntimeVerifier:
             predicate_id=predicate_id, description=why, value=PredicateVerdict.unknown,
             evidence={"measurable": 0.0}, evidence_refs=[self.world.observation_ref or ""],
             unmeasured=list(unmeasured) or ["measurement"],
-            source=Source.privileged,
+            source=self.source,
         )
+
+    def outcome_status(self, result, reports: list[PredicateReport]):
+        """What the loop is told the action *achieved*, given what it could verify.
+
+        Layer 1 (`result.status`) says the actuation finished; layer 2 (these reports)
+        says whether current evidence supports the postcondition. The base class
+        declines to second-guess layer 1 and returns None: a privileged snapshot
+        measures the predicate directly, so a `completed` here is a claim the evidence
+        does support, and v0.1's sealed status vocabulary stays exactly as it was.
+        A sensor channel that cannot measure the postcondition overrides this —
+        `uncertain` is produced where the inability to verify actually lives."""
+        return None
 
     # -- single predicates --
     def verify_grasp(self, eid: str, before: WorldState | None = None,
@@ -313,9 +354,12 @@ class RuntimeVerifier:
         if not self.world.has_entity(eid):
             return self._unknown(f"grasp:{eid}", "entity not in observation", ("entity",))
         entity = self.world.entity(eid)
+        if entity.pose is None:
+            return self._unknown(f"grasp:{eid}", "this snapshot has no measured position for it",
+                                 ("position",))
         z = float(entity.pose.position.z)
         if support_z_before is None:
-            if before is not None and before.has_entity(eid):
+            if before is not None and before.has_entity(eid) and before.entity(eid).pose is not None:
                 support_z_before = float(before.entity(eid).pose.position.z)
             else:
                 return self._unknown(f"grasp:{eid}", "no earlier snapshot: lift gain is unmeasurable",
@@ -334,14 +378,14 @@ class RuntimeVerifier:
             return PredicateReport(
                 predicate_id=f"grasp:{eid}", description="hold state unmeasured at this snapshot",
                 value=PredicateVerdict.unknown, evidence=parts, unmeasured=["hold_state"],
-                evidence_refs=[self.world.observation_ref or ""], source=Source.privileged)
+                evidence_refs=[self.world.observation_ref or ""], source=self.source)
         ok = bool(lift > self.config.lift_gain_min_m and entity.held is True
                   and self.world.held_object == eid)
         return PredicateReport(
             predicate_id=f"grasp:{eid}",
             description="object lifted above its previous support and confirmed held",
             value=_verdict_from(ok), evidence=parts,
-            evidence_refs=[self.world.observation_ref or ""], source=Source.privileged,
+            evidence_refs=[self.world.observation_ref or ""], source=self.source,
         )
 
     def verify_placement(self, eid: str, target_id: str) -> PredicateReport:
@@ -353,6 +397,11 @@ class RuntimeVerifier:
             return self._unknown(f"placed:{eid}:{target_id}", "entity not present in observation",
                                  ("entity",))
         entity = self.world.entity(eid)
+        if entity.pose is None:
+            # a body this snapshot located nowhere can be neither inside nor outside; the
+            # geometric sub-facts below would raise, and raising is not an answer either
+            return self._unknown(f"placed:{eid}:{target_id}", "no measured position in this snapshot",
+                                 ("position",))
         subs = {"inside": state_inside(entity, region, self.config.footprint_margin_m),
                 "supported": state_supported_on(entity, region, self.config.support_height_tol_m),
                 "not_held": state_not_held(entity),
@@ -369,7 +418,7 @@ class RuntimeVerifier:
             predicate_id=f"placed:{eid}:{target_id}",
             description="whole footprint inside target, resting on its floor, at rest, not held",
             value=value, evidence=evidence, unmeasured=unmeasured,
-            evidence_refs=[self.world.observation_ref or ""], source=Source.privileged,
+            evidence_refs=[self.world.observation_ref or ""], source=self.source,
         )
 
     # -- goal progress --
@@ -407,10 +456,10 @@ class RuntimeVerifier:
                 PredicateReport(predicate_id=i.predicate_id, description="goal assignment predicate",
                                 value=i.value, evidence=i.evidence, evidence_refs=i.evidence_refs,
                                 unmeasured=list(i.unmeasured),
-                                source=Source.privileged)
+                                source=self.source)
                 for i in items
             ],
-            source=Source.privileged, tolerance_version=self.config.tolerance_version,
+            source=self.source, tolerance_version=self.config.tolerance_version,
             world_observation_ref=self.world.observation_ref, state_version=self.world.state_version,
         )
 
@@ -424,26 +473,37 @@ def bind_attributes(attrs: dict[str, str], world: WorldState) -> str | None:
 
 def diff_states(before: WorldState, after: WorldState, move_tol: float = 0.01) -> dict:
     """What actually changed between two snapshots, expressed per entity.
-    Version numbers alone are not evidence of a physical change (SPEC 5.1)."""
-    moved, changed = [], []
+    Version numbers alone are not evidence of a physical change (SPEC 5.1).
+
+    A body one of the two snapshots located nowhere is reported in `position_unmeasured`
+    and is left out of `moved`: "I cannot tell whether it moved" and "it did not move" are
+    different answers, and the second one is what a missing row would be read as by
+    anything that counts `moved` alone. The non-geometric sub-facts are still compared,
+    because a hold or support change needs no metres to be a change."""
+    moved, changed, unlocated = [], [], []
     for e in after.entities:
         try:
             b = before.entity(e.entity_id)
         except KeyError:
             changed.append({"entity_id": e.entity_id, "change": "appeared"})
             continue
-        dx = e.pose.position.x - b.pose.position.x
-        dy = e.pose.position.y - b.pose.position.y
-        dz = e.pose.position.z - b.pose.position.z
-        dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-        entry = {"entity_id": e.entity_id, "dxy": [round(dx, 4), round(dy, 4)],
-                 "dz": round(dz, 4), "dist_m": round(dist, 4)}
-        if dist > move_tol:
-            moved.append(entry)
+        if e.pose is None or b.pose is None:
+            unlocated.append(e.entity_id)
+            entry = {"entity_id": e.entity_id, "position": "unmeasured"}
+        else:
+            dx = e.pose.position.x - b.pose.position.x
+            dy = e.pose.position.y - b.pose.position.y
+            dz = e.pose.position.z - b.pose.position.z
+            dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+            entry = {"entity_id": e.entity_id, "dxy": [round(dx, 4), round(dy, 4)],
+                     "dz": round(dz, 4), "dist_m": round(dist, 4)}
+            if dist > move_tol:
+                moved.append(entry)
         if b.held != e.held or b.supported_by != e.supported_by:
             entry2 = dict(entry)
             entry2["hold_before_after"] = [str(b.held), str(e.held)]
             entry2["support_before_after"] = [str(b.supported_by), str(e.supported_by)]
             changed.append(entry2)
     return {"moved": moved, "state_changed": changed,
+            "position_unmeasured": unlocated,
             "held_before": str(before.held_object), "held_after": str(after.held_object)}

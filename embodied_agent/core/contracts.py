@@ -123,6 +123,27 @@ def oriented_footprint_half_xy(geom: GeometrySpec, yaw_rad: float) -> tuple[floa
     return hx * c + hy * s, hx * s + hy * c
 
 
+def orientation_invariant_footprint_half_xy(geom: GeometrySpec) -> tuple[float, float]:
+    """The square horizontal bound that holds *whatever the body's orientation turns
+    out to be* — the only extent a channel that never measures orientation may assert.
+
+    Every corner of a box is further from its centre than any face, so the bound is half
+    the space diagonal: taking the two largest half-extents would still be optimistic
+    about a body standing on a corner, and the optimistic pair is exactly the mistake
+    `vertical_half_extent`'s docstring records. A cylinder's farthest points are its rim,
+    at `hypot(radius, half_h)` from the centre, which is the same rule with the third
+    term folded in. A bound that can only be wrong in the *safe* direction is what a
+    placement verdict needs; `PerceptionAssembler._footprint_gap` deliberately uses the
+    narrower yaw-only radius for `next_to`, where a missed neighbour costs one extra
+    planned move and a false "fully inside" costs the task.
+    """
+    if geom.shape == "cylinder":
+        r = math.hypot(float(geom.radius), float(geom.half_h))
+    else:
+        r = math.hypot(*[float(v) for v in geom.half_extents.as_list()])
+    return r, r
+
+
 def rotation_rows_from_quat_xyzw(q) -> tuple[tuple[float, float, float], ...]:
     """Rows of the body->world rotation matrix, without a numpy dependency in the
     contract layer (this module is imported by the log path too)."""
@@ -174,6 +195,26 @@ def footprint_half_xy_from_quat(geom: GeometrySpec,
 class Source(str, Enum):
     privileged = "privileged"
     sensor = "sensor"
+    # a benchmark text backend: what the environment printed to the agent. Never
+    # `privileged`, because a sentence says only what this snapshot revealed
+    # (SPEC-BST 3.4: observation source relabelled, not upgraded).
+    local_text = "local_text"
+
+
+class TextFact(BaseModel):
+    """One fact read out of an observation sentence, with the sentence quoted and
+    its character `span` attached, so a parse is checkable without re-running the
+    environment. Whatever the parser could not express stays verbatim in
+    `WorldState.unparsed` instead of being dropped (SPEC-BST 4: unknown 保真)."""
+
+    fact_id: str = Field(default_factory=lambda: new_id("f"))
+    kind: str
+    subject: Union[str, None, Unknown] = "unknown"
+    related: Union[str, None, Unknown] = "unknown"
+    state: Union[str, None, Unknown] = "unknown"
+    observation_ref: Optional[str] = None
+    span: Optional[tuple[int, int]] = None
+    text: str = ""
 
 
 class SupportEvidence(BaseModel):
@@ -191,7 +232,16 @@ class SupportEvidence(BaseModel):
 class EntityState(BaseModel):
     entity_id: str
     body_id: int = -1
-    pose: Pose
+    # None means "this backend does not measure geometry", not "at the origin":
+    # a text world names things and never locates them (SPEC-BST 4).
+    pose: Optional[Pose] = None
+    # An identity quaternion is what a back-projection *assumes*, not what it sees: the
+    # centre is solved as `support_z + declared upright half-height`, so a snapshot from
+    # pixels has no orientation fact to report. The default keeps every v0.1 privileged
+    # snapshot unchanged; a channel that did not measure orientation must set this False,
+    # because `footprint_half_xy_from_quat(geom, identity)` returns the upright pair and
+    # every geometric check downstream would inherit the assumption as a measurement.
+    orientation_measured: bool = True
     geometry: Optional[GeometrySpec] = None
     held: Union[bool, Unknown] = "unknown"
     support: SupportEvidence = Field(default_factory=SupportEvidence)
@@ -227,6 +277,26 @@ class OccupancyRecord(BaseModel):
     fully_inside: bool
 
 
+class NotSeen(BaseModel):
+    """A body this snapshot's frame looked for and did not find, and what the frame can
+    say about that (SPEC-v0.2 §5.1: 可见/不可见与遮挡).
+
+    Deliberately *not* an `EntityState`. An entity is something a plan may name, and a
+    body the current frame never saw has no measured position, no support and no extent —
+    so carrying it as an entity would let an action be validated against an object the
+    snapshot only knows the name of. It is carried beside the entities instead, which is
+    the difference between "the green one is behind the yellow one" and "there is no green
+    one": the first is an answer the model can act on, the second is a claim this frame
+    cannot make either way.
+
+    `view` names the camera that did not see it, because not-seen is a property of one
+    image and not of the world (SPEC-v0.2 §5.1, and phase log P1-c rule 4)."""
+
+    entity_id: str
+    view: str = ""
+    occluded_by: Optional[str] = None
+
+
 class WorldState(BaseModel):
     """One explicitly versioned snapshot of the allowed observation channel."""
 
@@ -238,8 +308,21 @@ class WorldState(BaseModel):
     held_object: Union[str, None, Unknown] = "unknown"
     observation_ref: Optional[str] = None
     occupancy: list[OccupancyRecord] = Field(default_factory=list)
+    # What the frame looked for and did not find. Empty means the frame saw everything it
+    # was looking for — a privileged snapshot has no such rows, because it inventories the
+    # world rather than looking at it.
+    not_seen: list[NotSeen] = Field(default_factory=list)
     source: Source = Source.privileged
     schema_version: str = SCHEMA_VERSION
+    # ---------- text-backend channel (SPEC-BST 4): what was printed, and what of
+    # it could not be read. Both default to "nothing to show", never to a claim.
+    raw_observation: Optional[str] = None
+    unparsed: list[str] = Field(default_factory=list)
+    facts: list[TextFact] = Field(default_factory=list)
+    location: Union[str, None, Unknown] = "unknown"
+    # SPEC-BST 4.4: the sentences that were not read stay verbatim in `unparsed`;
+    # this word is what a report counts, and `partial` is never written as `parsed`.
+    parse_status: Literal["parsed", "partial", "unparsed"] = "parsed"
 
     def entity(self, entity_id: str) -> EntityState:
         for e in self.entities:
@@ -363,7 +446,12 @@ class Budgets(StrictModel):
 
 # ---------- plan (baseline mode A) ----------
 
-SkillName = Literal["observe", "pick", "place", "safe_retreat"]
+SkillName = Literal["observe", "pick", "place", "safe_retreat",
+                    # ALFWorld's native verbs: one name here maps to exactly one
+                    # environment command, and `observe` is reused for `look`.
+                    "alfred_go", "alfred_take", "alfred_move", "alfred_open", "alfred_close",
+                    "alfred_use", "alfred_clean", "alfred_heat", "alfred_cool", "alfred_examine",
+                    "alfred_inventory"]
 
 
 class PlanStep(StrictModel):
@@ -461,6 +549,12 @@ class FailureCode(str, Enum):
     NO_FEASIBLE_CANDIDATE = "NO_FEASIBLE_CANDIDATE"
     FINISH_REJECTED = "FINISH_REJECTED"
     REPEATED_INVALID = "REPEATED_INVALID"
+    # benchmark-backend codes (SPEC-BST 6): the world ended, the world broke, or
+    # the layer between them broke. None of these is a model failure, and an
+    # environment's own "you lost" is a lifecycle event rather than a score.
+    ENV_TERMINATED = "ENV_TERMINATED"
+    ENVIRONMENT_ERROR = "ENVIRONMENT_ERROR"
+    ADAPTER_ERROR = "ADAPTER_ERROR"
 
 
 # ---------- verification ----------
@@ -631,6 +725,9 @@ class ExecutionFeedback(StrictModel):
     measurements: dict[str, float] = Field(default_factory=dict)
     state_diff: dict[str, Any] = Field(default_factory=dict)
     rejection_reasons: list[str] = Field(default_factory=list)
+    # what the environment said after this action, verbatim. A text backend's
+    # feedback *is* this sentence; a simulator has no such text and leaves it None.
+    environment_text: Optional[str] = None
     cause_confirmed: bool = False
     sim_seconds_used: float = 0.0
     schema_version: str = SCHEMA_VERSION
@@ -659,6 +756,8 @@ class ExecutionFeedback(StrictModel):
             out["candidate_resolution"] = self.candidate_resolution
         if self.rejection_reasons:
             out["rejection_reasons"] = list(self.rejection_reasons)
+        if self.environment_text is not None:
+            out["environment_text"] = self.environment_text
         if self.verification is not None:
             out["verification"] = [
                 {"predicate": r.predicate_id, "value": r.value.value,
@@ -735,9 +834,18 @@ class DecisionContext(StrictModel):
                 "held_object": self.world.held_object,
                 "entities": [
                     {"entity_id": e.entity_id,
-                     "position": [round(e.pose.position.x, 4), round(e.pose.position.y, 4),
-                                  round(e.pose.position.z, 4)],
-                     "yaw_rad": round(e.pose.yaw_rad(), 3),
+                     # a backend that sees colour but not location, or a body whose box
+                     # the depth image could not resolve, has a null position — which the
+                     # model must be able to tell apart from a position that was measured
+                     # and found to be at the origin.
+                     "position": (None if e.pose is None else
+                                  [round(e.pose.position.x, 4), round(e.pose.position.y, 4),
+                                   round(e.pose.position.z, 4)]),
+                     # an assumed upright heading is not a measurement of one, so the
+                     # number stays out of the payload and the model is left with the
+                     # caveat in `attributes` instead of a confident 0.0
+                     "yaw_rad": (None if e.pose is None or not e.orientation_measured
+                                 else round(e.pose.yaw_rad(), 3)),
                      "geometry": (e.geometry.model_dump(exclude_none=True) if e.geometry else None),
                      "held": e.held,
                      "supported_by": e.supported_by,
@@ -756,6 +864,17 @@ class DecisionContext(StrictModel):
                      "fully_inside": o.fully_inside}
                     for o in self.world.occupancy
                 ],
+                # A body the frame did not find is not in `entities` and so would be
+                # silently absent from the payload — read by the model as "there is no
+                # green one" rather than as "this camera did not see it". §5.1's
+                # visibility capability exists to keep those two apart, so the row is
+                # published, in the frame's own name for the body and with the blocker the
+                # frame named.
+                **({"not_seen": [
+                        {"entity_id": n.entity_id, "view": n.view,
+                         **({"occluded_by": n.occluded_by} if n.occluded_by else {})}
+                        for n in self.world.not_seen]}
+                   if self.world.not_seen else {}),
             },
             "skills": self.skill_catalogue,
             "candidates": [c.summary() for c in self.candidates],
@@ -903,6 +1022,12 @@ class EpisodeResult(BaseModel):
     slot_resolution_fallbacks: int = 0
     human_intervention: bool = False
     config_ref: Optional[str] = None
+    # SPEC-BST 6.2: a benchmark episode must be able to say *who* ended it — the
+    # world, the agent, a budget or a broken process. `terminal_status` plus
+    # `failure_type` cannot name that without inventing a physics failure code for
+    # a lifecycle event, so the reason is recorded as its own word. Desktop runs
+    # leave it null; nothing about the desktop loop changed.
+    termination_reason: Optional[str] = None
     artifacts: dict[str, str] = Field(default_factory=dict)
 
 

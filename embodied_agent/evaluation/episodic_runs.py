@@ -1,0 +1,425 @@
+"""Drive the `em` pairs through the production batch entry, then read back what the memory did (§11, §13 P3).
+
+Two halves, because the experiment is two things.
+
+**Run.** `run_episodic_pairs` calls `run_group` — the same entry `cli.py run` uses, so nothing here is
+a test-harness imitation of the batch path — once per (pair, arm, role). The one thing it adds is the
+thing `run_group` cannot do for itself: **one store per pair**. A batch installs one store for every
+case it runs, and episodes append to the file the next episode reads, so an `em` batch of all eight
+cases would hand p2's reader p1's writer's residue as well, and §13's RQ3 would be answered about a
+store nobody isolated. The pairing is therefore the unit of batching here: writer first, reader
+second, into a file named for the pair. Both arms run the same two cases, so the control's store
+holds the same number of rows and the difference between them is the §9 gate and nothing else.
+
+**Measure.** `measure_episodic_pairs` reads the artifacts back and answers, per pair, the only
+question the set was authored for: did the recall change what the reader did, and in the direction
+the pair pre-registered? `first_pick` comes from the trajectory, not from a rationale;
+`trajectory` is the ordered list of executed actions, which is what §12.3 says to grade;
+`recalled`, `memory_order`, `declines` and `followed_rounds` come from the `memory_retrieval` records
+and the `policy` block of the episode summary (the control policy's own per-round trace, filed by
+`run.py`). Every field is compared against `episodic_tasks.EM_PAIRS[].expectation`, and the verdict
+is recorded per field rather than as one boolean, because a pair that half-agrees is information and
+a pair that reports "mismatch" is not.
+
+Zero spend: `planner_kind="rule"`, `policy="memory"`, `perceive="privileged"`, one repeat.
+"""
+from __future__ import annotations
+
+import glob
+import json
+import os
+from typing import Any, Optional
+
+from ..core.v02 import ablation as ablation_record
+from .episodic_tasks import (EM_ARMS, EM_CONTROL_ARM, EM_FROZEN_PATH, EM_PAIRS,
+                             EM_SET_NAME, EM_TREATMENT_ARM)
+from .run import run_group
+
+#: The order a pair's two episodes go into one store, and the only order it can go in. The reader's
+#: claim to test is *one writer's* residue: run it first and every recall is empty, run it twice and
+#: the row the guard weighed is one the pair never declared.
+EM_ROLES = ("writer", "reader")
+
+
+# --------------------------------------------------------------------- run ----
+def run_episodic_pairs(out_root: str, *, pairs: Optional[list[dict]] = None,
+                       arms: tuple[str, ...] = EM_ARMS, frames: bool = False) -> dict:
+    """Every pair, every arm, writer-then-reader into one store per pair per arm.
+
+    `frames=False` is the default and the honest setting for this channel: a privileged batch renders
+    no camera, so writing frame PNGs would only cost disk.
+    """
+    from ..episodic.store import ExperienceStore
+
+    os.makedirs(out_root, exist_ok=True)
+    manifest: list[dict] = []
+    for pair in (pairs if pairs is not None else EM_PAIRS):
+        for arm in arms:
+            arm_root = os.path.join(out_root, pair["pair_id"], arm)
+            store_path = os.path.join(arm_root, "store.jsonl")
+            os.makedirs(arm_root, exist_ok=True)
+            row = {"pair_id": pair["pair_id"], "condition": pair["condition"], "arm": arm,
+                   "store_path": store_path, "batches": {}}
+            for role in EM_ROLES:
+                case_id = pair["writer"] if role == "writer" else pair["reader"]
+                # Reload from the file for every batch: the reader must query exactly what the
+                # writer left, and an in-memory handle would also be a store the writer's failed
+                # episodes could still be holding rows for.
+                store = ExperienceStore.load(store_path)
+                stats = run_group(EM_SET_NAME, modes=("B",), planner_kind="rule", repeats=1,
+                                  out_root=os.path.join(arm_root, role), case_ids=[case_id],
+                                  frames=frames, perceive="privileged",
+                                  ablation=ablation_record(arm), policy="memory",
+                                  experience_store=store)
+                row["batches"][role] = {"case_id": case_id, "root": stats["root"],
+                                        "run_id": stats["run_id"], "rows": stats["rows"]}
+            manifest.append(row)
+    artifact = {"kind": "episodic_pairs_run", "root": out_root, "set": EM_SET_NAME,
+                "arms": list(arms), "policy": "memory", "planner": "rule",
+                "perceive": "privileged", "repeats": 1, "batches": manifest}
+    with open(os.path.join(out_root, "pairs_run.json"), "w", encoding="utf-8") as f:
+        json.dump(artifact, f, ensure_ascii=False, indent=1, sort_keys=True, default=str)
+    return artifact
+
+
+# ---------------------------------------------------------------- measure ----
+def _episode_dir(batch: dict) -> str:
+    hits = sorted(glob.glob(os.path.join(batch["root"], "episodes", "*")))
+    if len(hits) != 1:
+        raise ValueError(f"{batch['case_id']}: expected one episode under {batch['root']}, "
+                         f"found {len(hits)}")
+    return hits[0]
+
+
+def _read_episode(episode_dir: str) -> dict:
+    with open(os.path.join(episode_dir, "episode_summary.json"), encoding="utf-8") as f:
+        summary = json.load(f)
+    events = [json.loads(line) for line in
+              open(os.path.join(episode_dir, "events.jsonl"), encoding="utf-8") if line.strip()]
+    return {"dir": episode_dir, "summary": summary, "events": events}
+
+
+def _trajectory(events: list[dict]) -> list[str]:
+    """The executed actions in order, as the episode filed them.
+
+    From the `decision` records rather than from `skill_call`, because the object of measurement is
+    the *choice*: a call the runtime rejected or never made is not part of what the agent decided to
+    do, and §12.3's other half (what actually happened) is read from the score and the outcome.
+    """
+    out = []
+    for event in events:
+        if event["type"] != "decision":
+            continue
+        payload = event["payload"]
+        ex = payload.get("execute") or {}
+        if payload.get("action") != "execute":
+            out.append(str(payload.get("action")))
+            continue
+        args = dict(ex.get("args") or {})
+        out.append(">".join(filter(None, [str(ex.get("skill") or ""),
+                                          str(args.get("object_id") or ""),
+                                          str(args.get("target_id") or "")])))
+    return out
+
+
+def _first_pick(events: list[dict]) -> Optional[str]:
+    for event in events:
+        payload = event["payload"]
+        if event["type"] == "decision" and payload.get("action") == "execute":
+            object_id = str(((payload.get("execute") or {}).get("args") or {})
+                            .get("object_id") or "")
+            if object_id:
+                return object_id
+    return None
+
+
+def _plan_first_object(events: list[dict]) -> Optional[str]:
+    """The object the plan itself would put first: `ready[0]`, no memory in sight.
+
+    `plan_view` publishes `ready` in `row_key` order, and `work/p3d_lever_scan.py` measured that the
+    first published row is the row the control policy takes in 370 of 370 rounds. This reads that
+    order off the episode's own `plan` record, so a pair whose expectation says "whatever the plan
+    does" is still checked, against the plan this episode was actually given.
+    """
+    for event in events:
+        if event["type"] != "plan":
+            continue
+        view = event["payload"].get("view") or {}
+        entity_of = {str(row.get("subgoal_id")): str(row.get("predicate_id") or "")
+                     for row in view.get("rows") or []}
+        for subgoal in view.get("ready") or []:
+            parts = entity_of.get(str(subgoal), "").split(":")
+            if len(parts) == 3:
+                return parts[1]
+    return None
+
+
+def _recall_census(events: list[dict]) -> dict:
+    """What §5.4 put on the page, round by round, and what the guard said about it."""
+    rounds = []
+    for event in events:
+        if event["type"] != "memory_retrieval":
+            continue
+        payload = event["payload"]
+        rows = payload.get("retrieved") or []
+        rounds.append({
+            "round_index": payload.get("round_index"),
+            "store_size": payload.get("store_size"),
+            "rows": len(rows),
+            "experience_ids": [str(r.get("experience_id")) for r in rows],
+            "relevance": [r.get("relevance") for r in rows],
+            # `match_terms` is carried because §11's `retrieval relevance` row is not answerable
+            # without it: a row that matched on nothing but the batch's own set name was not chosen
+            # for any reason a reader would call relevance, and the frozen set says so in
+            # `relevance_within_a_batch`. `episodic_metrics.py` counts that; this file only records.
+            "match_terms": [sorted(str(t) for t in (r.get("match_terms") or [])) for r in rows],
+            "contradicted": [bool(r.get("contradicted_current_state")) for r in rows],
+            "clash_counts": [len((r.get("provenance") or {}).get("contradictions") or [])
+                             for r in rows]})
+    return {"rounds": rounds,
+            "rounds_with_a_row": sum(1 for r in rounds if r["rows"]),
+            "rows_offered": sum(r["rows"] for r in rounds),
+            "rows_refuted": sum(1 for r in rounds for flag in r["contradicted"] if flag),
+            "first_round_rows": rounds[0]["rows"] if rounds else 0,
+            "first_round_refuted": bool(rounds and rounds[0]["contradicted"]
+                                        and rounds[0]["contradicted"][0])}
+
+
+def read_pair(root: str, pair: dict, arm: str) -> dict:
+    """One arm's two episodes of one pair, reduced to the fields the comparison uses."""
+    with open(os.path.join(root, "pairs_run.json"), encoding="utf-8") as f:
+        ledger = json.load(f)
+    row = next(r for r in ledger["batches"]
+               if r["pair_id"] == pair["pair_id"] and r["arm"] == arm)
+    out: dict[str, Any] = {"pair_id": pair["pair_id"], "condition": pair["condition"], "arm": arm}
+    for role in EM_ROLES:
+        episode = _read_episode(_episode_dir(row["batches"][role]))
+        summary, events = episode["summary"], episode["events"]
+        policy = summary.get("policy") or {}
+        result, score = summary.get("result") or {}, summary.get("score") or {}
+        orders = [entry.get("memory_order") or [] for entry in policy.get("trace") or []]
+        out[role] = {
+            "case_id": row["batches"][role]["case_id"],
+            "episode_id": summary.get("episode_id"),
+            "first_pick": _first_pick(events),
+            "plan_first_object": _plan_first_object(events),
+            "trajectory": _trajectory(events),
+            "outcome": result.get("terminal_status"),
+            "failure_type": result.get("failure_type"),
+            "complete_success": score.get("complete_success"),
+            "decision_rounds": result.get("decision_rounds"),
+            "skill_calls": result.get("skill_calls"),
+            "provider": policy.get("provider"),
+            "recalled_ids": policy.get("recalled_ids") or [],
+            "declines": policy.get("declines") or [],
+            "followed_rounds": policy.get("followed_rounds") or [],
+            "first_memory_order": next((o for o in orders if o), []),
+            "trace": policy.get("trace") or [],
+            "episodic": summary.get("episodic") or {},
+            "recall": _recall_census(events)}
+    return out
+
+
+def _first_pick_after_guard(reader: dict) -> Optional[str]:
+    """The first pick made at a round whose retrieval record carried a refuted row.
+
+    p2's claim is about a *sequence* — the misleading memory moves the first hand because nothing has
+    been measured yet, and the decline governs the next one — so "the first pick" is not one number.
+    """
+    refuted = {int(r["round_index"]) for r in reader["recall"]["rounds"] if any(r["contradicted"])}
+    if not refuted:
+        return reader["first_pick"]
+    for entry in reader["trace"]:
+        if int(entry.get("round_index") or 0) in refuted:
+            object_id = str((entry.get("args") or {}).get("object_id") or "")
+            if object_id:
+                return object_id
+    return None
+
+
+def _refuted_rounds(reader: dict) -> set[int]:
+    """Rounds whose retrieval record says the row on the page was refuted by this snapshot."""
+    return {int(r["round_index"]) for r in reader["recall"]["rounds"]
+            if r.get("round_index") is not None and any(r["contradicted"])}
+
+
+def _followed_rounds(reader: dict) -> set[int]:
+    return {int(e["round_index"]) for e in reader["trace"]
+            if e.get("memory_followed") and e.get("round_index") is not None}
+
+
+def _stale_governing_rounds(reader: dict) -> list[int]:
+    """Rounds where the page was already refuted *and* still set the order.
+
+    The intersection is the whole content of §11's `stale memory usage` row: a recall the agent was
+    shown, the world had contradicted, and the policy ranked its next action by anyway.
+    """
+    return sorted(_followed_rounds(reader) & _refuted_rounds(reader))
+
+
+def _flag_matches_the_ranking(reader: dict) -> bool:
+    """Does `memory_followed` mean what `policy.py` computes it from?
+
+    The flag is set when the row that won was one the page ranked, so recomputing it from the two
+    recorded fields — the round's `args.object_id` and its `memory_order` — must agree everywhere.
+    It is a consistency test on the instrument, not a claim about the world, and it is what the p4
+    finding leaves behind in the artifact.
+    """
+    for entry in reader["trace"]:
+        chosen = str((entry.get("args") or {}).get("object_id") or "")
+        ranked = bool(chosen) and chosen in (entry.get("memory_order") or [])
+        if bool(entry.get("memory_followed")) != ranked:
+            return False
+    return True
+
+
+def _followed_with_the_control(reader: dict, control: dict) -> list[int]:
+    """Rounds where the memory says it was followed and the no-memory arm chose the same object.
+
+    Reported, never pre-registered: how much of `memory_followed` is coincidence is a property of
+    the pair, and turning it into an expectation would be tuning a claim to a result.
+    """
+    same = {int(e["round_index"]): str((e.get("args") or {}).get("object_id") or "")
+            for e in control["trace"] if e.get("round_index") is not None}
+    return sorted(int(e["round_index"]) for e in reader["trace"]
+                  if e.get("memory_followed") and e.get("round_index") is not None
+                  and same.get(int(e["round_index"]))
+                  == str((e.get("args") or {}).get("object_id") or ""))
+
+
+def compare_pair(root: str, pair: dict) -> dict:
+    """The pair's verdict: every pre-registered field, measured in both arms.
+
+    Each check stays a {expected, measured} pair rather than folding into one boolean, because a pair
+    that half-agrees is a finding and a pair that reports "mismatch" is not.
+    """
+    treatment = read_pair(root, pair, EM_TREATMENT_ARM)
+    control = read_pair(root, pair, EM_CONTROL_ARM)
+    expected, reader_t, reader_c = (pair["expectation"], treatment["reader"], control["reader"])
+    control_pick = expected["control_first_pick"] or reader_c["plan_first_object"]
+    checks = {
+        "control_follows_the_plan_order": {
+            "expected": True, "measured": reader_c["first_pick"] == reader_c["plan_first_object"]},
+        "control_first_pick": {"expected": control_pick, "measured": reader_c["first_pick"]},
+        "treatment_first_pick_round1": {
+            "expected": expected["treatment_first_pick_round1"] or control_pick,
+            "measured": reader_t["first_pick"]},
+        "treatment_first_pick_after_guard": {
+            "expected": expected["treatment_first_pick_after_guard"] or control_pick,
+            "measured": _first_pick_after_guard(reader_t)},
+        "declined_when_measured": {
+            "expected": sorted(expected["declined_when_measured"]),
+            "measured": sorted(reader_t["declines"])},
+        "rows_per_round": {
+            "expected": expected["rows_per_round"],
+            "measured": max((r["rows"] for r in reader_t["recall"]["rounds"]), default=0)},
+        "guard_blind_at_round1": {
+            "expected": True, "measured": not reader_t["recall"]["first_round_refuted"]},
+        "stale_memory_governs": {
+            "expected": expected["stale_memory_governs"],
+            "measured": bool(_stale_governing_rounds(reader_t))},
+        "memory_followed_is_the_ranking": {
+            "expected": True, "measured": _flag_matches_the_ranking(reader_t)},
+        "trajectory_changes": {
+            "expected": expected["trajectory_changes"],
+            "measured": reader_t["trajectory"] != reader_c["trajectory"]},
+        "both_arms_complete_the_reader": {
+            "expected": True,
+            "measured": bool(reader_t["complete_success"]) and bool(reader_c["complete_success"])},
+        "store_held_only_the_writer": {
+            "expected": 1, "measured": int(reader_t["episodic"].get("store_size_before") or 0)}}
+    return {"pair_id": pair["pair_id"], "condition": pair["condition"],
+            "expectation": expected, "checks": checks,
+            "reported": {
+                "refuted_rounds": sorted(_refuted_rounds(reader_t)),
+                "followed_rounds": sorted(_followed_rounds(reader_t)),
+                "stale_governing_rounds": _stale_governing_rounds(reader_t),
+                "followed_while_control_chose_the_same": _followed_with_the_control(reader_t,
+                                                                                    reader_c),
+                "control_rounds": reader_c["decision_rounds"],
+                "treatment_rounds": reader_t["decision_rounds"]},
+            "ok": all(c["expected"] == c["measured"] for c in checks.values()),
+            "treatment": treatment, "control": control}
+
+
+def measure_episodic_pairs(root: str, *, pairs: Optional[list[dict]] = None) -> dict:
+    """Both arms of every pair, the pre-registered fields, and where the two trajectories split.
+
+    A root that ran three pairs measures three and says the fourth is absent. Silently dropping it
+    would be the wrong failure: the artifact names what it did not run, so a table with a row missing
+    is a table that admits the row is missing.
+    """
+    with open(os.path.join(root, "pairs_run.json"), encoding="utf-8") as f:
+        ledger = json.load(f)
+    ran = {(row["pair_id"], row["arm"]) for row in ledger["batches"]}
+    wanted = pairs if pairs is not None else EM_PAIRS
+    out = {"kind": "episodic_pairs_measured", "root": root, "set": EM_SET_NAME,
+           "frozen_manifest": EM_FROZEN_PATH, "pairs": [], "absent": []}
+    for pair in wanted:
+        missing = [arm for arm in EM_ARMS if (pair["pair_id"], arm) not in ran]
+        if missing:
+            out["absent"].append({"pair_id": pair["pair_id"], "arms_missing": missing})
+            continue
+        verdict = compare_pair(root, pair)
+        treated, control = verdict["treatment"]["reader"], verdict["control"]["reader"]
+        out["pairs"].append({
+            "pair_id": verdict["pair_id"], "condition": verdict["condition"],
+            "ok": verdict["ok"], "checks": verdict["checks"],
+            "treatment_trajectory": treated["trajectory"],
+            "control_trajectory": control["trajectory"],
+            "divergence_first_index": next(
+                (i for i, (a, b) in enumerate(zip(treated["trajectory"], control["trajectory"]))
+                 if a != b), None),
+            "treatment_rounds": treated["decision_rounds"],
+            "control_rounds": control["decision_rounds"],
+            "treatment_recall": treated["recall"], "declines": treated["declines"],
+            "reported": verdict["reported"]})
+    with open(os.path.join(root, "pairs_measured.json"), "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=1, sort_keys=True, default=str)
+    return out
+
+
+def print_pairs(root: str) -> dict:
+    measured = measure_episodic_pairs(root)
+    head = (f"{'pair':7s} {'condition':28s} {'ok':>3s} {'ctrl':>10s} {'treat':>10s} "
+            f"{'after gd':>9s} {'decl':>5s} {'rnd c/t':>8s} {'split':>6s}")
+    print(head)
+    print("-" * len(head))
+    for pair in measured["pairs"]:
+        c = pair["checks"]
+        print(f"{pair['pair_id']:7s} {pair['condition']:28s} "
+              f"{'yes' if pair['ok'] else 'NO':>3s} "
+              f"{str(c['control_first_pick']['measured']):>10s} "
+              f"{str(c['treatment_first_pick_round1']['measured']):>10s} "
+              f"{str(c['treatment_first_pick_after_guard']['measured']):>9s} "
+              f"{len(c['declined_when_measured']['measured']):>5d} "
+              f"{str(pair['control_rounds']) + '/' + str(pair['treatment_rounds']):>8s} "
+              f"{str(pair['divergence_first_index']):>6s}")
+        r = pair["reported"]
+        print(f"        refuted={r['refuted_rounds']} followed={r['followed_rounds']} "
+              f"stale-and-governing={r['stale_governing_rounds']} "
+              f"followed-where-control-agreed={r['followed_while_control_chose_the_same']}")
+    for pair in measured["pairs"]:
+        for name, check in sorted(pair["checks"].items()):
+            if check["expected"] != check["measured"]:
+                print(f"  MISMATCH {pair['pair_id']}.{name}: expected {check['expected']!r} "
+                      f"measured {check['measured']!r}")
+    for absent in measured["absent"]:
+        print(f"  NOT RUN  {absent['pair_id']}: arms missing {absent['arms_missing']}")
+    return measured
+
+
+if __name__ == "__main__":
+    import sys
+
+    argv = sys.argv[1:]
+    if not argv or argv[0] not in ("--run", "--measure"):
+        print(__doc__)
+        raise SystemExit(1)
+    target = argv[1]
+    if argv[0] == "--run":
+        info = run_episodic_pairs(target)
+        print(json.dumps({k: info[k] for k in ("kind", "root", "arms", "set")},
+                         ensure_ascii=False))
+        print(f"batches: {len(info['batches'])}")
+    print_pairs(target)

@@ -388,6 +388,51 @@ def model_latency(run_dir: str, rows: list[dict]) -> dict:
     return out
 
 
+def model_identities(run_dir: str, rows: list[dict]) -> dict:
+    """Who answered, beside who we asked (SPEC 11.2: 实际模型标识).
+
+    `sampling.model` is a parameter we send, and the pre-registration freezes it; the
+    identifier inside each response is the provider's claim about which model actually
+    ran, and that is what describes the subject of the experiment. Both are read off the
+    per-call ledger, grouped per arm, because a model that changed mid-batch has to show
+    up as two rows in one arm rather than averaging away — the interleaved arm order
+    spreads such a change over all three arms, so only the per-group view can see it.
+    """
+    ledgers = [("goal_parse", os.path.join(run_dir, "goal_resolutions", "goal_calls.jsonl"))]
+    ledgers += [(r["mode"], os.path.join(run_dir, "episodes", r["episode_id"], "model_calls.jsonl"))
+                for r in rows]
+    diagnostic = os.path.join(run_dir, "model_calls.jsonl")
+    if os.path.exists(diagnostic):
+        ledgers.append(("state_util_diagnostic", diagnostic))
+    seen: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    unanswered = 0
+    for group, path in ledgers:
+        for call in _jsonl(path):
+            if not call.get("returned_model"):
+                # an error record carries no identifier: there is no claim to count,
+                # and it must not be read as the model we asked for
+                unanswered += 1
+                continue
+            req = str(call.get("requested_model") or "unrecorded-request")
+            seen[group][f"{req} -> {call['returned_model']}"] += 1
+    distinct = sorted({pair for counts in seen.values() for pair in counts})
+    mismatched = [p for p in distinct if p.split(" -> ")[0] != p.split(" -> ")[1]]
+    return {
+        "requested_as": sorted({p.split(" -> ")[0] for p in distinct}),
+        "answered_as": sorted({p.split(" -> ")[1] for p in distinct}),
+        "identities": distinct,
+        "calls_by_group": {g: dict(sorted(c.items())) for g, c in sorted(seen.items())},
+        "calls_without_an_answered_identifier": unanswered,
+        "one_identity_throughout": len(distinct) == 1,
+        "note": "every call was answered by the identifier we requested" if not mismatched else
+                "the provider answered as something other than what was requested: "
+                + "; ".join(mismatched) +
+                ". The request parameter stays frozen (it is what we sent); the arms must be "
+                "described by the answered identifier, and more than one row inside one group "
+                "would mean the model changed mid-batch (SPEC 11.2)",
+    }
+
+
 def failure_attribution(rows: list[dict]) -> dict:
     """Every non-success explained by the code the episode itself reported."""
     out: dict[str, dict] = {}
@@ -466,6 +511,132 @@ def _blind_review(run_dir: str, contested: list[dict]) -> dict:
                         "still listed per mode under `behaviour`"}
 
 
+def _subset_rate(agg: dict, mode: str, subsets) -> tuple[int, int]:
+    """(successes, episodes) of one arm over the named subsets.
+
+    Episode-level, because the frozen primary metric is a rate over runs; the
+    paired statistic below is case-level, because the comparison is paired."""
+    ok = n = 0
+    for (case_id, m), v in agg.items():
+        if m == mode and v["subset"] in subsets:
+            ok += v["successes"]
+            n += v["repeats"]
+    return ok, n
+
+
+def preregistered_gates(run_dir: str, agg: dict, state_util: dict, planned_runs: int,
+                        cases: int, modes: list[str], repeats: int | None = None,
+                        planner: str | None = None) -> dict:
+    """Score the batch against thresholds that were fixed before it ran (SPEC 12.2).
+
+    The numbers are computed here; the *rules* are not. Every threshold, every
+    metric name and the comparison operator are read out of the pre-registration
+    file the run manifest names, and the file is only believed if its rules still
+    hash to the `rules_sha256` recorded when the batch started — so re-freezing with
+    a lower bar after seeing the results produces a refusal, not a smaller gate.
+
+    A run that is not the pre-registered sample is marked `not_evaluable` rather
+    than graded anyway: a pilot of 12 episodes cannot pass or fail a threshold
+    written for 216, and letting it try would be exactly the post-hoc sampling the
+    SPEC forbids.
+    """
+    from .preregistration import load_prereg, rules_sha256
+
+    manifest_path = os.path.join(run_dir, "manifest.json")
+    manifest = json.load(open(manifest_path, encoding="utf-8")) if os.path.exists(manifest_path) else {}
+    pre = manifest.get("pre_registration") or {}
+    if not pre.get("prereg_path"):
+        return {"registered": False,
+                "note": "this run recorded no pre-registration: it measures the harness, "
+                        "and no SPEC 12.2 claim can be read out of it"}
+    if not os.path.exists(pre["prereg_path"]):
+        return {"registered": True, "error": f"no pre-registration at {pre['prereg_path']}",
+                "note": "the thresholds this run was started under cannot be read back"}
+    doc = load_prereg(pre["prereg_path"])
+    now = rules_sha256(doc.get("rules") or {})
+    if pre.get("rules_sha256") and now != pre["rules_sha256"]:
+        return {"registered": True, "refused": True,
+                "gates_path": pre["prereg_path"],
+                "recorded_rules_sha256": pre["rules_sha256"], "file_rules_sha256": now,
+                "note": "the pre-registration file no longer hashes to the rules hash this "
+                        "run recorded: the thresholds on disk are not the ones this batch "
+                        "was pre-registered under, so nothing here is graded (SPEC 12.2)"}
+    rules = doc["rules"]
+    matrix, statistics, gates = rules["run_matrix"], rules["statistics"], rules["gates"]
+    perturbed = set(statistics["perturbed_subset_for_gate_G3_G4"])
+
+    mismatches = []
+    if planned_runs != matrix["episodes"]:
+        mismatches.append(f"{planned_runs} runs measured, {matrix['episodes']} pre-registered")
+    if cases != matrix["cases"]:
+        mismatches.append(f"{cases} cases, {matrix['cases']} pre-registered")
+    if list(modes) != list(matrix["modes"]):
+        mismatches.append(f"arms {list(modes)}, {list(matrix['modes'])} pre-registered")
+    if repeats is not None and repeats != matrix["repeats"]:
+        mismatches.append(f"{repeats} repeats, {matrix['repeats']} pre-registered")
+    if planner is not None and planner != matrix["planner"]:
+        mismatches.append(f"planner {planner!r}, {matrix['planner']!r} pre-registered "
+                          "(an offline arm is not a model result)")
+
+    a_clean, a_clean_n = _subset_rate(agg, "A", {"clean"})
+    b_clean, b_clean_n = _subset_rate(agg, "B", {"clean"})
+    a_pert, a_pert_n = _subset_rate(agg, "A", perturbed)
+    b_pert, b_pert_n = _subset_rate(agg, "B", perturbed)
+    sub_agg = {k: v for k, v in agg.items() if v["subset"] in perturbed}
+    paired = cluster_bootstrap_paired_diff(sub_agg, "A", "B",
+                                          replicates=statistics["bootstrap"]["replicates"],
+                                          seed=statistics["bootstrap"]["seed"])
+    numbers = {
+        "b_clean_success_point_estimate": (b_clean / b_clean_n) if b_clean_n else None,
+        "a_minus_b_clean_success": ((a_clean / a_clean_n - b_clean / b_clean_n)
+                                    if a_clean_n and b_clean_n else None),
+        "b_perturbed_success_point_estimate": (b_pert / b_pert_n) if b_pert_n else None,
+        "b_minus_a_perturbed_paired_mean": paired.get("mean"),
+        "state_pairs_with_both_arms_fitting": state_util.get("pairs_with_both_arms_fitting")
+        if state_util.get("ran") else None,
+    }
+    items = []
+    for g in gates["items"]:
+        value = numbers.get(g["metric"])
+        row = {"id": g["id"], "metric": g["metric"], "op": g["op"], "threshold": g["threshold"],
+               "unit": g["unit"], "value": value}
+        if not pre.get("enforced"):
+            row["status"] = "not_enforced"
+        elif mismatches:
+            row["status"] = "not_evaluable"
+        elif value is None:
+            row["status"] = "no_measurement"
+        else:
+            ok = value <= g["threshold"] if g["op"] == "<=" else value >= g["threshold"]
+            row["status"] = "met" if ok else "not_met"
+        items.append(row)
+    lower_bound = (paired.get("ci95") or [None, None])[0]
+    all_met = all(i["status"] == "met" for i in items)
+    claim = ("not_evaluable" if mismatches or not pre.get("enforced") else
+             "supported: every gate met and the paired interval's lower bound is above 0"
+             if all_met and lower_bound is not None and lower_bound > 0 else
+             "preliminary: the point estimate clears the bar but the 95% interval crosses 0, "
+             "so this batch does not support a stable gain (SPEC 12.2)"
+             if all_met else "not met")
+    return {
+        "registered": True, "enforced": bool(pre.get("enforced")),
+        "gates_path": pre["prereg_path"], "prereg_id": rules["prereg_id"],
+        "rules_sha256": now,
+        "sample_matches_preregistration": not mismatches,
+        "sample_mismatches": mismatches,
+        "denominators": {"clean": {"A": a_clean_n, "B": b_clean_n},
+                         "perturbed": {"A": a_pert_n, "B": b_pert_n},
+                         "perturbed_subsets": sorted(perturbed)},
+        "numbers": numbers,
+        "gates": items,
+        "paired_on_perturbed": paired,
+        "cost_note": gates["also_required_to_claim"]["cost_reported"],
+        "claim": claim,
+        "wording_rule": statistics["claim_rule"],
+        "status": gates["status"],
+    }
+
+
 def build_report(run_dir: str) -> dict:
     rows = load_rows(run_dir)
     agg = aggregate_by_case(rows)
@@ -500,6 +671,7 @@ def build_report(run_dir: str) -> dict:
     contested = [p for arm_id, arm in behaviour.items()
                  if arm_id != "_definitions" and isinstance(arm, dict)
                  for p in (arm.get("needs_blind_review") or [])]
+    state_util = state_utilization(run_dir)
     report = {
         "run_dir": os.path.abspath(run_dir),
         "run_id": manifest.get("run_id"),
@@ -513,6 +685,8 @@ def build_report(run_dir: str) -> dict:
         # against the same task list (SPEC 11.1)
         "frozen": manifest.get("frozen"),
         "model": manifest.get("model"),
+        # the manifest says what we asked for; this says what came back, per arm
+        "model_identities_observed": model_identities(run_dir, rows),
         "planned_runs": len(rows),
         "cases": len(cases),
         "modes": modes,
@@ -524,7 +698,14 @@ def build_report(run_dir: str) -> dict:
         "paired_comparisons": {f"{b}-{a}": cluster_bootstrap_paired_diff(agg, a, b)
                                for a, b in [(x, y) for x in modes for y in modes if x < y]},
         "behaviour": behaviour,
-        "state_utilization": state_utilization(run_dir),
+        "state_utilization": state_util,
+        # SPEC 12.2's thresholds are read from the file this run was started under, and
+        # the run's own numbers are graded against nothing else; the report says which
+        # rules it used so a reader can check the pairing rather than trust it.
+        "pre_registration": manifest.get("pre_registration"),
+        "preregistered_gates": preregistered_gates(
+            run_dir, agg, state_util, len(rows), len(cases), modes,
+            repeats=manifest.get("repeats"), planner=manifest.get("planner")),
         # SPEC 11.4: the readings that need a judgement about what a *reasonable*
         # next step was are reviewed by humans against pre-registered criteria. The
         # report says how many items there are and which verdicts exist; a broken
@@ -557,10 +738,47 @@ def write_report(run_dir: str, report: dict | None = None) -> dict:
     return report
 
 
+def _render_gates(pg: dict) -> list[str]:
+    """One section, four possible states: not registered, refused, unreadable, graded."""
+    if not pg.get("registered"):
+        return [f"- {pg.get('note')}"]
+    if pg.get("refused"):
+        return [f"- **nothing is graded**: {pg['note']}",
+                f"  - the run recorded `{str(pg['recorded_rules_sha256'])[:12]}`; the file on "
+                f"disk now hashes to `{str(pg['file_rules_sha256'])[:12]}`"]
+    if pg.get("error"):
+        return [f"- {pg['error']} — {pg.get('note')}"]
+    L = [f"- thresholds read from `{pg['gates_path']}` (`{pg['prereg_id']}`, rules "
+         f"`{pg['rules_sha256'][:12]}`), enforced={pg['enforced']}",
+         f"- {pg['status']}"]
+    if not pg["sample_matches_preregistration"]:
+        L.append("- **not the pre-registered sample**, so no gate below can be read as a "
+                 "verdict: " + "; ".join(pg["sample_mismatches"]))
+    L += ["", "| gate | metric | test | value | status |", "|---|---|---|---:|---|"]
+    for g in pg["gates"]:
+        v = ("—" if g["value"] is None else
+             f"{g['value']:.3f}" if isinstance(g["value"], float) else str(g["value"]))
+        L.append(f"| {g['id']} | `{g['metric']}` | {g['op']} {g['threshold']} | {v} | "
+                 f"{g['status']} |")
+    p = pg.get("paired_on_perturbed") or {}
+    if p.get("ci95") and p.get("mean") is not None:
+        L.append(f"- paired B−A on {'+'.join(pg['denominators']['perturbed_subsets'])}: mean "
+                 f"{p['mean']:+.3f}, 95% CI [{p['ci95'][0]:+.3f}, {p['ci95'][1]:+.3f}] over "
+                 f"{p['paired_cases']} cases ({p['replicates']} replicates, seed {p['seed']}) "
+                 f"— {p['reads_as']}")
+    else:
+        L.append(f"- paired B−A on the perturbed subsets: undefined — {p.get('note')}")
+    L.append(f"- claim: **{pg['claim']}**")
+    L.append(f"- wording rule (frozen): {pg['wording_rule']}")
+    L.append(f"- cost: {pg['cost_note']}")
+    return L
+
+
 def render_markdown(report: dict) -> str:
     code = report.get("code") or {}
     dirty = code.get("dirty")
     frozen = report.get("frozen") or {}
+    pre = report.get("pre_registration") or {}
     L = [f"# {report.get('run_id') or report['run_dir']}",
          "",
          f"- planner `{report.get('planner')}`"
@@ -569,6 +787,8 @@ def render_markdown(report: dict) -> str:
          f"dirty={'unverifiable' if dirty is None else dirty}",
          f"- frozen task list `{str(frozen.get('detail') or 'not checked')[:12]}` "
          f"matches={frozen.get('matches')} refusal={frozen.get('enforced')}",
+         f"- pre-registered rules `{str(pre.get('rules_sha256') or 'none')[:12]}` "
+         f"matches={pre.get('matches')} refusal={pre.get('enforced')}",
          f"- planned runs `{report['planned_runs']}` across "
          f"`{report['cases']}` cases x modes {''.join(report['modes'])}",
          "",
@@ -576,6 +796,16 @@ def render_markdown(report: dict) -> str:
          "",
          "| subset | mode | episodes | successes | Wilson (descriptive only) |",
          "|---|---|---:|---:|---:|"]
+    ident = report.get("model_identities_observed") or {}
+    if ident.get("identities"):
+        answered = sum(sum(g.values()) for g in ident["calls_by_group"].values())
+        L.insert(3, f"- model asked `{', '.join(ident['requested_as'])}`, answered "
+                    f"`{', '.join(ident['answered_as'])}` on all {answered} answered calls"
+                    + ("" if ident["one_identity_throughout"]
+                       else " — **more than one identity served this batch**")
+                    + (f"; {ident['calls_without_an_answered_identifier']} call(s) returned an error "
+                       f"and name no model at all"
+                       if ident["calls_without_an_answered_identifier"] else ""))
     for subset, modes in (report.get("by_subset") or {}).items():
         for mode, v in modes.items():
             L.append(f"| {subset} | {mode} | {v['episodes']} | {v['independent_successes']} | "
@@ -590,12 +820,25 @@ def render_markdown(report: dict) -> str:
         L.append(f"- `{name}`: mean {c['mean']:+.3f}, 95% CI [{lo:+.3f}, {hi:+.3f}] over "
                  f"{c['paired_cases']} cases ({c['replicates']} replicates, seed {c['seed']}) — "
                  f"{c['reads_as']}")
+    L += ["", "## Pre-registered gates (SPEC 12.2)", ""]
+    L += _render_gates(report.get("preregistered_gates") or {})
     L += ["", "## Costs", "", "| mode | skills | decisions | http | tokens(p/c) | wall s | sim s | api errors |",
           "|---|---:|---:|---:|---:|---:|---:|---:|"]
     for mode, v in (report.get("cost") or {}).items():
         L.append(f"| {mode} | {v['skill_calls_total']} | {v['decision_rounds_total']} | "
                  f"{v['http_requests_total']} | {v['prompt_tokens_total']}/{v['completion_tokens_total']} | "
                  f"{v['wall_time_s_total']} | {v['sim_time_s_total']} | {v['api_errors']} |")
+    if ident.get("calls_by_group"):
+        # `api errors` above counts transport and provider failures; an answer that
+        # arrived but did not fit the contract is a rejected decision, counted where
+        # the policy's own behaviour is reported, so neither number hides the other
+        L.append("- served per group: " + "; ".join(
+            f"{g}: " + ", ".join(f"`{p}` x{n}" for p, n in c.items())
+            for g, c in ident["calls_by_group"].items()))
+        if ident["calls_without_an_answered_identifier"]:
+            L.append(f"  - the {ident['calls_without_an_answered_identifier']} errored call(s) are absent "
+                     f"above and are counted under 被拒决策 / semantic repairs in `behaviour`, not as "
+                     f"provider failures")
     lat = report.get("model_latency") or {}
     for mode, v in lat.items():
         if mode == "goal_parse":
