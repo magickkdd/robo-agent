@@ -1,0 +1,79 @@
+{
+  "amends": "configs/experiment/v03_e1_preregistration.json (committed at b918f55, before the first request; not edited by this file, and this file is why)",
+  "artefacts": {
+    "cell": "/home/czx/embodied-agent-batches/v03/e1/em_full",
+    "rederived": "/home/czx/embodied-agent-batches/v03/e1/em_full_rederived.json",
+    "state": "/home/czx/embodied-agent-batches/v03/e1/e1_state.json"
+  },
+  "cell_changed": "spec_8_four_cells.call_upper_bound",
+  "decided_by": {
+    "D2": "user 2026-09-29: raise the upper bound to 3,800 = 3,016 x 1.25"
+  },
+  "from": 2484,
+  "kind": "pre-registration amendment 1",
+  "measurements_now_available_for_the_cost_group": {
+    "em_full": {
+      "armed": 15,
+      "asked_the_model": 15,
+      "completion_tokens": 14174,
+      "cumulative_http_requests_last": 257,
+      "episodes": 15,
+      "http_requests": 225,
+      "latency_s_max": 24.641,
+      "latency_s_min": 0.807,
+      "model_calls_rows": 111,
+      "outcomes": {
+        "goal_resolution_error": 1,
+        "success": 15
+      },
+      "prompt_tokens": 793882,
+      "run_error_buckets": {
+        "other": 0,
+        "quota_or_429": 0,
+        "samples": {
+          "other": [],
+          "quota_or_429": []
+        }
+      },
+      "run_errors": 0
+    },
+    "note": "the first batch on this project with a real token ledger; the Cost group of §11 has been 0/0/null in every prior reading"
+  },
+  "projection_from_the_measured_cell": {
+    "assumption_named": "the long_horizon cells have the same requests-per-row as the em cell that was measured. They do not obviously: an lh page is larger, and a larger page is where a truncated answer (and so a format repair) is likelier. The 1.25 headroom is the declared payment for that unknown, not a forecast.",
+    "headroom_in_the_new_bound": 784,
+    "projected_12_cells": 3016,
+    "requests_per_cell": {
+      "em": 203,
+      "long_horizon": 300
+    },
+    "requests_per_decision_row_used": 2.027,
+    "rounds_per_cell": {
+      "em": 100,
+      "long_horizon": 148
+    }
+  },
+  "spec": "Continuous-Decision-Embodied-Agent-SPEC-v0.3.md §8.1 / §8.2",
+  "the_stop_that_triggered_this": {
+    "action_taken": "the batch stopped, the cell was left in place and NOT re-run (SPEC §8.3: a paid cell is never re-run), and the bound was put to the user as a D2 amendment rather than raised by the agent",
+    "bound_in_force_at_the_time": 2484,
+    "cell": "em_full",
+    "requests_actually_spent": 225,
+    "requests_the_reader_reported": 12320,
+    "why": "the reader summed `http_requests_total` (cumulative, per row) instead of `http_requests_this_call` (per call), and read tokens at the top level instead of under `usage`. Both field names are now read in work/v03/e1_batch.py:read_cell, and the superseded reading is kept in /home/czx/embodied-agent-batches/v03/e1/em_full_rederived.json"
+  },
+  "to": 3800,
+  "what_did_not_change": [
+    "the seat (configs/models/bst_text_agnes.yaml, sha256 unchanged)",
+    "the arm list, the sets, the repeats, the mode",
+    "--frozen on every cell, --prereg still deliberately absent (the P3 pre-registration freezes a different matrix and matrix_mismatch would refuse E1 for the right reason)",
+    "the stop rules, including 'the bound is hit means stop, not a little more'",
+    "the checkpoint strategy, which is what kept this from costing anything: em_full was already summarised, so the amendment cost zero further requests"
+  ],
+  "why_the_original_bound_was_wrong": {
+    "measured_requests_per_decision_row": 2.027,
+    "mechanism": "adapters.deepseek.chat_json allows one JSON format repair for a well-formed-but-unparseable answer, and configs/models/bst_text_agnes.yaml allows four transport attempts (max_retries: 4). A round therefore costs 1 request plus whatever those two paths add.",
+    "the_estimate": "P5-c's decision records re-counted (1,488) plus one goal parse per episode (168) = 1,656, x1.5 = 2,484. Both terms are right; the missing term is that a round costs more than one request.",
+    "why_v0.2_could_not_have_said": "every v0.2 arm batch ran `--planner rule` and made no request, so requests-per-round was structurally unmeasurable before a model was in the seat"
+  }
+}
