@@ -1,0 +1,203 @@
+# Continuous-Decision Embodied Agent v0.3 —— 阶段日志
+
+执行纪律照 v0.2（`docs/continuous-decision-v0.2-phase-log.md`）的形态：**先预登记、先测量、后说话；
+判据进测试与仪器，散文不许复述；每条读数带论域；负结果保留并给原因；`api_cost_estimate_usd`
+在无单价时保持 `None`，不编一个数。**
+
+本文件记过程、失败与更正；读数在 `docs/continuous-decision-v0.3-final-report.md`。
+两种文档的分工与 v0.2 相同。
+
+---
+
+## P0' 预检（零花费）
+
+**身份核对**（每条都在本轮当场重跑过一次，不转引）：`freeze --check` → `2f1c74f52e91`、
+`prereg --check` → `23abe58ff333…`、`em-pairs --check` → `7df449ed2f4d`，三条 rc=0；
+`schema_fingerprint()` 与 `v02_schema_freeze.json` **逐项相等**（15 事件类型 / 7 消融条件）。
+HEAD 当时是 `4e960a2d`、174 项 dirty。
+
+**§14 的五项决策**（用户裁定，见报告 §1 与各预登记的 `decided_by`）：
+D1 决策席 `bst_text_agnes.yaml`、视觉席经四次测量后定为 `agnes-vision-r4.yaml`；
+D2 E1 上界 2,500（后经增补 1 提到 3,800）、E2 探针批先行；
+D3 文本通道 §5.4 接线（"接"）；D4 提交并打 tag（"提交，并打 tag"）；D5 路 A。
+
+**D4**：`git commit` → `230f4dc`，tag `v0.2` 与 `continuous-decision-v0.2`，174 项变更封存成一个提交。
+提交前全量回归 **1173 passed / 23 skipped**。
+提交前重测 v0.2 公布的身份字段，发现**两处不复现**，登记而不静默改：
+
+* `dirty_diff_sha256` 报告 §0 发布 `b43d31f369f688d3`，本轮按 manifest 用的
+  `core.events.git_state()` 重跑得 `1eada71e66594cc2`；同一条 `git diff --binary` 直接管道给
+  `sha256sum` 得 `235be136787d6727`（差在尾部换行处理）。原因是 v0.2 期间被改动的**被跟踪**文件
+  晚于报告快照才落定；真正随 H-58 移动的是 `untracked_code` 那一列（`625f7652a4918ef2` / 77 个 .py）。
+* 秘密扫描：5 处"sk-"形状的命中**全是子串误报**（`--task-manifest` 里含 `sk-manifest`）；
+  `.env` 被 `.gitignore` 排除，且 `.env` 的 `LLM_API_KEY` 值**逐字**不在任何候选文件里。
+
+**席位探针**（§9 P0' 的三格 ×2 席，声明 6 次调用）：
+
+| 探针 | max_tokens | finish_reason | 推理 | 正文 |
+|---|---|---|---|---|
+| E1 席文本（`bst_text_agnes`） | 2048 | `stop` | — | `{"ok": true}`，1 次调用 98/6 |
+| E2 席视觉（`sensenova-vision.yaml`） | 1200 | `length` | 1200/1200 | **0 字符** |
+| 诊断·文本 | 1200 | `stop` | 14 | OK |
+| 诊断·视觉 | 4096 | `stop` | 199 | OK（`{"shape": "cube", "ok": true}`） |
+| `sensenova-vision-4k` 席探针 | 4096 | `stop` | 1071 | OK |
+| **真 survey 提示 @4096** | 4096 | `length` | **4096/4096** | **0 字符** |
+
+最后一行是关键：席位探针用的是一句 trivial 提示，所以**低估了一个数量级**。探针脚本的 docstring
+当时就写下了判据："撞顶说明'再调大 max_tokens'这条路本身走不通（那是一个配置改不动的量）"。
+
+**E2 视觉席的定案**（用户 2026-09-29 两次裁定）：先用 1 次调用量真提示的推理长度——
+
+| 席 | max_tokens | finish_reason | 推理 | 正文 | 墙钟 |
+|---|---|---|---|---|---|
+| `sensenova-6.8-flash-lite` | 1,200 / 4,096 / 16,384 | 全 `length` | 吃满 1200 / 4096 / 16384 | 三次都 **0 字符** | 13.3 / 88.4 / 88.4 s |
+| **`agnes-2.5-flash`** | 4,096 | **`stop`** | **无推理** | **1,098 字符合法 JSON**，477 completion（含 475 image token） | **4.2 s** |
+
+⇒ 问题在**被试**，不在提示、不在主 CLI、不在预算。E2 的席改为 `agnes-vision.yaml`；
+`sensenova-vision-4k.yaml` 的头部当场改写成一份具名负结果（三档预算全死 + 两次 trivial 提示下
+能答），因为它原来写着"本文件是 E2 的视觉席"，那句话在两次测量之后就不成立了。
+
+**四道门/字段的修法**（每道都先量后改、每道都配了契约测试，详见报告 §7 表 1–3）：
+`--perceive vlm` 在主 CLI 上结构性不可达；残留 **#109** 感知请求不落账；manifest 的 `offline`
+只看决策席；相机臂的 **"two ledgers"**。
+
+**P0' 的三份预登记**在 `b918f55` 提交，**跑后一字未改**；上界与规模的两次变更另立增补文件。
+
+**我自己的三处错**（都在提交信息里，没有静默改）：
+删重复块时把 `from_env` 的 `@classmethod` 一起删了（1187 条测试全绿也没抓到）；
+`run_group` 在 `vlm` 通道上的默认臂是 `wo_vlm`（拒绝句描述的是代码的默认值而不是操作者的命令）；
+`e1/e1_state.json` 里存着修复前的 `em_full` 摘要，让停止规则**第二次**误触发。
+
+---
+
+## P1' E3：MuJoCo 记忆对照（零花费）
+
+**16 集，4 对 × {`full`, `wo_episodic_memory`} × 2 集，全部 rc=0。** 四条判据逐条有读数：
+
+1. read 集（`full`）出现非空 `memory_retrieval`，库在种子集与读出集之间 **0 → 1**；4/4 对。
+2. 对照臂 **8/8 集** `memory_retrieval` / `memory_use` / `memory_write` **全 0**，库末态 0 行。
+3. **16/16** 集的 `episode_summary.json` 带 `episodic` 块。
+4. 离线 `experience_from_episode` 重导出与在线写入行 **8/8 逐字段相等**（21 个字段，id 也相等）。
+
+**RQ6 的答案分两半**：检索与使用**有且可测**（每轮落判决，两轮 `True`、一轮 `unknown` 且
+`unmeasured` 写着"这一轮没有可比较的已执行技能"）；**收益没有**——读出集执行的两个技能与关掉
+记忆时相同。这与桌面 MEM-1 的 `outcome_improvement 0/4` 是同一限制从另一条路走到，SPEC §3 RQ6
+不让桌面结论自动迁移那句话由这批作证。
+
+**判据本身更正一处**：预登记写的是"`store_size` 随对序递增"，那假设了一份**共享**的库；而每对
+一个隔离库才使"对"成其为对。递增的真实读法是**对内**的，已写进 `e3/e3_rq6_answer.json` 的
+`design.store_isolation`，而不是留成一条读不出来的判据。
+
+**判据 4 还有一次读错的过程也留在产物里**（`e3/e3_criterion4.json` 的 `method.supersedes`）：
+第一版把合成的一条事件喂给提取器、并且把 `created_at`/`updated_at` 也算进比较，报 0/8 相等。
+那是**仪器错不是批次错**——提取器按自己文档的两种输入形状读日志末的 plan view，合成体会丢掉
+它据以派生内容的那些字段，而那两个时间戳是记录信封的构造戳、不是经验内容（H-58 的契约测试正是
+只剥这两个）。改正后 8/8。
+
+**本轮驱动自身的四处错**（都记在提交 `bbc87ce` 里）：
+入口是 `-m embodied_agent.benchmark_mujoco.cli` 而不是 `-m embodied_agent.benchmark_mujoco`（包）；
+MuJoCo 后端要 `metaworld`，它装在 `/home/czx/mwvenv` 这个**独立 venv** 里，而那个 venv 的
+`bin/python` 是指向桌面 conda 解释器的**符号链接**——这恰恰是它能工作的原因（Python 按**被调用
+的路径**找 `pyvenv.cfg`）。后端的拒绝句指得对，错的是我用了 conda 那个路径（我一度读成"它指错了"，
+那是我的读法错）；复现对的定义要按**参数**写而不是按集种子写，因为集种子 = `--seed + task_index`，
+按集种子写会把同一集跑两遍。
+
+---
+
+## P2' E1：模型驱动 12 格（计费）
+
+**跑了两次误停，都是我自己读错的账**：
+
+* 第一次：把累计计数器 `http_requests_total` 逐行相加，真值 225 报成 12,320，撞上 2,484 的上界。
+  同一读法还把 token 读成 0（真值 prompt 793,882），因为两列嵌在 `usage` 里。
+* 第二次：`e1/e1_state.json` 里存着**修复前**的 `em_full` 摘要，而 `spent_calls` 求和的是**存下来的**
+  摘要，于是同一个错数第二次触发停止。状态是缓存，产物才是权威——从盘上重导才对。
+
+两次都没有重跑已付费的格（SPEC §8.3），也没有自作主张提高上界：D2 增补把 2,484 提到
+**3,800**（= 实测 `requests_per_row = 2.027` 外推的 3,016 × 1.25），原预登记不动。
+
+**最终：12 格 / 153 集 / 2,936 次请求（逐集账本口径；仪器 `cost.B` 口径 3,217，差 281 是目标解析），
+零 429 打死过集，`api_errors 121` / `transport_retries 1,605` / `format_repairs 0`。**
+
+**§13.3 第一条不变量：12/12 格 `asked == armed > 0`**，v0.2 臂根的 575/0 → **153/153**。
+168 计划集里 15 集死在模型的目标解析上，留在分母里不重跑。
+
+**§11 Long-horizon 组（LH-2）**：80 条对照行里 **58 条值变了**，v0.2 同一台仪器是 **1/80**。
+两条 v0.2 属于结构性 n/m 的行现在有数了：`L2.dependency_edge_violation` 六格全 n/m →
+`full` **1.0 (2/2)**（模型写下依赖边并全违反）；`L6.replanning_effectiveness` 0.0 (0/4) →
+`full` **0.5789 (11/19)**。两张表**并排打印、不合并**（§7.3）。
+
+**§11 Skill 组（SKILL-1）**：`arm_audit ok=true`，6 批 63 集逐集对账。`S1.not_executable`
+0.0 (0/20) → **0.3 (3/10)**；`S2.frozen_rule_share 1.0` 对 `S2.strict_reading_share 0.0` 这对
+相反读数**原样保留**；`S4` 五行仍全 n/m 并各自带理由。
+
+**§11 VLM 组**：重跑通过（`paired_cases 47`、`not_comparable []`）。这一组是**对仪器的对照**而不是
+对视觉模型的读数——V1/V2/V3 全部来自确定性 `StubReader`，这一点没变，也不该被写成变了。
+
+**§11 Memory 组未重取**：`cli em-pairs` 没有 `--planner`（实测无 planner/policy/ablation/perceive
+任一 flag）。这是**路径不存在**，属 §13.2 允许的结构性 not-measured，不是"没跑"。
+
+---
+
+## P3' E2：视觉半边（计费）
+
+**探针批**（1 集 ×2）第一次把 `perception` 记录送上主 CLI 的合法批次：`perception` 记录 **20 条**、
+`model_calls.jsonl` **23 行**（含 2 行 `ok=false` 的 429 死亡行）、prompt 29,736 / completion 8,254、
+latency 2.4–11.8 s、manifest `offline: false`。**两集都没跑完**：一集死在相机臂的 state_version
+分叉（已修），一集死在 429。
+
+**正式批**（3 格 × 4 集，73 次请求）：`vlm` 格 **`perception` 记录 51 条**、`stub` 格 **0 条**、
+`privileged` 格 0 条；`privileged` **4/4 成功**，`vlm` 与 `stub` 均 **0/4**。
+
+**4 集是基础设施错误，原因四处相同**且不是模型失败：`lh_c3_capacity_and_shift` 声明了两个
+黄色物体（`obj_yellow_1` 与 `obj_yellow_6`），而相机通道按颜色给身体命名，
+`GroundingMap.from_objects` 因此拒绝。**P1-b 验证过颜色唯一性的是 47 个冻结 case，那是感知任务集、
+不是 `long_horizon` 集** ⇒ 这条性质在 lh 集上不成立，而相机通道依赖它。
+⇒ **`full`-on-VLM 的分母是 2 而 `privileged` 是 4；两格不在同一个分母上**，这是结构性限制，
+不是一个可以平均掉的数。
+
+---
+
+## P4' E5：文本通道 §5.4（用户授权的产品改动）
+
+改动形状与 H-58 同族，见报告 §7 表 5。**"裸回路仍拒绝记忆臂"单列一条契约测试**——v0.2 §8 B20
+正是据此把文本通道的 Memory 行记成 not measured，一次只放宽门而忘了拒绝，会把那句话变成假的。
+
+**顺带修一个被咬出来的既有缺陷**：`cli.py:cmd_run` 的 `if args.single:` 把 `--single 0`（第一个
+slot）当成"没给"，于是跑了**整个** `dev_train` 段（12 格）两遍。改 `is not None`，并用 **AST** 断言
+那一条（子串匹配会匹配到解释它的注释）。
+
+**E5 的"零花费"预登记断言是错的**：文本通道的 `run_slot` 只有模型决策源（`LLMDecisionSource`），
+没有规则策略这一路，所以那两批各 12 格跑在**模型席**上，full 398,278 tokens、对照 342,112，
+合计约 740k。端点是免费层所以没有钱，但那句话作为断言不成立，已改正记入报告 §5.11。
+
+**E5 的读格脚本按目录序取第一个 episode**，于是"读集"那格读的是种子集（`slot000` 排在
+`slot001` 前），而真正 `rc=1` 的读集根本没量到。已改为按 slot 读。
+
+**RQ7 的答案**：记录面**一致**（三通道都检索、都集末写、都过同一个 `experience_from_episode`，
+文本通道的库 `store_size_before` 按集序 0→11 递增），产出**不一致**——文本 12 集里只有 2 集
+检索到相关行，而 MuJoCo 是 4/4 读集都检索到。同一套机制、同一道门、同一台抽取器，两个通道上
+相关率差一个量级。
+
+---
+
+## P5' 报告
+
+**§13 七条完成定义**：六条达成，Memory 组那一条部分达成（24 行有读数、4 行结构性 not-measured）。
+**§15 第一半达成**（路 A），但边界写清：`full`-on-VLM 交付的是**负数**，VLM 三行仍是 stub，
+Memory 组未重取。
+
+**写这份报告时对自己做的一次范围核对，抓到两处我引用的数取了比句子更窄的论域**：
+
+* 延迟：草稿把 `lh_full` 一格的 p50/p95 与全批最慢的一次调用混在一句话里。改正为**逐格列出**，
+  并写明"每格的 p50"与"全批的 p50"不是同一个对象。
+* E2 延迟：草稿引的是**探针批**的 2.4–13.5 s，而正式批是 51 次调用、min 2.776 / p50 4.692 /
+  max 34.83 s。
+
+同一次核对还查出一条**新残留**（报告 §9 第 13 条）：**目标解析的请求记在每格的
+`goal_resolutions/goal_calls.jsonl`，不在逐集 `model_calls.jsonl` 里**，所以停止规则用的
+2,936 比仪器 `cost.B` 的 3,217 **少算 281 次**（约 8%）。本轮它没有造成后果（两把尺都在 3,800
+界内），但下一轮若把上界贴着 3,000 定，账上就会看不出越界。
+
+**文档门**：`verify_docs_v3.py` 51 检查（v0.2 的门）与地址仪器继续管 v0.2 交付面；v0.3 的门按
+P5' 预登记演进，演进落账，不静默改。
