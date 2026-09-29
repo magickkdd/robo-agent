@@ -23,6 +23,16 @@ BREAKS = [
     ("the policy-trace reason", "编出来的负数", "一个普通的零"),
     ("the structural gap's cause", "没有 `--planner`", "不知道什么原因"),
     ("the gate's own self-repairing phrase", "em-pairs", "em_pairs"),
+    ("the 58/80 weight separation", "不是一个量级的证据", "是同一量级"),
+    ("the exact test on L2", "p=0.50", "p=0.01"),
+    ("the exact test on L6", "p=0.65", "p=0.01"),
+    ("the exact test on the arms", "p=1.00", "p=0.01"),
+    ("the refusal to read 9/12 either way", "分不开就是分不开", "差异就是差异"),
+    ("the recorded self-errors", "一句废话", "没有问题"),
+    ("the matched denominator", "匹配分母", "分母"),
+    ("the colour attribution", "重复颜色的", "颜色的"),
+    ("the shared grounding map", "接地图", "某个东西"),
+    ("the unexplained infrastructure_error", "错误账本", "日志"),
 ]
 
 

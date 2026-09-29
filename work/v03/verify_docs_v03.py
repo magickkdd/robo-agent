@@ -186,6 +186,43 @@ def run_gate(report, log):
                 "policy.trace" in r_text and "编出来的负数" in r_text,
                 ""))
 
+    # 7. a reading and the conclusion it can carry are different claims. Three small-denominator
+    #    readings were delivered as findings; §17 re-checks each against its own denominator and
+    #    downgrades the conclusions. This check exists so the downgrade cannot quietly be reverted
+    #    by editing the §17 prose away, and so the headline 58/80 keeps its own weight instead of
+    #    being read at the same level as a 2/2.
+    flat_all = r_text.replace("`", "")
+    out.append(("the report separates 58/80 from the small-denominator rows",
+                "不是一个量级的证据" in flat_all and "58/80" in r_text,
+                "58/80 is 80 paired rows; 2/2, 11/19 and 9-vs-12 are single-arm rates"))
+    out.append(("the small-denominator rows carry their interval and an exact test",
+                all(t in flat_all for t in ("p=0.50", "p=0.65", "p=1.00"))
+                and "Wilson 95%" in r_text,
+                ""))
+    out.append(("the report refuses to read 9/12 vs 8/12 in either direction",
+                "分不开就是分不开" in flat_all and "重规划有害" in flat_all,
+                "an underpowered comparison must not be inverted into an opposite claim"))
+    out.append(("§17 records the two errors this analysis made itself",
+                "p<0.01" in flat_all and "0.6476" in flat_all and "一句废话" in flat_all,
+                ""))
+
+    # 8. §18 recomputed the `full`-on-VLM denominator from E2's own products and found the
+    #    delivered explanation wrong in three specific ways. The conclusion (the camera channel is
+    #    net negative) survives; the numbers attached to it do not. These checks keep the
+    #    corrections from being quietly reverted along with the prose.
+    out.append(("the report states the matched denominator, not 4/4 against 0/4",
+                "匹配分母" in flat_all and "0/2" in flat_all and "2/2" in flat_all,
+                "the delivered text compared 4 episodes against 2"))
+    out.append(("the report attributes the duplicate colour to c1, not c3",
+                "重复颜色的" in flat_all and "c1" in flat_all and "c3" in flat_all,
+                ""))
+    out.append(("the report says stub hits the same refusal, so the cause is the shared map",
+                "stub" in flat_all and "接地图" in flat_all,
+                ""))
+    out.append(("the report names the unexplained infrastructure_error as a hole in the ledger",
+                "infrastructure_error" in flat_all and "错误账本" in flat_all,
+                ""))
+
     # 6. this gate does not quote the v0.2 gate's own live digest in a deliverable.
     #    (The check's name used to say the opposite of what it tests — "quotes the digest"
     #    while the assertion forbade the digest. A check whose name lies about its own
