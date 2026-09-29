@@ -1,0 +1,51 @@
+feat(P6-b): episodic pair protocol 可把模型放到 reader 席上（Memory 组 M1–M4 的结构性缺口）
+
+§11 的 Memory 组（M1–M4）由 MEM-1 在**配对协议**上定义：writer 一集留下 residue，reader 一集查询它，
+两臂差在是否检索。这套协议**唯一的入口把 `planner_kind="rule"` 写死了**，所以 M1–M4 在模型决策源上
+**一条读数都没有**——这是结构性缺口，不是漏跑。已交的 v0.3 报告 §13.2 第 2 行只"部分达成"，
+原因就在这里。
+
+**难处在 `MemoryPolicy` 自己就是决策者**：它只读 `ctx.model_payload()`，只在 rule 规划器是决策源时
+才是个对照。这正是 `run_group` 拒绝 `policy="memory"` 与模型规划器并存的原因（两个决策者、行的来源
+事后无人能说）。所以修法不是加一个 `--policy`，而是**从席位推导 policy**：
+
+    rule 席  -> policy="memory"   （MemoryPolicy 应答，零花费）
+    模型席  -> policy=None        （模型规划器应答，store 照旧记录）
+
+于是那个不连贯的批**无法被表达**，而不只是"文档里写了不支持"。一个同时带 `--policy memory` 的
+`--planner` 距离它要防的那个失败只有一次误调用。
+
+**模型席保留 store 与该臂的 ablation**——这正是要测的东西：配对协议问的是 reader **用不用** writer
+留下的东西，而在模型席上 reader 就是模型。它**不**让两臂只差在记忆上：模型规划器是随机的，所以两臂
+还差在抽样上。这是真实的混淆，`measure_episodic_pairs` 与 **MEM-1 自己**都把席位写进结果。
+
+**漏掉的最后一跳**：我第一版把席位写进了 `pairs_run.json` 与 `pairs_measured.json`，却**漏了
+`episodic_memory_MEM_1.json`**——而那正是 §11 会引用的表。于是两张表、表头完全相同、零溯源，
+"把其中一张当另一张引用"这个最自然的错误完全不可见。已补：`_seat(root)` 从 ledger 读，
+`_seat_note(planner)` 三态（rule / model / 未记录）。未记录的一律说"未记录"而**不猜**——老批确实是
+rule reader，但账本没这么写，就不替它说。
+
+改动：
+- `episodic_runs.run_episodic_pairs`：接受 `planner_kind` / `model_config`，推导 policy；拒
+  `fixture`（测试替身，产物无法与真席区分）与无 `--model-config` 的模型席（否则 artifact 说不出
+  谁决策，而这是这个 ledger 存在的唯一理由）。
+- `episodic_runs.measure_episodic_pairs` 与 `episodic_metrics.measure`：把席位与席位注记带进结果。
+- `cli em-pairs`：`--planner {rule,deepseek}`、`--model-config`；**没有** `--policy`。
+  输出打印席位。CLI 层的拒绝在**任何 episode 目录存在之前**发生——批跑到一半死掉已经写了 store，
+  半写的配对根比一个讲清问题的拒绝更糟。
+- `tests/contract/test_v03_episodic_seat.py` 20 条。
+- `work/v03/p6b_mutation_check.py`：12 个变异逐个注回生产函数，**12/12 全部转红**。
+
+**变异检查抓到了我自己测试里的一个弱断言**：`"not recorded" in note` 在**前面被接上一个错误断言**
+之后仍然为真——所以一条会宣称 rule 席、而它毫无证据的 note 竟然过了。已改成锚定断言
+（`startswith` + 显式 `not in`）。这与本项目反复出现的 bug 同一类：一条过不了的断言等于注释。
+检查器自己也从 bash-eval 改成 Python——前两版把"`eval()` 里字符串没闭合"报成 **VACUOUS**，
+而那个变异**根本没被应用**；会报假阴性的非虚度检查比没有检查更坏，因为它看起来像证据。
+现在每个变异都先断言文件真的变了，没变就报 ERROR。
+
+**零花费排练**：rule 席端到端跑通 4 对 × 2 臂 = **16 集 / 8 store**，`offline: true`，
+逐格表与 E3 一致（含 `em_p3` 正确地**不**跟随无法归因的断言）。MEM-1 在 rule 席出全表，
+成为模型席的对照基线：M1 1.0 (28/28)、M2.followed_round_share 0.5 (14/28)、
+M4.refuted_and_still_governing 1.0 (8/8)。
+
+回归：`1234 passed, 24 skipped`（+34：14 条记账契约 + 20 条席位契约）

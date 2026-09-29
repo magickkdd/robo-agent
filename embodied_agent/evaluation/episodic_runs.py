@@ -43,13 +43,49 @@ EM_ROLES = ("writer", "reader")
 
 # --------------------------------------------------------------------- run ----
 def run_episodic_pairs(out_root: str, *, pairs: Optional[list[dict]] = None,
-                       arms: tuple[str, ...] = EM_ARMS, frames: bool = False) -> dict:
+                       arms: tuple[str, ...] = EM_ARMS, frames: bool = False,
+                       planner_kind: str = "rule", model_config: Optional[str] = None) -> dict:
     """Every pair, every arm, writer-then-reader into one store per pair per arm.
 
     `frames=False` is the default and the honest setting for this channel: a privileged batch renders
     no camera, so writing frame PNGs would only cost disk.
+
+    **The decision maker is a parameter, and the policy is derived from it rather than passed.**
+    On the rule seat the reader is answered by `MemoryPolicy`, which *is* the decision maker: it
+    reads only `ctx.model_payload()`. That is why `run_group` refuses `policy="memory"` together
+    with a model planner (two decision makers, rows whose source nobody could name) — and why
+    this function does not expose a way to ask for it. `policy` is computed here:
+
+        rule seat     -> policy="memory"   (MemoryPolicy answers; zero spend)
+        model seat    -> policy=None       (the model planner answers; the store still records)
+
+    So the incoherent batch cannot be *expressed*, rather than being documented as unsupported.
+    A `--planner` flag that also carried `--policy memory` would be one careless invocation away
+    from the exact failure the refusal exists to prevent.
+
+    A model seat keeps the experience store and the arm's ablation, which is the whole point:
+    the pair protocol asks whether a reader *uses* what the writer left, and on a model seat the
+    reader is the model. What it does not do is make the two arms differ only in memory — a model
+    planner is stochastic, so treatment and control also differ by the draw. That is a real
+    confound and `measure_episodic_pairs` says which seat produced a table rather than letting a
+    rule-seat reading and a model-seat reading be compared as if they were the same experiment.
+
+    `planner_kind="fixture"` is refused: it is a test double, and a `pairs_run.json` naming it
+    would be indistinguishable in kind from one naming a real seat.
     """
     from ..episodic.store import ExperienceStore
+
+    if planner_kind == "fixture":
+        raise ValueError(
+            "--planner fixture is a test double; a pairs_run.json naming it could not be told "
+            "apart from one naming a real seat. Use 'rule' or a model planner.")
+    if planner_kind not in ("rule", "deepseek"):
+        raise ValueError(f"--planner must be 'rule' or a model planner, got {planner_kind!r}")
+    if planner_kind != "rule" and not model_config:
+        raise ValueError(f"--planner {planner_kind} needs --model-config: without a named seat "
+                         f"the artifact could not say who decided, which is the one thing this "
+                         f"ledger exists to record")
+    policy = "memory" if planner_kind == "rule" else None
 
     os.makedirs(out_root, exist_ok=True)
     manifest: list[dict] = []
@@ -66,17 +102,19 @@ def run_episodic_pairs(out_root: str, *, pairs: Optional[list[dict]] = None,
                 # writer left, and an in-memory handle would also be a store the writer's failed
                 # episodes could still be holding rows for.
                 store = ExperienceStore.load(store_path)
-                stats = run_group(EM_SET_NAME, modes=("B",), planner_kind="rule", repeats=1,
+                stats = run_group(EM_SET_NAME, modes=("B",), planner_kind=planner_kind,
+                                  model_config=model_config, repeats=1,
                                   out_root=os.path.join(arm_root, role), case_ids=[case_id],
                                   frames=frames, perceive="privileged",
-                                  ablation=ablation_record(arm), policy="memory",
+                                  ablation=ablation_record(arm), policy=policy,
                                   experience_store=store)
                 row["batches"][role] = {"case_id": case_id, "root": stats["root"],
                                         "run_id": stats["run_id"], "rows": stats["rows"]}
             manifest.append(row)
     artifact = {"kind": "episodic_pairs_run", "root": out_root, "set": EM_SET_NAME,
-                "arms": list(arms), "policy": "memory", "planner": "rule",
-                "perceive": "privileged", "repeats": 1, "batches": manifest}
+                "arms": list(arms), "policy": policy, "planner": planner_kind,
+                "model_config": model_config, "perceive": "privileged", "repeats": 1,
+                "batches": manifest}
     with open(os.path.join(out_root, "pairs_run.json"), "w", encoding="utf-8") as f:
         json.dump(artifact, f, ensure_ascii=False, indent=1, sort_keys=True, default=str)
     return artifact
@@ -348,13 +386,27 @@ def measure_episodic_pairs(root: str, *, pairs: Optional[list[dict]] = None) -> 
     A root that ran three pairs measures three and says the fourth is absent. Silently dropping it
     would be the wrong failure: the artifact names what it did not run, so a table with a row missing
     is a table that admits the row is missing.
+
+    The seat is carried through. A model seat and a rule seat are not two readings of one
+    experiment: on the rule seat the reader is `MemoryPolicy` and the two arms differ *only* in
+    memory, while on a model seat the reader is a stochastic model and the arms also differ by the
+    draw. Pooling or comparing the two without naming the seat would attribute the difference to
+    memory. So `planner` and `policy` are part of the result, not incidental metadata.
     """
     with open(os.path.join(root, "pairs_run.json"), encoding="utf-8") as f:
         ledger = json.load(f)
     ran = {(row["pair_id"], row["arm"]) for row in ledger["batches"]}
     wanted = pairs if pairs is not None else EM_PAIRS
     out = {"kind": "episodic_pairs_measured", "root": root, "set": EM_SET_NAME,
-           "frozen_manifest": EM_FROZEN_PATH, "pairs": [], "absent": []}
+           "frozen_manifest": EM_FROZEN_PATH,
+           "planner": ledger.get("planner"), "policy": ledger.get("policy"),
+           "model_config": ledger.get("model_config"),
+           "seat_note": ("rule seat: the reader is MemoryPolicy, so the two arms differ only in "
+                         "memory" if ledger.get("planner") == "rule" else
+                         "model seat: the reader is the model, so the two arms differ in memory "
+                         "AND in the draw — a within-pair difference is not attributable to "
+                         "memory alone"),
+           "pairs": [], "absent": []}
     for pair in wanted:
         missing = [arm for arm in EM_ARMS if (pair["pair_id"], arm) not in ran]
         if missing:

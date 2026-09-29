@@ -72,7 +72,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any
+from typing import Any, Optional
 
 from .episodic_runs import read_pair
 from .episodic_tasks import EM_ARMS, EM_CONTROL_ARM, EM_PAIRS, EM_TREATMENT_ARM, pair_claims
@@ -314,6 +314,39 @@ def _terms_are_only_the_batch_name(terms: list[str], task_kind: str) -> bool:
     return bool(terms) and all(t == f"task_kind:{task_kind}" for t in terms)
 
 
+# -------------------------------------------------------------------- the seat ----
+def _seat(root: str) -> dict:
+    """Which decision maker produced this directory, read from the run ledger beside it.
+
+    MEM-1 is the table §11 publishes for the Memory group, so it has to say who was on the reader
+    seat. Without it, a rule-policy reading and a model reading are two tables with identical
+    column headers and no row of provenance, and the natural mistake — quoting one as if it were
+    the other — is invisible. The ledger is the record; this only reads it.
+
+    A directory whose ledger predates the seat fields reads as `{}` rather than raising, so an
+    older rule-seat batch still measures; its planner is then `None` in the artifact, which is
+    the honest "not recorded" rather than a guess.
+    """
+    path = os.path.join(root, "pairs_run.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        ledger = json.load(f)
+    return {k: ledger.get(k) for k in ("planner", "policy", "model_config")}
+
+
+def _seat_note(planner: Optional[str]) -> str:
+    if planner is None:
+        return ("seat not recorded in this directory's pairs_run.json; it predates the seat "
+                "fields, and was a rule-policy reader (run_episodic_pairs hard-coded it)")
+    if planner == "rule":
+        return ("rule seat: the reader is MemoryPolicy, which answers from the model payload, so "
+                "the two arms differ only in memory")
+    return (f"{planner} seat: the reader is the model, so the two arms differ in memory AND in "
+            f"the draw. A within-pair difference is not attributable to memory alone, and this "
+            f"table is not comparable with a rule-seat table as if it were the same experiment")
+
+
 # ----------------------------------------------------------------- one pair ----
 def score_pair(root: str, pair: dict, claim: dict) -> dict:
     """The three §11 rows a pair can answer, from both arms' artifacts.
@@ -433,6 +466,9 @@ def measure(root: str) -> dict:
         scored.append(row)
     result = {"kind": "episodic_memory_metrics", "metric_version": METRIC_VERSION,
               "root": root, "set": "em", "arms": list(EM_ARMS),
+              "planner": _seat(root).get("planner"), "policy": _seat(root).get("policy"),
+              "model_config": _seat(root).get("model_config"),
+              "seat_note": _seat_note(_seat(root).get("planner")),
               "reference_arm_note": ("every M1/M2/M4 quantity is a treatment-arm reader; the control "
                                      "arm appears only as the other side of a two-arm difference"),
               "unit_note": ("the pair is the denominator of every M2/M3 cross-arm row: n="

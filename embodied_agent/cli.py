@@ -822,9 +822,21 @@ def cmd_em_pairs(args) -> int:
                   f"{[p['pair_id'] for p in EM_PAIRS]}", file=sys.stderr)
             return EXIT_CONFIG_ERROR
     only = [p for p in EM_PAIRS if not args.pairs or p["pair_id"] in args.pairs]
-    artifact = run_episodic_pairs(args.run, pairs=only, arms=tuple(args.arms))
+    try:
+        artifact = run_episodic_pairs(args.run, pairs=only, arms=tuple(args.arms),
+                                      planner_kind=args.planner,
+                                      model_config=args.model_config)
+    except ValueError as exc:
+        # Refused here, before any run directory holds an episode — which is why the seat is
+        # checked against the policy at this seam rather than left to run_group: a batch that
+        # dies mid-way has already written stores, and a half-written pair root is worse than a
+        # refusal that names the problem.
+        print(str(exc), file=sys.stderr)
+        return EXIT_CONFIG_ERROR
     print(f"ran {sum(len(r['batches']) for r in artifact['batches'])} episodes over "
           f"{len(artifact['batches'])} pair-arm stores into {args.run}")
+    print(f"seat: planner={artifact['planner']} policy={artifact['policy']} "
+          f"model_config={artifact['model_config']} perceive={artifact['perceive']}")
     print_pairs(args.run)
     return EXIT_OK
 
@@ -1060,6 +1072,18 @@ def main(argv=None):
                     help="let --run write a second pass over a directory that already holds a "
                          "pairs_run.json (the store beside it is append-only, so the reader would "
                          "then face two writer rows where one was pre-registered)")
+    em.add_argument("--planner", default="rule", choices=["rule", "deepseek"],
+                    help="who decides in the reader episode. 'rule' (default) is the zero-spend "
+                         "control: the reader is MemoryPolicy, which reads only the model payload, "
+                         "so the two arms differ *only* in memory. 'deepseek' puts the model on "
+                         "the reader seat, which is the only way §11's Memory group gets a reading "
+                         "on a model decision source — and makes the arms differ in memory AND in "
+                         "the draw, so the two seats' tables are not interchangeable. The policy is "
+                         "derived from this, not passed: asking for a policy that is also a "
+                         "decision maker is unrepresentable, which is the point")
+    em.add_argument("--model-config", default=None, metavar="PATH",
+                    help="the decision seat's config; required with --planner deepseek, so the "
+                         "artifact can name who decided")
     em.add_argument("--dump", action="store_true",
                     help=f"write the set manifest to {EM_FROZEN_PATH}")
     em.add_argument("--amend", action="store_true",
