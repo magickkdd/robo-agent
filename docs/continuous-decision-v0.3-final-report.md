@@ -17,7 +17,7 @@ v0.2 报告（`docs/continuous-decision-v0.2-final-report.md`）保持封存；�
 | 代码 | 工作树，v0.3 全程在提交上跑 | `git_commit 717fd5f…` 至 `384ecf2…`，每个 manifest 自带 `commit` / `dirty`；**`dirty: false`**（D4 之后每批的 manifest 都记真提交） |
 | 写侧契约 | `core/v02.py` 的事件类型表与消融注册表 | **15** 事件类型、**7** 消融条件；`schema_fingerprint()` 与 `configs/experiment/v02_schema_freeze.json` **逐项相等**（`schema_version 4`、`module_sha256 65f2b240…` 等 7 键）——本阶段**没有重冻结**（§12 禁止），四个产品改动都动不到它 |
 | 封存配置 | 冻结任务表与两份预注册 | `cli freeze --check` → `2f1c74f52e91`；`cli prereg --check` → `23abe58ff33372ffa6f62a608221dfc1af2006f85ae50f7651a0f28451aae7b3`；`cli em-pairs --check` → `7df449ed2f4d`（三条退出码 0，P0' 与每个提交前各重跑一次） |
-| v0.3 预登记 | E1 / E2 / E3 三份 + 两份增补 | `configs/experiment/v03_e{1,2,3}_preregistration.json`（`b918f55`）与 `v03_e1_preregistration_amendment_1.json`（上界 2484→3800）、`v03_e2_preregistration_addendum_1.json`（E2 正式规模）。**原预登记跑后一字未改**，增补另立文件 |
+| v0.3 预登记 | E1 / E2 / E3 三份 + 两份增补，**P6 加第四份** | `configs/experiment/v03_e{1,2,3}_preregistration.json`（`b918f55`）与 `v03_e1_preregistration_amendment_1.json`（上界 2484→3800）、`v03_e2_preregistration_addendum_1.json`（E2 正式规模）。**原预登记跑后一字未改**，增补另立文件。P6 的 `v03_mem1_preregistration.json`（界 411，§16）在**第一次请求之前**提交，运行从干净树出发 |
 | E1 产物 | 12 格 / 153 集 | `/home/czx/embodied-agent-batches/v03/e1/`；格级摘要 `e1/e1_state.json`、全表 `e1/e1_table.json` |
 | §11 三组重取 | LH-2 / SKILL-1 / VLM | `e1/lh_score/long_horizon_v0.{json,md}`（703 kB）、`e1/skill_score/skill_acquisition_SKILL_1.json`（`arm_audit ok=true`）、`e1/vlm_contrast/episode_contrast_all.json` |
 | E2 产物 | 3 格 / 12 集 | `e2/e2_formal_report.json`；探针批 `e2_probe/`（1 集 ×2） |
@@ -40,7 +40,7 @@ v0.2 报告（`docs/continuous-decision-v0.2-final-report.md`）保持封存；�
 | # | §13 的条件 | 判定 | 证据 |
 |---|---|---|---|
 | 1 | **E1 的 12 格逐格**：模型决策源集数 > 0；逐集 manifest 身份三键与 D1 配置一致；`model_calls.jsonl` 非空；`run_error` 分桶 | **达成** | 12/12 格；**153/153 集** armed 且 `asked_the_model` > 0；`model_identities_observed.one_identity_throughout: true`（请求与应答都是 `agnes-2.5-flash`）；1,459 行账；分桶表见 §4 |
-| 2 | **六组 27 行**逐行有读数或有命名的 not-measured，且 not-measured 只允许来自"该臂该通道的结构性不可达" | **部分达成**：24 行有读数，**4 行（Memory 组）未重取** | §2。Memory 组的 not-measured 理由是 **`cli em-pairs` 没有 `--planner`**——这条路径不存在，属结构那一类，不是"没跑" |
+| 2 | **六组 27 行**逐行有读数或有命名的 not-measured，且 not-measured 只允许来自"该臂该通道的结构性不可达" | **达成（P6 补齐）** | §2、§16。交付时是**部分达成**：24 行有读数，4 行（Memory 组）未重取，理由是 `cli em-pairs` 没有 `--planner`。P6 加了这个席位并跑了 **MEM-1 模型席**（2/4 对，216 请求 / 界 411）：**M1 四行全部有读数**（检索真的发生），M2 行为行 **0/2**，M3 **0.5 (1/2)** 朝反方向，另 **5 行结构性 not-measured**（它们读 policy trace，模型席没有 policy 写） |
 | 3 | **两条不变量翻转** | **达成** | E1：`asked == armed > 0` 逐格 **12/12**（v0.2 臂根 575/0 → 153/153）。E2：`perception` 记录 **51**（v0.2 臂根 0 条） |
 | 4 | **E3** 判据逐条有读数（RQ6 可以答"否"但要有数） | **达成，且答的是"检索与使用有、收益没有"** | §6 RQ6 |
 | 5 | **Cost 组** tokens/calls/latency 有真数；USD 非 null 或明示无单价 | **达成** | §4：prompt **11,593,585** / completion **192,449** / http **2,936** / latency p50 3.4 s、p95 15.9 s、max 84.1 s；USD `null`，明示无单价 |
@@ -440,4 +440,96 @@ MuJoCo 后端 `/home/czx/mwvenv/bin/python`（下称 `<MW>`）——**三个 ven
 | 12 | 没有一份**跨解释器的仪器一致性判据** | 桌面（`<PY>`）、文本（`<BST>`）、MuJoCo（`<MW>`）三套 site-packages 各跑各的仪器；本轮三次回归都是绿的，但没有一份判据说"同一台仪器在三个解释器下读同一份产物会读出同一个数" |
 | 13 | **预算记账少算 356 次请求（10.8%）**：目标解析的请求记在每格的 `goal_resolutions/goal_calls.jsonl`，不在逐集 `model_calls.jsonl` 里。停止规则用的是后者（2,936），真实发出是 3,292。**本条的数字已更正**——原文写 281，那是 `3217 - 2936` 减出来的，等于把仪器自己的口径问题一起抄了过来；逐账本量得 356。仪器的 3,217 本身是混口径（逐集含错误 + 目标解析不含错误），既非发出数（3,292）也非回应数（2,585） | **已修**：`evaluation/run.py` 新增 `batch_spend(run_root)`，两个账本一起读，并分列"发出"与"拿到回应"；`tests/contract/test_v03_spend_accounting.py` 钉住四个口径坑（两账本、累计计数器、错误行、界的比较对象）。三个口径差（`api_errors 121` 只数逐集 429）也一并记在 §4 |
 | 14 | **429 是这批的主导失败形态，而报告没把它写成主导形态**：3,292 次请求里 **707 次（21.5%）什么都没返回**（429 **136** 次 + `DecisionSchemaError` **17** 次）。目标解析 262 次里 **15 次五次全败**，而这 15 次**就是** 168 计划里丢掉的那 15 集 | 已量、已写进 §4；未修：免费端点的限流余量不受本项目控制。下一轮开工前的探针须把目标解析的限流余量算进上界 |
-| 14 | `calls_without_an_answered_identifier: 16`（`lh_full` 格）——有 16 次调用没有被记录应答标识，而 `identities` 仍显示"请求什么就答什么" | 仪器自己分了两列（`identities` 与 `calls_without_an_answered_identifier`）；本轮未追查这 16 次是哪种形状 |
+| 15 | `calls_without_an_answered_identifier: 16`（`lh_full` 格）——有 16 次调用没有被记录应答标识，而 `identities` 仍显示"请求什么就答什么" | 仪器自己分了两列（`identities` 与 `calls_without_an_answered_identifier`）；本轮未追查这 16 次是哪种形状 |
+| 16 | **模型席上没有 policy，于是 MEM-1 有 5 行没有仪器**：那 5 行读 `episode_summary.policy.trace`（`memory_followed` / `memory_declined` / `memory_order`），而 trace 由 `MemoryPolicy` 逐轮写下，模型席上决策者是模型规划器、`policy=None`，**没人写它** | **已修**（P6-d）：这 5 行在模型席上改为**结构性 not-measured** 并写明该读哪一行，**不再报 0**。此前它们读出 `0/15`，那是**编出来的负数**——0 读起来像证据，缺席的仪器不像 |
+| 17 | **一个"界内通过"的假检查**：停止规则按"我传给 `run_group` 的目录"找账本，而 `run_group` 在它下面建带时间戳的子目录，于是读到空树、求和 0、打印 `spent 0, completed within bound`——**一次对着空检查的干净通过** | **已修**（P6-d）：按每批**自报的 run root** 读，且**读到 0 一律拒绝继续**。MEM-1 那批实际 216 < 411，**界是靠投影的运气守住的，不是靠检查** |
+
+## 16. P6：补齐交付时唯一没合上的那一行
+
+v0.3 交付时 §13.2 第 2 行是**部分达成**，唯一原因是结构性的：`cli em-pairs` 没有 `--planner`，
+而 §11 的 Memory 组只在**配对协议**上有定义，于是 M1–M4 在模型决策源上**一条读数都没有**。
+P6 补上这个席位并跑了 **MEM-1 模型席**。预登记在请求之前落盘并提交
+（`configs/experiment/v03_mem1_preregistration.json`，界 **411** 请求；**文件里没有一个手打的
+数字**——每集成本、投影、上界全部从 E1 自己的账本用 `batch_spend` 读出）。
+
+### 16.1 读数
+
+**MEM-1（2/4 对；`em_p1`/`em_p2` 具名缺席，带 429 原文）**
+
+| 行 | 模型席 | rule 席（对照，P6-b 排练） | 口径 |
+|---|---|---|---|
+| `M1.rows_per_round` | **1.0 (15/15)** | 1.0 (28/28) | 逐轮检索记录 |
+| `M1.matched_beyond_the_batch_name` | **1.0 (15/15)** | 1.0 (28/28) | 同上 |
+| `M1.rows_refuted` | **0.333 (5/15)** | 0.286 (8/28) | 同上 |
+| `M1.distinct_rows_vs_store` | **1.0 (2/2)** | 1.0 (4/4) | 同上 |
+| `M2.trajectory_changed_and_completed` | **0.0 (0/2)** | 0.5 (2/4) | 行为，与席无关 |
+| `M2.outcome_improvement` | **0.0 (0/2)** | 0 (0/4) | 行为，与席无关 |
+| `M3.treatment_worse_or_costlier` | **0.5 (1/2)** | 0 (0/4) | 行为，与席无关 |
+| `M3.decline_branch_reachable` | **0.0 (0/2)** | 0.0 (0/4) | store 形状，与席无关 |
+| `M2.followed_round_share` | **结构性 not-measured** | 0.5 (14/28) | 读 policy trace |
+| `M2.followed_where_control_chose_the_same` | **结构性 not-measured** | 0.429 (6/14) | 读 policy trace |
+| `M3.declines_per_refuted_round` | **结构性 not-measured** | 0 (0/8) | 读 policy trace |
+| `M4.refuted_and_still_governing` | **结构性 not-measured** | 1.0 (8/8) | 读 policy trace |
+| `M4.uncheckable_and_governing` | **未产生**（无对声明不可查） | 0.571 (4/7) | 读 policy trace |
+
+**读法**：模型席上**检索是真的**（M1 四行全部有读数），但**没有可归因于记忆的行为差异**，
+而**唯一一次出现的差异朝反方向走**（`M3` 0.5，1/2 对）。n=4 里只有 2 对：
+**这是存在性证明，不是样本**——MEM-1 自己的 `unit_note` 一直这么写。
+
+**两个席的表不可直接相比**，这一条写进产物而不是只写在这里：模型席的 reader 是随机的，
+两臂差在**记忆 + 抽样**；rule 席的 reader 是 `MemoryPolicy`，两臂**只**差在记忆。
+`pairs_run.json`、`pairs_measured.json` 与 `episodic_memory_MEM_1.json` 三处都带
+`planner` / `policy` / `model_config` 与一条 `seat_note`。
+
+### 16.2 这批自己撞出来的三件事
+
+**一、停止规则报了一次"界内通过"，而它什么都没量到。**第一版按"我传给 `run_group` 的那个
+目录"找账本，而 `run_group` 在它下面建带时间戳的子目录；glob 找到空树、求和 0、打印
+`spent 0, completed within bound`。这批**确实**在界内（**216 / 411**，余量 195，均值投影的
+91.1%），所以**界是靠投影的运气守住的，不是靠检查**。已改为按每批**自报的 run root** 读，
+且**读到 0 一律拒绝继续**——零读数是检查的失败，不是预算的胜利。与残留 13 同类：读数指错了
+地方。区别是**那个报成功**。
+
+**二、`M2.followed_round_share` 读出 `0/15`，那是编出来的负数。**那一行读
+`episode_summary.policy.trace`，由 `MemoryPolicy` 逐轮写下；模型席上 `policy=None`，
+**没有 policy 跑过，那条 trace 没人写**。实测：rule 席 **16/16** 集摘要带 `policy` 块
+（100 条 trace，14 条 `memory_followed` true），模型席 **0/14**。**0 读起来像证据，缺席的仪器
+不像**——这是本项目最危险的形状。而且不止两行：**5 行**读同一条 trace，把 M3/M4 报成 0
+是同一个编造的负数换了个名字。被抑制的格子**保留它本来在数什么**（`suppressed_as`），
+否则读者分不清"真的是 0"和"这个席没资格数"。
+
+**三、我把 v0.2 一条有意做的决定反转了，然后才发现。**v0.2 的契约写着"账本说跑了但盘上没有
+那一集，**必须拒绝**，不能拿活下来的配对去算一个率"。我第一版把 manifest 行直接当成运行，
+等于用**悄悄缩小分母**换掉了它防的东西——正是它要防的那个失败。两种顾虑都成立，而状态
+**可以分辨**，所以现在是三态：
+
+| 状态 | 判据 | 处理 |
+|---|---|---|
+| **跑了** | 有 episode 目录 | 进分母 |
+| **失败且有记录** | 根目录在、无 episode、**目标账本写了错** | 缺席，**并带上那个错**（429 那一批） |
+| **不明** | 根路径压根不存在 | 交给 reader；生产里 `read_pair` 会带路径名拒绝 |
+| **损坏**（不是状态，是拒绝） | 根目录在、无 episode、**什么都没记** | **拒绝**——v0.2 的拒绝原样保留，只收窄到它本来针对的**静默**情形 |
+
+MEM-1 那 2 集丢在第二种：目标解析五次 429 全败，所以根目录在、目标账本里有
+`HTTP Error 429: Too Many Requests` 与 `transport_attempts: 5`、没有 episode。
+
+### 16.3 花费
+
+| | 值 |
+|---|---|
+| 集 / store | 16 集（计划 16）/ 8 |
+| 实际拿到 episode | 14（2 集丢在目标解析的 429 上） |
+| **请求（发出）** | **216** / 界 411，余量 195 |
+| 请求（拿到回应） | 186 |
+| 什么都没返回 | **30**，跨 6 个错误行 |
+| prompt / completion | 553,603 / 12,262 |
+| 界怎么定的 | E1 实测逐集请求均值 14.81、最坏格 17.13；最坏格 × 16 × 1.5 = **411** |
+| 为什么取最坏格 | E1 有 707/3,292（21.5%）的请求什么都没返回，**限流才是决定这批拿到多少集的东西**；均值是 Mostly 在躲过限流的格上算出来的 |
+| （USD） | **`null`**，`pricing_configured: false` |
+
+### 16.4 留着的
+
+- **E2 的 `full`-on-VLM 分母仍是 2 对 4**（§9 残留 2）：相机通道对 `lh_c3` 不可运行，未修。
+- **E1 的 `L2.dependency_edge_violation 2/2`（n=2）与 `wo_replanning 9 > 8`（n=12）** 未追。
+- **这一行本身的残留**：n=2 对、且 2 对因限流缺席，所以它**不足以**支持任何关于
+  "模型用不用记忆"的肯定结论；它支持的是"**这条通道在模型席上可测**"。

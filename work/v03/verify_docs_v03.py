@@ -52,6 +52,7 @@ def run_gate(report, log):
     r_text = open(report, encoding="utf-8").read()
     l_text = open(log, encoding="utf-8").read()
     out = []
+    skipped = []
 
     # 1. every cited *artefact* resolves, and none of them is a /tmp address.
     #    Scope: backticked tokens that name a **file** under a root this project owns, or a
@@ -165,21 +166,45 @@ def run_gate(report, log):
                 and "not_executable" in r_text, ""))
     out.append(("the report says which decision sources are never merged",
                 "不合并" in r_text, ""))
-    out.append(("the report names the Memory group's structural not-measured reason",
-                "em-pairs" in r_text and "没有 `--planner`" in r_text.replace("`--planner`",
-                                                                           "没有 `--planner`"),
+    # The Memory group was the one row v0.3 could not close: no `--planner` on the pair protocol,
+    # so M1–M4 had no model-seat reading. P6 closed it, so this check now verifies *both* halves —
+    # the structural reason the gap existed, and the reading that replaced it. Checking only the
+    # old reason would keep passing after the row was fixed, which is the shape of a check that
+    # stops meaning anything.
+    #
+    # The phrase is looked for with backticks *stripped*, not substituted. The first version did
+    # `r_text.replace("`--planner`", "没有 `--planner`")` to paper over the backticked form, which
+    # meant it inserted the phrase it was about to test for: the condition was true whenever the
+    # report mentioned `--planner` at all, so the check could not fail. The mutation runner found
+    # it (work/v03/p6e_gate_mutation.py) after four other removals turned a check red.
+    flat = r_text.replace("`", "")
+    out.append(("the report names the Memory group's structural gap AND its model-seat reading",
+                "em-pairs" in flat and "没有 --planner" in flat
+                and "MEM-1" in r_text and "216" in r_text and "411" in r_text,
+                "row 2 moved from 部分达成 to 达成, so the gate must check the reading too"))
+    out.append(("the report says the 5 policy-trace rows are not-measured on a model seat, not 0",
+                "policy.trace" in r_text and "编出来的负数" in r_text,
                 ""))
 
     # 6. this gate does not quote the v0.2 gate's own live digest in a deliverable.
     #    (The check's name used to say the opposite of what it tests — "quotes the digest"
     #    while the assertion forbade the digest. A check whose name lies about its own
     #    condition is worse than no check: a reader trusts the name and skips the body.)
+    #
+    #    The check used to live inside `if os.path.exists(V02_GATE)`, so when the v0.2 gate file
+    #    went away the check **silently disappeared** and the total fell from 17 to 16 with every
+    #    line still green. A gate whose count depends on a file nobody is watching is a gate whose
+    #    count cannot be trusted, so an absent input is now reported as a check that could not
+    #    run, and the summary prints the skipped ones.
     if os.path.exists(V02_GATE):
         d = hashlib.sha256(open(V02_GATE, "rb").read()).hexdigest()[:16]
         out.append(("no deliverable quotes the v0.2 gate's digest or its file (H-48 #147)",
                     d not in r_text + l_text and V02_GATE not in r_text + l_text,
                     f"forbidden: digest {d}, file {V02_GATE}"))
-    return out
+    else:
+        skipped.append(f"H-48 #147: the v0.2 gate is not at {V02_GATE}, so its live digest could "
+                       f"not be computed and this check did not run")
+    return out, skipped
 
 
 def main():
@@ -192,7 +217,8 @@ def main():
     print(f"report: {report}  ({os.path.getsize(report)} bytes)")
     print(f"log   : {log}  ({os.path.getsize(log)} bytes)")
     print()
-    for label, ok, detail in run_gate(report, log):
+    checks, skipped = run_gate(report, log)
+    for label, ok, detail in checks:
         check(label, ok, detail)
 
     # non-vacuity: the same battery against a deliberately broken copy
@@ -205,7 +231,7 @@ def main():
         "2f1c74f52e91", "DEADBEEF")
     open(broken, "w", encoding="utf-8").write(text)
     bit = 0
-    for label, ok, _d in run_gate(broken, log):
+    for label, ok, _d in run_gate(broken, log)[0]:
         if not ok:
             bit += 1
             print(f"  bites: {label}")
@@ -213,9 +239,17 @@ def main():
     check("the battery bites when the report is broken", bit >= 3,
           f"{bit} checks went red on the broken copy")
 
+    if skipped:
+        print()
+        print("=== checks that could not run ===")
+        for note in skipped:
+            print(f"  SKIPPED {note}")
+        print("  (a check that silently stops running is how a gate's count stops meaning "
+              "anything — this is printed, not dropped)")
+
     red = [r for r in results if not r[1]]
     print()
-    print(f"RESULT: {len(results)} checks run -> "
+    print(f"RESULT: {len(results)} checks run ({len(skipped)} could not run) -> "
           f"{'ALL CLOSED' if not red else str(len(red)) + ' FAILED'}")
     for label, _ok, detail in red:
         print(f"  FAILED {label}  | {detail}")
