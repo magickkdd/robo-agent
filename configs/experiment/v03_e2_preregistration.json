@@ -1,0 +1,127 @@
+{
+  "artefact_directory": "/home/czx/embodied-agent-batches/v03/e2",
+  "channel_design": {
+    "privileged": "the control shape from the same case list, arm `wo_vlm`",
+    "stub": "§9's limited semantic baseline: colour segmentation on the same PNG, no request, arm `wo_vlm`. Zero cost, and the row it gives is what makes a `full`-on-VLM difference attributable to the vision model rather than to the camera",
+    "vlm": "the channel under test: one vision request per look, and the arm is `full` because a model was consulted"
+  },
+  "command_shape": [
+    "python -m embodied_agent.cli evaluate",
+    "--set <set>",
+    "--planner rule",
+    "--modes B",
+    "--repeats <n>",
+    "--out-root <archive>/e2/<cell>",
+    "--perceive vlm",
+    "--ablation full",
+    "--experience-store <cell>/store.jsonl",
+    "--skill-memory <cell>/lib.jsonl",
+    "--model-config configs/models/agnes-vision-r4.yaml",
+    "--frozen"
+  ],
+  "credentials": "never recorded; a config names the env var, not the key (SPEC 7)",
+  "decided_by": {
+    "D1": "E2 seat = configs/models/agnes-vision-r4.yaml, after three measured rejections of sensenova and one measured acceptance by agnes",
+    "D2": "probe batch first, formal scale decided from its readings"
+  },
+  "entry_point": "python -m embodied_agent.cli evaluate",
+  "experiment": "E2 — the first `perception` records on a legal main-cli batch (SPEC §6 E2, §9 P3')",
+  "formal_scale": "DECIDED FROM THE PROBE READINGS, before the formal batch runs; not pre-approved here, because D2 said the probe decides it",
+  "identity": {
+    "dirty": true,
+    "dirty_diff_sha256": null,
+    "git_commit": "717fd5f6931b46e9ebc45ce79c457a266ab9ea56",
+    "note": "these three pre-registrations are written *after* the commit they name, so `dirty` is true here and the difference is exactly these files plus the P0' drivers under work/v03/. They are committed next, and the batch they govern runs from a clean tree, so every manifest written by that batch names a real commit with `dirty: false`. Nothing here is written after its own batch starts.",
+    "untracked_code": {
+      "files": 0,
+      "prefixes": [
+        "embodied_agent/"
+      ],
+      "sha256": null
+    }
+  },
+  "probe_batch_measured": {
+    "artefact": "/home/czx/embodied-agent-batches/v03/e2_probe/",
+    "both_episodes_finished": false,
+    "completion_tokens": 8254,
+    "http_429": 2,
+    "latency_s_range": [
+      2.352,
+      11.811
+    ],
+    "model_calls_rows": 23,
+    "ok": 21,
+    "perception_records": 20,
+    "prompt_tokens": 29736,
+    "requests": 23,
+    "shape": "1 task set x {vlm} x 2 repeats (lh_c1_shared_pair_restore)",
+    "why_not": "one died on the camera arm's state_version divergence (fixed in 717fd5f), one died on 429; the record surface and the Cost columns were already readable, which is what the probe was for"
+  },
+  "schema_freeze": {
+    "fingerprint": {
+      "ablation_registry_sha256": "db486f631dedbc48780992a9307facbefa6c03a49e9e84cf85e9528964a88a08",
+      "all_records_sha256": "ac2f73562cfb4e6a3bf80a5b6a91118bb8d13e0a979c63759f47c5f65093e17f",
+      "event_types_sha256": "58f691b89e8c8da7f890473d40bbbadce150fcbbfdd99c24939e010958a393a5",
+      "module_sha256": "65f2b2402c192a1b5e19456664487dc8f193241e9921050448cd7dc1683ba5f1",
+      "records_sha256": "112b2df87820f870e3bf15f20c6717d4d7de472eac3103e2bbff6dcc419c6a38",
+      "schema_version": "4",
+      "v01_schema_version": "3"
+    },
+    "fingerprint_matches_code": true,
+    "n_ablation_conditions": 7,
+    "n_event_types": 15,
+    "re_freeze": "not done and not permitted this phase (SPEC §12); a product change that moved any of these would have had to stop and ask"
+  },
+  "sealed_config_checks": [
+    {
+      "cmd": "cli freeze --check",
+      "rc": 0,
+      "said": "pybullet build time: Jan 29 2025 23:17:20"
+    },
+    {
+      "cmd": "cli prereg --check",
+      "rc": 0,
+      "said": "pybullet build time: Jan 29 2025 23:17:20"
+    },
+    {
+      "cmd": "cli em-pairs --check",
+      "rc": 0,
+      "said": "pybullet build time: Jan 29 2025 23:17:20"
+    }
+  ],
+  "seat": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url": "https://api.agnes-ai.cn/v1",
+    "config": "configs/models/agnes-vision-r4.yaml",
+    "config_sha256": "8b03b39306e9d06efc76ae7bb5672e93d714820ab6ac85c80fe4fce1bd558b26",
+    "declared_capabilities": [
+      "text",
+      "vision"
+    ],
+    "model": "agnes-2.5-flash",
+    "provider": "agnes",
+    "why_this_subject": {
+      "agnes-2.5-flash": "finish_reason=stop, no reasoning tokens, 1,098 chars of valid JSON, completion 477 — under its own configured 1,200",
+      "artefact": "/home/czx/embodied-agent-batches/v03/p0_seat_probes/e2_budget_measurement.json",
+      "sensenova-6.8-flash-lite": "finish_reason=length and raw_chars=0 at max_tokens 1,200 / 4,096 / 16,384 on the production perception prompt, each time spending the whole budget on reasoning_tokens"
+    }
+  },
+  "spec": "Continuous-Decision-Embodied-Agent-SPEC-v0.3.md",
+  "spec_8_four_cells": {
+    "call_upper_bound": {
+      "how": "one vision request per look; a look is a round-boundary measurement, so the count follows the episode length and is capped by the frozen budget, never by this file",
+      "value": "per-episode: the task table's own `max_http_requests` (32 for lh_c1); the batch total is set once the formal scale is decided below"
+    },
+    "checkpoint_strategy": "cell by cell, same as E1; the ledger row is written per request including `ok=false` ones, so a stopped batch is still a billable record",
+    "stop_rules": [
+      "3 consecutive requests dying of 429 / quota -> stop, keep the breakpoint, record it (SPEC §8.2)",
+      "the episode's own `max_http_requests` reached -> that episode's termination is a result, not an incident"
+    ],
+    "unit_price": {
+      "pricing_configured": false,
+      "usd": null,
+      "why": "free tier, no price configured; the ledger rows carry per-call tokens and latency instead (SPEC §7.1)"
+    }
+  },
+  "written_by": "work/v03/write_prereg.py (no number in these files is hand-typed)"
+}

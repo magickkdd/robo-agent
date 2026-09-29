@@ -1,0 +1,167 @@
+{
+  "arms": [
+    "full",
+    "wo_planning",
+    "wo_working_memory",
+    "wo_replanning",
+    "wo_episodic_memory",
+    "wo_skill_acquisition"
+  ],
+  "arms_evidence": "read off P5-c's own 12 cell directories and /tmp/p5c/matrix.json, not off the report's prose (work/v03/p5c_arms.py)",
+  "artefact_directory": "/home/czx/embodied-agent-batches/v03/e1",
+  "artefact_rule": "not /tmp, not a single point: each cell keeps its own directory, the batch writes a summary (episodes / armed / asked-the-model / billed totals) and that summary is the source line for the v0.3 report (SPEC §4.12, §8.5)",
+  "cells": 12,
+  "command_shape": [
+    "python -m embodied_agent.cli evaluate",
+    "--set <long_horizon|em>",
+    "--planner deepseek",
+    "--modes B",
+    "--repeats 2",
+    "--out-root <archive>/e1/<set>_<arm>",
+    "--perceive privileged",
+    "--ablation <arm>",
+    "--experience-store <cell>/store.jsonl",
+    "--skill-memory <cell>/library.jsonl",
+    "--model-config configs/models/bst_text_agnes.yaml",
+    "--frozen",
+    "--no-frames"
+  ],
+  "credentials": "never recorded; a config names the env var, not the key (SPEC 7)",
+  "decided_by": {
+    "D1": "E1 seat = configs/models/bst_text_agnes.yaml",
+    "D2": "upper bound 2,500 approved; measured bound below",
+    "D4": "v0.2 work tree committed and tagged",
+    "D5": "road A"
+  },
+  "deviations_from_the_spec_text": [
+    {
+      "does_not_change": "the seat: `--model-config` still names the subject, and `deepseek` is the value that means 'a real model decides'",
+      "spec": "§6 E1: `--planner model`",
+      "used": "--planner deepseek",
+      "why": "the main cli's enum is ('rule','fixture','deepseek') (evaluation/run.py:PLANNERS); `model` is the benchmark_mujoco spelling. Measured: the CLI refuses an unknown planner by name."
+    },
+    {
+      "does_not_change": "the 12 cells / 168 episodes shape",
+      "spec": "§6 E1 lists wo_vlm as the sixth privileged arm",
+      "used": "wo_skill_acquisition",
+      "why": "cli._perception_kwargs accepts wo_vlm on `privileged` and then DROPS it (cli.py:283-288): the run becomes the unarmed v0.1 baseline with no `ablation` record, because a privileged world consulted no vision model. Measured: the runnable set is named by the code as SKILL_ARMS, and it is P5-c's set. §7.3 requires E1's rows to sit beside P5-c's rule rows, which needs the arm names to match literally, and SKILL-1 measures 6 batches."
+    },
+    {
+      "does_not_change": "what the page offers: --experience-store still installs §5.4, so the arm switch still gates the information, and only the reader changes (a model instead of MemoryPolicy)",
+      "spec": "P5-c used --policy memory",
+      "used": "omitted",
+      "why": "evaluation/run.py:645 refuses `payload`/`memory` with a model planner — it is the zero-spend control for mode B and a batch with a model planner already has its decision maker."
+    }
+  ],
+  "entry_point": "python -m embodied_agent.cli evaluate",
+  "episodes_total": 168,
+  "experiment": "E1 — the 12 cells with a model decision source (SPEC §6 E1, §9 P2')",
+  "identity": {
+    "dirty": true,
+    "dirty_diff_sha256": null,
+    "git_commit": "717fd5f6931b46e9ebc45ce79c457a266ab9ea56",
+    "note": "these three pre-registrations are written *after* the commit they name, so `dirty` is true here and the difference is exactly these files plus the P0' drivers under work/v03/. They are committed next, and the batch they govern runs from a clean tree, so every manifest written by that batch names a real commit with `dirty: false`. Nothing here is written after its own batch starts.",
+    "untracked_code": {
+      "files": 0,
+      "prefixes": [
+        "embodied_agent/"
+      ],
+      "sha256": null
+    }
+  },
+  "instruments_to_rerun_unchanged": [
+    "cli report --run-dir <cell> --json-only  (12x)",
+    "evaluation.long_horizon <6 lh dirs> --out ... --reference full  (LH-2)",
+    "cli em-pairs --run <dir> then --memory-metrics <dir>  (MEM-1)",
+    "cli skill-metrics --measure <6 lh dirs> --out ...  (SKILL-1)"
+  ],
+  "per_cell_acceptance": [
+    "manifest identity (provider / model / planner) equals the seat above",
+    "model_calls.jsonl non-empty",
+    "run_error bucketed into 429 / quota / other; the first two are environment errors and are not read as an arm effect (SPEC §6 E1)",
+    "armed => asked the model > 0 per cell — the count that was 575/0 in the v0.2 arm domain and must flip here"
+  ],
+  "schema_freeze": {
+    "fingerprint": {
+      "ablation_registry_sha256": "db486f631dedbc48780992a9307facbefa6c03a49e9e84cf85e9528964a88a08",
+      "all_records_sha256": "ac2f73562cfb4e6a3bf80a5b6a91118bb8d13e0a979c63759f47c5f65093e17f",
+      "event_types_sha256": "58f691b89e8c8da7f890473d40bbbadce150fcbbfdd99c24939e010958a393a5",
+      "module_sha256": "65f2b2402c192a1b5e19456664487dc8f193241e9921050448cd7dc1683ba5f1",
+      "records_sha256": "112b2df87820f870e3bf15f20c6717d4d7de472eac3103e2bbff6dcc419c6a38",
+      "schema_version": "4",
+      "v01_schema_version": "3"
+    },
+    "fingerprint_matches_code": true,
+    "n_ablation_conditions": 7,
+    "n_event_types": 15,
+    "re_freeze": "not done and not permitted this phase (SPEC §12); a product change that moved any of these would have had to stop and ask"
+  },
+  "sealed_config_checks": [
+    {
+      "cmd": "cli freeze --check",
+      "rc": 0,
+      "said": "pybullet build time: Jan 29 2025 23:17:20"
+    },
+    {
+      "cmd": "cli prereg --check",
+      "rc": 0,
+      "said": "pybullet build time: Jan 29 2025 23:17:20"
+    },
+    {
+      "cmd": "cli em-pairs --check",
+      "rc": 0,
+      "said": "pybullet build time: Jan 29 2025 23:17:20"
+    }
+  ],
+  "seat": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url": "https://api.agnes-ai.cn/v1",
+    "config": "configs/models/bst_text_agnes.yaml",
+    "config_sha256": "2001812082bbd3f7431ba8099da3bfd8a51abfb7438701d14f30c4c9a7b2141a",
+    "declared_capabilities": [
+      "text"
+    ],
+    "model": "agnes-2.5-flash",
+    "provider": "agnes",
+    "seat_probe": {
+      "artefact": "/home/czx/embodied-agent-batches/v03/p0_seat_probes/seat_probe_bst_text_agnes_text.json",
+      "completion_tokens": 6,
+      "finish_reason": "stop",
+      "http_requests": 1,
+      "prompt_tokens": 98,
+      "raw_chars": 12,
+      "verdict": "OK_NON_EMPTY_BODY"
+    }
+  },
+  "sets": {
+    "em": {
+      "cases": 8,
+      "episodes": 16
+    },
+    "long_horizon": {
+      "cases": 6,
+      "episodes": 12
+    }
+  },
+  "spec": "Continuous-Decision-Embodied-Agent-SPEC-v0.3.md",
+  "spec_8_four_cells": {
+    "call_upper_bound": {
+      "approval": "D2 approved 2,500; the measured bound is 2484 and the approved number is above it",
+      "artefact": "/home/czx/embodied-agent-batches/v03/p0_preflight/e1_budget_basis.json",
+      "how": "P5-c's `decision` records re-counted per cell ({\"em\": 600, \"long_horizon\": 888}) plus one goal parse per episode ({\"em\": 96, \"long_horizon\": 72}) = 1656; x1.5 headroom = 2484. The v0.2 report §8 A1 quotes the same 1,656 and the same formula; it is re-measured here rather than quoted twice.",
+      "value": 2484
+    },
+    "checkpoint_strategy": "advance cell by cell; write a cell-level summary the moment a cell finishes; a restart resumes only unfinished cells, and a paid cell is never re-run (SPEC §8.3 — v0.2 report §8 F: a repeated id is a second row, not an overwrite)",
+    "stop_rules": [
+      "3 consecutive requests dying of 429 / quota -> stop the batch, keep the breakpoint, record it (SPEC §8.2)",
+      "the upper bound is hit -> stop; 'a little more' is not a rule",
+      "a single episode hitting the task table's own budget is a normal termination, not an incident (SPEC §8.2)"
+    ],
+    "unit_price": {
+      "pricing_configured": false,
+      "usd": null,
+      "why": "the endpoint is a free tier and no price is configured, so `api_cost_estimate` / `cost_estimate_usd` stay null (SPEC §7.1). Request counts, prompt/completion tokens and per-call latency are reported instead; a number here would be invented."
+    }
+  },
+  "written_by": "work/v03/write_prereg.py (no number in these files is hand-typed)"
+}

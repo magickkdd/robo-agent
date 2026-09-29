@@ -1,0 +1,86 @@
+{
+  "acceptance": [
+    "the read episode on the `full` arm files a non-empty `memory_retrieval` and `store_size` grows with pair order",
+    "the `wo_episodic_memory` arm files zero `memory_*` records and passes `Ablation.violations()`",
+    "every episode's `episode_summary.json` carries the `episodic` block",
+    "the offline `experience_from_episode` re-derivation equals the online row field for field (H-58's criterion, re-checked on a batch rather than a test)"
+  ],
+  "answer": "RQ6. A negative answer (no measurable reuse) is kept and explained, as v0.2 §15 requires; MEM-1's conclusion does not transfer automatically because the channel, the predicate shape and the world-reset semantics all differ (SPEC §3 RQ6)",
+  "artefact_directory": "/home/czx/embodied-agent-batches/v03/e3",
+  "artefact_rule": "zero spend, so the §4.12 argument is about reproducibility rather than about money: still not /tmp, still a summary",
+  "command_shape": [
+    "python -m embodied_agent.benchmark_mujoco run",
+    "--task peg-insert-side-v3",
+    "--layouts <seed_layout> then <read_layout>",
+    "--ablation <full|wo_episodic_memory>",
+    "--perceive privileged",
+    "--planner rule",
+    "--experience-store <pair>/store.jsonl",
+    "--out <archive>/e3/<pair>_<arm>"
+  ],
+  "cost": {
+    "billed_calls": 0,
+    "why": "`--planner rule --perceive privileged` makes no request; the point of E3 is that the arm is measurable with no model in the seat"
+  },
+  "credentials": "never recorded; a config names the env var, not the key (SPEC 7)",
+  "decided_by": {
+    "D3": "the text-channel arm (E5) is authorised; E3 is independent of it",
+    "D5": "road A — E3 is one of the three pillars and costs nothing"
+  },
+  "design": {
+    "K_default_reason": "SPEC §6 E3 sets K=4 and allows the pre-registration to change it; 4 matches MEM-1's 4 so the two are read side by side",
+    "near_transfer": "across layouts (task_index 0 -> 1), which is the transfer MEM-1 asks about and is the only kind this channel has: it ships one task vocabulary (`TASKS` holds peg-insert-side-v3 alone) and several layouts, so a 'later similar task' is a different layout, not a different task",
+    "pairs_K": 4,
+    "replication_pair": "same layout, different seed",
+    "within_a_pair": "seed first, then read, sharing one store"
+  },
+  "entry_point": "python -m embodied_agent.benchmark_mujoco run",
+  "experiment": "E3 — episodic memory on the continuous-control channel (MuJoCo), answering RQ6 (SPEC §6 E3, §9 P1')",
+  "identity": {
+    "dirty": true,
+    "dirty_diff_sha256": null,
+    "git_commit": "717fd5f6931b46e9ebc45ce79c457a266ab9ea56",
+    "note": "these three pre-registrations are written *after* the commit they name, so `dirty` is true here and the difference is exactly these files plus the P0' drivers under work/v03/. They are committed next, and the batch they govern runs from a clean tree, so every manifest written by that batch names a real commit with `dirty: false`. Nothing here is written after its own batch starts.",
+    "untracked_code": {
+      "files": 0,
+      "prefixes": [
+        "embodied_agent/"
+      ],
+      "sha256": null
+    }
+  },
+  "schema_freeze": {
+    "fingerprint": {
+      "ablation_registry_sha256": "db486f631dedbc48780992a9307facbefa6c03a49e9e84cf85e9528964a88a08",
+      "all_records_sha256": "ac2f73562cfb4e6a3bf80a5b6a91118bb8d13e0a979c63759f47c5f65093e17f",
+      "event_types_sha256": "58f691b89e8c8da7f890473d40bbbadce150fcbbfdd99c24939e010958a393a5",
+      "module_sha256": "65f2b2402c192a1b5e19456664487dc8f193241e9921050448cd7dc1683ba5f1",
+      "records_sha256": "112b2df87820f870e3bf15f20c6717d4d7de472eac3103e2bbff6dcc419c6a38",
+      "schema_version": "4",
+      "v01_schema_version": "3"
+    },
+    "fingerprint_matches_code": true,
+    "n_ablation_conditions": 7,
+    "n_event_types": 15,
+    "re_freeze": "not done and not permitted this phase (SPEC §12); a product change that moved any of these would have had to stop and ask"
+  },
+  "sealed_config_checks": [
+    {
+      "cmd": "cli freeze --check",
+      "rc": 0,
+      "said": "pybullet build time: Jan 29 2025 23:17:20"
+    },
+    {
+      "cmd": "cli prereg --check",
+      "rc": 0,
+      "said": "pybullet build time: Jan 29 2025 23:17:20"
+    },
+    {
+      "cmd": "cli em-pairs --check",
+      "rc": 0,
+      "said": "pybullet build time: Jan 29 2025 23:17:20"
+    }
+  ],
+  "spec": "Continuous-Decision-Embodied-Agent-SPEC-v0.3.md",
+  "written_by": "work/v03/write_prereg.py (no number in these files is hand-typed)"
+}
