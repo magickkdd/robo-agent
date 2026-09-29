@@ -487,7 +487,8 @@ def build_perceiver(*, case, scene, run_dir: str, episode_id: str, perceive: str
                     adapter=None, out_dir: Optional[str] = None,
                     default_view: str = "main", views: Optional[Iterable[str]] = None,
                     task: Optional[TaskContext] = None, catalog=None,
-                    gmap: Optional[GroundingMap] = None) -> tuple["Perceiver", GroundingMap]:
+                    gmap: Optional[GroundingMap] = None,
+                    on_call=None) -> tuple["Perceiver", GroundingMap]:
     """Assemble one episode's camera, and hand back the grounding table it reads through.
 
     P5 joins the camera channel to the memory and acquisition arms, and those builders are given a
@@ -504,6 +505,14 @@ def build_perceiver(*, case, scene, run_dir: str, episode_id: str, perceive: str
     the caller's side of that line. `build_arm` has always been handed a catalogue; this function
     keeps the same rule and says so when it is not given one.
 
+    `on_call` is the batch's request ledger. `VLMReader` has always built a row for every vision
+    request it made — the row, not just the answer — and `observe.py:_file_row` returns at once when
+    it is handed nothing, so a caller that left this at `None` had a camera arm whose spending was
+    measurable in memory and absent from disk. That is v0.2 residual #109, and it is why a real
+    `--perceive vlm` episode on the main cli billed a 4096-token generation, died on the zero-body
+    refusal, and left no `model_calls.jsonl` row behind: the Cost group would have had a
+    denominator of zero for a batch that spent. A `stub` channel ignores it (it makes no request).
+
     The map is *returned* because the caller has to give the same object to the runtime: two
     `GroundingMap.from_objects` calls would agree today and drift tomorrow, and the drift would show
     up as a percept grounding onto a body the plan cannot name.
@@ -515,7 +524,7 @@ def build_perceiver(*, case, scene, run_dir: str, episode_id: str, perceive: str
         not_ready = channel_readiness("vlm", adapter)
         if not_ready:
             raise ValueError("; ".join(not_ready))
-        reader = VLMReader(adapter)
+        reader = VLMReader(adapter, on_call=on_call)
     elif perceive == "privileged":
         raise ValueError("a privileged world has no camera to build: `perceive='privileged'` "
                          "means the loop reads simulator state, and a perceiver over the same "
@@ -561,7 +570,7 @@ def build_arm(*, case, scene, executor, store, run_dir: str, episode_id: str, pe
               catalog, gmap: GroundingMap, budgets: Budgets, environment=None,
               ablation=None, adapter=None, out_dir: Optional[str] = None,
               default_view: str = "main", views: Optional[Iterable[str]] = None,
-              task: Optional[TaskContext] = None) -> Runtime:
+              task: Optional[TaskContext] = None, on_call=None) -> Runtime:
     """The one place an arm is assembled, so a runner cannot build a half-switched loop.
 
     `perceive='privileged'` returns the base `Runtime`: P1-e adds nothing to that path, and
@@ -576,7 +585,7 @@ def build_arm(*, case, scene, executor, store, run_dir: str, episode_id: str, pe
     perceiver, gmap = build_perceiver(case=case, scene=scene, run_dir=run_dir,
                                       episode_id=episode_id, perceive=perceive, adapter=adapter,
                                       out_dir=out_dir, default_view=default_view, views=views,
-                                      task=task, catalog=catalog, gmap=gmap)
+                                      task=task, catalog=catalog, gmap=gmap, on_call=on_call)
     arm = arm_for_channel(perceive, ablation)
     rt = PerceptRuntime(scene, executor, run_dir, budgets, episode_id, perceiver=perceiver,
                         gmap=gmap, ablation=arm, config=case.verify, environment=environment,

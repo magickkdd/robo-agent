@@ -1,27 +1,30 @@
 schema_version: "1"
-# E2 的视觉席（SPEC-v0.3 §14 D1 修正，用户 2026-09-28 裁定"新建"）。
-# **与 `sensenova-vision.yaml` 逐字只差 `max_tokens` 一行**：该文件的字节属于附录 H 已跑完的
-# 批次（每份 manifest 里都记着它的 `config_sha256`），所以按它自己第 2-4 行立下的规矩另立新文件，
+# **本文件不是 E2 的席。** 它是一份具名负结果：这份席能看 trivial 的图，看不了生产
+# `PERCEPTION_SYSTEM` 那一段提示。E2 的席是 `agnes-vision.yaml`（用户 2026-09-29 裁定）。
+#
+# 写下这段是因为本文件自己的上一版头部写着"E2 的视觉席"，而那句话在两次测量之后就不成立了。
+# 一份配置对自己的角色说错话，比没有这份配置更糟：读者会照着它去配 E2。
+# **与 `sensenova-vision.yaml` 逐字只差 `max_tokens` 一行**（那份的字节属于附录 H 已跑完的批次，
+# 每份 manifest 里都记着它的 `config_sha256`），所以按它自己第 2-4 行立下的规矩另立文件、
 # 不就地改。不臆造端点：provider / base_url / model / capabilities 全部照抄被量过的那一份。
 #
-# 为什么需要这个文件（本轮实测，产物与读数都在
-# /home/czx/embodied-agent-batches/v03/p0_seat_probes/）：
-#   席位探针 `seat_probe_sensenova-vision_vision.json`
-#     max_tokens=1200 -> HTTP 200，finish_reason=**length**，raw_chars **0**，
-#     content_field_present **false**，usage.completion_tokens 1200 且
-#     completion_tokens_details.reasoning_tokens **1200**（推理把预算吃满，正文一个字符没吐）。
-#     这正是 SPEC-v0.3 §6 E1 里点名要量的那个死法："finish_reason=length 配 0 字符正文"。
-#   诊断 `seat_diagnosis_sensenova-vision.json`（两次计费调用，逐格如下）
-#     文本 @1200 -> stop，raw_chars 14（`{"ok": true}`），reasoning 14
-#     视觉 @4096 -> stop，raw_chars **31**（`{"shape": "cube", "ok": true}`），
-#                  usage completion 213 / reasoning_tokens 199，prompt 428
-#   ⇒ 端点与这个 id 都能看图（诊断 A 类：不是路由级缺席，是**预算与推理长度**的冲突）。
-#   帧：runs/gui/episodes/smoke_clean.B.r0/frame_001_pick.png，sha256 前缀 0c052e85d91ba44a。
+# 三次计费测量，提示逐字是生产那一对（`prompt_sha256()` = 8668a4af2d320e68…，
+# system 1032 字符 + user 678 字符），帧是渲染出来的 `look_0001_main.png`：
+#   max_tokens  1,200 -> finish_reason=length，reasoning_tokens **1200/1200**，raw_chars **0**
+#   max_tokens  4,096 -> finish_reason=length，reasoning_tokens **4096/4096**，raw_chars **0**
+#   max_tokens 16,384 -> finish_reason=length，reasoning_tokens **16384/16384**，raw_chars **0**
+#   ⇒ 把预算调大这条路走不通：不是预算不够，是这个模型在这一段提示上不终止推理。
+#     每档都 HTTP 200、每档都花了 completion token、每档都一个字没给。
+# 产物：/home/czx/embodied-agent-batches/v03/p0_seat_probes/e2_budget_measurement.json
+#      （以及同目录 seat_probe_* / seat_diagnosis_* 两份，对应 trivial 提示下它是能答的）
 #
-# 风险要说清楚：4096 是**上界**，不是每帧的用量。同一批帧里推理跑得短的请求只用掉其中一小部分
-# （上表 213），跑得长的会一直用满到 4096。因此 E2 的 Cost 组里 completion tokens 的离散度
-# 本身是一条读数，报告里不得用均值掩盖它；而"零正文率"在 1200 那份配置下不为 0，
-# 在这份配置下**应当**为 0，若不为 0 那是新事实，不许解释成能力。
+# 对照组（同一提示、同一帧、一次调用）：`agnes-vision.yaml` -> finish_reason=stop、
+# 无推理 token、raw_chars 1098 的合法 JSON、completion 477（含 475 image token）、
+# 墙钟 4.2 s ⇒ 问题在这个被试，不在这段提示、不在主 CLI、也不在预算。
+#
+# 那两次"trivial 提示下能答"的测量也留在上面，它们不是错的，只是外推不了：一份探针只
+# 证明了它在自己那句话上是活的。这条本轮用三个预算档位买下来的教训，写在这里是因为
+# 下一次有人要挑视觉席时，摆在面前的是这两个数，而不是"商汤能看图"这句话。
 provider: sensenova
 api_key_env: SENSENOVA_API_KEY   # 只记录变量名；密钥本身只在环境变量/仓库内 .env（SPEC 7）
 base_url: https://token.sensenova.cn/v1

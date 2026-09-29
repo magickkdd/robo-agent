@@ -792,6 +792,8 @@ class DeepSeekPlanner:
         meta["clarification_request"] = (raw or {}).get("clarification_request")
         return plan, meta
 
+    # ---------- construction ----------
+    @classmethod
     def from_env(cls, model_config_path: str | None = None) -> "DeepSeekPlanner":
         """configs/models/*.yaml holds the *name* of the env var holding the key;
         the key itself never enters configs, snapshots, prompts or logs (SPEC 7)."""

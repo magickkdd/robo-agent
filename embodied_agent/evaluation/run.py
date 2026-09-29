@@ -350,6 +350,31 @@ def run_one_episode(case: TaskCase, repeat: int, mode: str, resolution: GoalReso
         executor = _FramedExecutor(scene, world_provider=lambda: None,
                                    frame_dir=ep_dir if frames else None, config=case.verify)
         store = EpisodeStore(ep_dir, episode_id)
+
+        def log_call(payload, latency_s):
+            """The episode's request ledger. One file, one row shape, whatever asked.
+
+            Both writers land here: the decision source calls it with `(payload, latency_s)`,
+            and the camera's reader calls `log_perception_call` with a single row it has
+            already assembled. The second writer is v0.2 residual #109 — `VLMReader` built
+            that row for every vision request including the ones that died, and
+            `observe.py:_file_row` returned at once when handed no callback, so a real
+            `--perceive vlm` episode spent money and left the Cost group a denominator of
+            zero. A batch is billed from this file, so a request that does not appear here
+            did not happen as far as any later reading is concerned."""
+            _append_jsonl(os.path.join(ep_dir, "model_calls.jsonl"),
+                          {**payload, "latency_s": round(latency_s, 3),
+                           "episode_id": episode_id, "mode": mode, "case_id": case.task_id,
+                           "repeat": repeat, "recorded_at": time.time()})
+
+        def log_perception_call(row):
+            """The reader's one-argument callback, folded into the same ledger.
+
+            Its row already carries `latency_s` from the adapter's `_sent_meta`, plus the
+            per-call token deltas and the `#155` keys, so it is summed the same way a
+            decision row is; `ok=False` rows are the ones a refusal cost."""
+            log_call(row, float(row.get("latency_s") or 0.0))
+
         if perceive == "privileged" and ablation is None and experience_store is None \
                 and skill_memory is None:
             runtime = Runtime(scene, executor, ep_dir, case.budgets, episode_id,
@@ -409,7 +434,8 @@ def run_one_episode(case: TaskCase, repeat: int, mode: str, resolution: GoalReso
                                               episode_id=episode_id, perceive=perceive,
                                               adapter=adapter, views=views,
                                               catalog=cell_catalog(scene.trays.values()),
-                                              default_view=default_view)
+                                              default_view=default_view,
+                                              on_call=log_perception_call)
             channel_arm = arm_for_channel(perceive, ablation)
             if skill_memory is not None:
                 # Checked first for the reason the privileged branch above gives: the acquisition
@@ -447,14 +473,9 @@ def run_one_episode(case: TaskCase, repeat: int, mode: str, resolution: GoalReso
                                 gmap=GroundingMap.from_objects(case.objects),
                                 budgets=case.budgets, environment=controller,
                                 ablation=ablation, adapter=adapter, views=views,
-                                default_view=default_view)
+                                default_view=default_view,
+                                on_call=log_perception_call)
         executor.world_provider = runtime.observe
-
-        def log_call(payload, latency_s):
-            _append_jsonl(os.path.join(ep_dir, "model_calls.jsonl"),
-                          {**payload, "latency_s": round(latency_s, 3),
-                           "episode_id": episode_id, "mode": mode, "case_id": case.task_id,
-                           "repeat": repeat, "recorded_at": time.time()})
 
         source = make_source(mode, case, planner, runtime, resolution.goal, log_call,
                              policy=policy)
@@ -609,6 +630,23 @@ def _infra_row(case: TaskCase, repeat: int, mode: str, where: str, error: str,
 
 def _row_of(summary: dict) -> dict:
     return {**summary, "outcome": (summary.get("result") or {}).get("terminal_status", "unknown")}
+
+
+def _batch_is_offline(planner_kind: str, perceive: str) -> bool:
+    """Whether this batch can spend at all — asked of the batch, not of the decision seat.
+
+    It used to be `planner_kind != "deepseek"`, which is one half of the question. A
+    `--planner rule --perceive vlm` batch asks a vision model one question per look, so it
+    spends while its planner says `rule`; measured on this round, such a manifest reported
+    `offline: true` over a billed 4096-token generation. The Cost group is read off the
+    columns next to this flag, so a flag that under-reports spend corrupts the reading it
+    is supposed to qualify — the same argument §7 makes about not filing a VLM episode as
+    free.
+
+    `privileged` and `stub` consult no model, so they cost nothing whatever the planner is;
+    `vlm` always costs, and it is refused above unless a vision config was supplied, so by
+    the time this is asked the answer is yes."""
+    return perceive != "vlm" and planner_kind != "deepseek"
 
 
 def _api_key_env_of(model_config: str | None) -> str:
@@ -969,7 +1007,7 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
                    scoring_version="IndependentEvaluator/EvalSpec.tolerance_version",
                    frozen=freeze,
                    pre_registration=pre,
-                   offline=planner_kind != "deepseek",
+                   offline=_batch_is_offline(planner_kind, perceive),
                    model={"provider": getattr(planner, "provider", "rule"),
                           "model": getattr(planner, "model", "rule-interpreter"),
                           "prompt_version": getattr(planner, "prompt_version", "no-prompt"),
@@ -1030,7 +1068,7 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
                                      "case_id": case.task_id, "mode": mode, "repeat": repeat})
                 _write_rows(rows, root)
     stats = {"run_id": run_id, "root": root, "planned": len(rows), "rows": len(rows),
-             "planner": planner_kind, "offline": planner_kind != "deepseek",
+             "planner": planner_kind, "offline": _batch_is_offline(planner_kind, perceive),
              "cost_estimate_usd": (planner.cost_estimate() if planner else None),
              "outcomes": {}}
     for r in rows:
