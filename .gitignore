@@ -5,3 +5,18 @@ __pycache__/
 
 # a GLFW initialisation log from a failed GUI attempt; a runtime artefact, not evidence
 MUJOCO_LOG.TXT
+
+# Run artefacts. 8,461 files and 127.6 MB of episode ledgers, and they were tracked by mistake —
+# `.gitignore` alone does not undo that, so the history that already carries them is rewritten
+# for the public copy (see work/v03/p7_publish.sh); this entry stops them coming back.
+#
+# What is deliberately NOT ignored, because the project's own discipline treats these as the
+# record rather than as output: `docs/` (every report and phase log), `tests/` (the contracts),
+# `configs/` (including every pre-registration), and `work/v03/` (the measurement scripts that
+# produced the numbers). The batch artefacts themselves live outside the repository, under
+# /home/czx/embodied-agent-batches/, which is where SPEC §4.12 wants them.
+runs/
+whatever/
+outputs/
+.pytest_cache/
+
