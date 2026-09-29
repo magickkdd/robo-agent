@@ -170,11 +170,15 @@ def run_gate(report, log):
                                                                            "没有 `--planner`"),
                 ""))
 
-    # 6. this gate does not quote the v0.2 gate's own live digest in a deliverable
+    # 6. this gate does not quote the v0.2 gate's own live digest in a deliverable.
+    #    (The check's name used to say the opposite of what it tests — "quotes the digest"
+    #    while the assertion forbade the digest. A check whose name lies about its own
+    #    condition is worse than no check: a reader trusts the name and skips the body.)
     if os.path.exists(V02_GATE):
         d = hashlib.sha256(open(V02_GATE, "rb").read()).hexdigest()[:16]
-        out.append(("this document quotes the v0.2 gate's digest, not its file (H-48 #147)",
-                    d not in r_text + l_text, f"digest {d} must not appear in a deliverable"))
+        out.append(("no deliverable quotes the v0.2 gate's digest or its file (H-48 #147)",
+                    d not in r_text + l_text and V02_GATE not in r_text + l_text,
+                    f"forbidden: digest {d}, file {V02_GATE}"))
     return out
 
 

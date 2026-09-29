@@ -614,6 +614,125 @@ def goal_logger(root: str):
     return _log
 
 
+#: the per-episode request ledger's name. Named here because `batch_spend` below is about the
+#: two ledgers together and a driver should not have to spell the filename twice.
+LEDGER_NAME = "model_calls.jsonl"
+#: ... and the run-level one, which is where the goal parses go.
+GOAL_LEDGER_NAME = os.path.join("goal_resolutions", "goal_calls.jsonl")
+
+
+def batch_spend(run_root: str) -> dict:
+    """What a run root actually cost, from **both** of its ledgers.
+
+    A run's requests live in two files, and that is not a design choice so much as an
+    arithmetic fact: §7 bills the goal parse once per `(case, repeat)`, shared across the
+    modes, and it happens *before* any episode directory exists — so those rows cannot belong
+    to one episode and go to the run-level `goal_resolutions/goal_calls.jsonl`, while every
+    decision and every look goes to the episode's own `model_calls.jsonl`.
+
+    A driver that reads only the second file therefore **understates the batch**, and this was
+    measured rather than suspected on the v0.3 E1 batch: 2,936 requests from the per-episode
+    ledgers against 3,292 in the two ledgers together — 356 missing, 10.8%, all of it the goal
+    parses. The v0.3 report first put that gap at 281, which was wrong: 281 is what the
+    instrument's own counter said, and it was short by 75 for a separate reason (below), so
+    deriving the gap by subtraction imported the instrument's blind spot instead of measuring it.
+
+    A second, independent blind spot showed up in the same batch: **15 of the 262 goal parses
+    exhausted all five attempts and errored** (HTTP 429). Those rows carry no usage, so a reader
+    that tallies tokens sees no gap at all — tokens agreed with the instrument to the last unit.
+    But each of those rows still made 5 requests, and the provider's rate limiter is the actual
+    constraint on this channel. So there are two numbers and neither is "the" spend: 3,217
+    token-bearing requests, 3,292 requests made. The difference is exactly 15 x 5 = 75.
+
+    `http_requests_this_call` is the per-call figure and `http_requests_total` is a
+    **cumulative** counter carried on every row; summing the latter across rows counts each
+    request once per row after it — 187,279 against a true 2,936 on this batch, a 64x
+    overstatement. Both mistakes have been made on this project and both are named in the
+    docstrings of the callers that made them.
+
+    Tokens are nested under `usage`, not at the top level. The return carries the two ledgers
+    separately so a reader can see which file a number came from, and `http_requests` is their
+    sum — the number a bound has to be compared against.
+    """
+    import glob as _glob
+
+    def _rows(path):
+        if not os.path.exists(path):
+            return []
+        out = []
+        for line in open(path, encoding="utf-8"):
+            if not line.strip():
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        return out
+
+    def _tally(rows):
+        prompt = completion = http = calls = 0
+        failed_rows = failed_http = 0
+        for r in rows:
+            usage = r.get("usage") or {}
+            prompt += int(usage.get("prompt_tokens") or 0)
+            completion += int(usage.get("completion_tokens") or 0)
+            this_call = int(r.get("http_requests_this_call") or 0)
+            http += this_call
+            calls += 1
+            if r.get("error"):
+                # A row that ended in an error still made requests. On this provider those are
+                # 429s: they return nothing, so they carry no usage, but they did consume
+                # rate-limit quota — and that quota is what throttles the batch. Counting only
+                # the token-bearing rows understates the pressure the run actually created, so
+                # the two are reported separately and neither is presented as "the" spend.
+                failed_rows += 1
+                failed_http += this_call
+        lat = [float(r["latency_s"]) for r in rows if r.get("latency_s") is not None]
+        return {"rows": calls, "http_requests": http, "prompt_tokens": prompt,
+                "completion_tokens": completion, "errored_rows": failed_rows,
+                "errored_http_requests": failed_http,
+                "http_requests_successful": http - failed_http,
+                "latency_s_min": round(min(lat), 3) if lat else None,
+                "latency_s_max": round(max(lat), 3) if lat else None}
+
+    per_episode = []
+    for path in sorted(_glob.glob(os.path.join(run_root, "episodes", "*", LEDGER_NAME))):
+        t = _tally(_rows(path))
+        t["episode"] = os.path.basename(os.path.dirname(path))
+        per_episode.append(t)
+    goal = _tally(_rows(os.path.join(run_root, GOAL_LEDGER_NAME)))
+
+    def _sum(key):
+        return sum(t[key] for t in per_episode) + (goal[key] if key in goal else 0)
+
+    return {
+        "per_episode_ledgers": {
+            "files": len(per_episode),
+            "rows": sum(t["rows"] for t in per_episode),
+            "http_requests": sum(t["http_requests"] for t in per_episode),
+            "http_requests_successful": sum(t["http_requests_successful"] for t in per_episode),
+            "errored_rows": sum(t["errored_rows"] for t in per_episode),
+            "errored_http_requests": sum(t["errored_http_requests"] for t in per_episode),
+            "prompt_tokens": sum(t["prompt_tokens"] for t in per_episode),
+            "completion_tokens": sum(t["completion_tokens"] for t in per_episode),
+        },
+        "goal_parse_ledger": goal,
+        "http_requests": _sum("http_requests"),
+        "http_requests_successful": _sum("http_requests_successful"),
+        "errored_rows": _sum("errored_rows"),
+        "errored_http_requests": _sum("errored_http_requests"),
+        "prompt_tokens": _sum("prompt_tokens"),
+        "completion_tokens": _sum("completion_tokens"),
+        "per_episode": per_episode,
+        "note": "the batch's spend is the sum of both ledgers; the goal-parse rows are run-level "
+                "because §7 bills them once per (case, repeat), shared across modes, before any "
+                "episode directory exists. `http_requests` counts every request made, including "
+                "the ones that errored (429s: no usage, but rate-limit quota consumed); "
+                "`http_requests_successful` is the token-bearing subset. A bound is checked "
+                "against `http_requests` — a request that was throttled still happened.",
+    }
+
+
 def _infra_row(case: TaskCase, repeat: int, mode: str, where: str, error: str,
                wall_s: float, set_name: str, perceive: str = "privileged") -> dict:
     return {"episode_id": f"{case.task_id}.{mode}.r{repeat}", "case_id": case.task_id,
