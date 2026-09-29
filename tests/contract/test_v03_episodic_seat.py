@@ -310,3 +310,115 @@ def test_the_cli_will_not_accept_the_test_double_planner(tmp_path, monkeypatch):
 
 def test_the_arms_still_default_to_both():
     assert set(EM_ARMS) == {"full", "wo_episodic_memory"}
+
+
+# ------------------------------------------------------- the bound is enforced here ----
+# A pre-registration's bound is only real if the thing that spends enforces it. The check lives
+# in `run_episodic_pairs` rather than in a driver, and it is read with the two-ledger reader:
+# on E1, reading only the per-episode ledgers undercounted the batch by 356 requests, so a bound
+# checked against the smaller number is a bound checked against the wrong number.
+PAIR_A = {"pair_id": "p1", "condition": "c", "writer": "w", "reader": "r"}
+PAIR_B = {"pair_id": "p2", "condition": "c", "writer": "w", "reader": "r"}
+
+
+def _budgeted_ledger(out_root, per_episode_requests):
+    """A stub that writes ledgers whose cost the reader can actually see."""
+    def fake_run_group(set_name, **kw):
+        root = os.path.join(kw["out_root"], "episodes", "e1")
+        os.makedirs(root, exist_ok=True)
+        with open(os.path.join(root, "model_calls.jsonl"), "w", encoding="utf-8") as f:
+            for _ in range(per_episode_requests):
+                f.write(json.dumps({"http_requests_this_call": 1, "latency_s": 0.1,
+                                    "usage": {"prompt_tokens": 1, "completion_tokens": 1}}) + "\n")
+        g = os.path.join(kw["out_root"], "goal_resolutions")
+        os.makedirs(g, exist_ok=True)
+        with open(os.path.join(g, "goal_calls.jsonl"), "w", encoding="utf-8") as f:
+            f.write(json.dumps({"http_requests_this_call": 1, "latency_s": 0.1,
+                                "usage": {"prompt_tokens": 1, "completion_tokens": 1}}) + "\n")
+        with open(os.path.join(root, "episode_summary.json"), "w", encoding="utf-8") as f:
+            json.dump({"episode_id": "e1"}, f)
+        open(os.path.join(root, "events.jsonl"), "w", encoding="utf-8").close()
+        return {"root": os.path.dirname(root), "run_id": "r", "rows": 1}
+    return fake_run_group
+
+
+def test_the_bound_stops_the_batch_at_a_pair_boundary(tmp_path, monkeypatch):
+    monkeypatch.setattr(episodic_runs, "run_group", _budgeted_ledger(str(tmp_path), 3))
+    out = os.path.join(str(tmp_path), "pairs")
+    # 1 pair-arm = 2 roles x (3 decision + 1 goal) = 8 requests. The check is at a pair
+    # boundary, so a bound of 8 halts before p2 while a bound of 10 does not: after p1 spent is
+    # 8, and 8 < 10 admits p2. The pair is never abandoned half-run — a half pair is a writer
+    # with no reader, and the reader is the object of the measurement.
+    artifact = run_episodic_pairs(out, pairs=[PAIR_A, PAIR_B], arms=("full",),
+                                  stop_at_requests=8)
+    assert artifact["pairs_ran"] == ["p1"]
+    assert artifact["pairs_declared"] == ["p1", "p2"]
+    assert artifact["stop_rule"]["halted_before_pair"] == "p2"
+    assert artifact["stop_rule"]["bound_requests"] == 8
+    assert artifact["stop_rule"]["spent_requests_when_stopped"] == 8
+
+
+def test_a_halt_names_what_did_not_run(tmp_path, monkeypatch):
+    # a partial batch that looks like a complete small one is the failure this prevents
+    monkeypatch.setattr(episodic_runs, "run_group", _budgeted_ledger(str(tmp_path), 3))
+    out = os.path.join(str(tmp_path), "pairs")
+    artifact = run_episodic_pairs(out, pairs=[PAIR_A, PAIR_B], arms=("full",),
+                                  stop_at_requests=8)
+    assert artifact["pairs_ran"] != artifact["pairs_declared"]
+    assert artifact["stop_rule"]["halted_before_pair"] is not None
+    with open(os.path.join(out, "pairs_run.json"), encoding="utf-8") as f:
+        on_disk = json.load(f)
+    assert on_disk["stop_rule"]["halted_before_pair"] == "p2"
+
+
+def test_the_bound_counts_the_goal_ledger_too(tmp_path, monkeypatch):
+    # the reader must be the two-ledger one: goal parses live outside any episode directory, so
+    # a per-episode-only count would let the batch run past the bound by exactly the amount that
+    # hid on E1
+    monkeypatch.setattr(episodic_runs, "run_group", _budgeted_ledger(str(tmp_path), 0))
+    out = os.path.join(str(tmp_path), "pairs")
+    artifact = run_episodic_pairs(out, pairs=[PAIR_A, PAIR_B], arms=("full",),
+                                  stop_at_requests=2)
+    # each pair-arm costs 2 requests, all of them goal parses
+    assert artifact["stop_rule"]["spent_requests_when_stopped"] == 2
+    assert artifact["pairs_ran"] == ["p1"]
+
+
+def test_no_bound_means_the_batch_runs_to_the_end(tmp_path, monkeypatch):
+    monkeypatch.setattr(episodic_runs, "run_group", _budgeted_ledger(str(tmp_path), 1))
+    out = os.path.join(str(tmp_path), "pairs")
+    artifact = run_episodic_pairs(out, pairs=[PAIR_A, PAIR_B], arms=("full",))
+    assert artifact["pairs_ran"] == ["p1", "p2"]
+    assert artifact["stop_rule"]["bound_requests"] is None
+    assert artifact["stop_rule"]["halted_before_pair"] is None
+
+
+def test_the_cli_takes_the_bound_and_reports_the_verdict(tmp_path, capsys, monkeypatch):
+    from embodied_agent import cli
+    monkeypatch.setattr(episodic_runs, "run_group", _budgeted_ledger(str(tmp_path), 3))
+    monkeypatch.setattr(episodic_runs, "EM_PAIRS", [PAIR_A, PAIR_B])
+    monkeypatch.setattr(episodic_runs, "print_pairs", lambda root: None)
+    from embodied_agent.evaluation import episodic_tasks
+    monkeypatch.setattr(episodic_tasks, "EM_PAIRS", [PAIR_A, PAIR_B])
+    rc = cli.main(["em-pairs", "--run", os.path.join(str(tmp_path), "out"),
+                   "--arms", "full", "--stop-at-requests", "8"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "bound 8 requests" in out
+    assert "HALTED BEFORE p2" in out
+    assert "pairs ran" in out and "pairs declared" in out
+
+
+def test_a_batch_inside_its_bound_says_so(tmp_path, capsys, monkeypatch):
+    from embodied_agent import cli
+    monkeypatch.setattr(episodic_runs, "run_group", _budgeted_ledger(str(tmp_path), 1))
+    monkeypatch.setattr(episodic_runs, "EM_PAIRS", [PAIR_A])
+    monkeypatch.setattr(episodic_runs, "print_pairs", lambda root: None)
+    from embodied_agent.evaluation import episodic_tasks
+    monkeypatch.setattr(episodic_tasks, "EM_PAIRS", [PAIR_A])
+    rc = cli.main(["em-pairs", "--run", os.path.join(str(tmp_path), "out"),
+                   "--arms", "full", "--stop-at-requests", "9999"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "completed within bound" in out
+    assert "HALTED" not in out

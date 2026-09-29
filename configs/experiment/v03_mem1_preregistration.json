@@ -1,0 +1,122 @@
+{
+ "acceptance": [
+  "all 16 episodes write a `pairs_run.json` naming `planner: deepseek`, `policy: null` and the model config",
+  "the `full` arm's reader episodes file non-empty `memory_retrieval` records; the `wo_episodic_memory` arm files none and passes `Ablation.violations()`",
+  "every episode's `episode_summary.json` carries the `episodic` block",
+  "MEM-1's `episodic_memory_MEM_1.json` carries the seat fields and the model-seat `seat_note`",
+  "the batch's two-ledger spend is reported, with `http_requests` (made) and `http_requests_successful` (returned) side by side"
+ ],
+ "artefact_directory": "/home/czx/embodied-agent-batches/v03/mem1_model",
+ "artefact_rule": "not /tmp, not a single point: each pair-arm keeps its own store and episodes, and the three JSON summaries beside the run are the source lines",
+ "command_shape": [
+  "python -m embodied_agent.cli em-pairs",
+  "--run /home/czx/embodied-agent-batches/v03/mem1_model",
+  "--planner deepseek",
+  "--model-config configs/models/bst_text_agnes.yaml"
+ ],
+ "cost": {
+  "batches_measured": 6,
+  "context": {
+   "e1_bound_was": 3800,
+   "e1_spent_requests": 3292,
+   "this_batch_as_share_of_e1_spend": 0.1248
+  },
+  "measured_from": "E1's own `em_*` batch ledgers, read with `batch_spend` (the two-ledger reader added in P6-a): the same case family, the same seat, the same config, so this is a measurement of the same thing rather than a guess",
+  "per_episode_completion_tokens": {
+   "mean": 969,
+   "worst_cell": 1032
+  },
+  "per_episode_prompt_tokens": {
+   "mean": 45855,
+   "worst_cell": 53382
+  },
+  "per_episode_requests": {
+   "best_cell": 11.88,
+   "mean": 14.83,
+   "median": 14.84,
+   "worst_cell": 17.13
+  },
+  "pricing_configured": false,
+  "projection_mean": {
+   "completion_tokens": 15511,
+   "prompt_tokens": 733677,
+   "requests": 237
+  },
+  "projection_worst_cell": {
+   "completion_tokens": 16511,
+   "prompt_tokens": 854107,
+   "requests": 274
+  },
+  "share_of_requests_that_returned_nothing": {
+   "mean": 0.1678,
+   "note": "E1 spent 707 of 3,292 requests this way, all 429s after retries plus 17 schema errors. It is why the bound comes from the worst cell: a mean is computed mostly over cells that escaped the limiter.",
+   "worst_cell": 0.2763
+  },
+  "stop_rule": "halt before the 17th episode if the batch's two-ledger `http_requests` reaches 411; on a halt, report what ran and what did not, and do not resume into the same directory (the store beside it is append-only)",
+  "unit": "HTTP requests made",
+  "upper_bound_arithmetic": "worst cell 17.13 req/ep x 16 episodes x 1.5 = 411; the margin covers a batch that meets the limiter harder than any E1 cell did, which SPEC §11's risk register lists as outside this project's control",
+  "upper_bound_requests": 411,
+  "usd": null,
+  "why_requests_not_usd": "the endpoint is free and no price is configured, so a money figure would be invented; the request is also the unit the provider's rate limiter is denominated in, and on E1 that limiter — not the token count — decided what the batch got"
+ },
+ "credentials": "never recorded; a config names the env var, not the key (SPEC 7)",
+ "decided_by": {
+  "D1": "the text seat is `configs/models/bst_text_agnes.yaml` — the same one E1 ran, so this batch's ledgers are comparable with E1's rather than being a second seat",
+  "D2": "bound declared here at 411 requests, measured from E1 and set from its worst cell, before the first request of this batch",
+  "D5": "road A — this closes the one §13.2 row v0.3 could not close, and it is the cheapest of the three outstanding gaps"
+ },
+ "entry_point": "python -m embodied_agent.cli em-pairs",
+ "experiment": "MEM-1 on a model decision source — §11's Memory group, which had no reading on one (SPEC §11 Memory, §13.2 row 2)",
+ "identity": {
+  "git_commit": "495b185841cb72bf213bb2adab6b862a8d4d39b1",
+  "note": "written after the commit that added the seat, so the tree is dirty by exactly this file; it is committed next, and the batch runs from a clean tree"
+ },
+ "product_change_this_batch_depends_on": {
+  "commit": "495b185841cb72bf213bb2adab6b862a8d4d39b1",
+  "contract": "tests/contract/test_v03_episodic_seat.py (20 checks) with 12/12 mutations verified to bite (work/v03/p6b_mutation_check.py)",
+  "what": "`em-pairs` gained `--planner`/`--model-config`; `run_episodic_pairs` derives the policy from the seat; MEM-1 carries the seat into its artefact",
+  "zero_spend_rehearsal": "the rule seat ran end to end first — 4 pairs x 2 arms = 16 episodes over 8 stores, `offline: true`, giving the baseline this batch is read against"
+ },
+ "seat": {
+  "model_config": "configs/models/bst_text_agnes.yaml",
+  "planner": "deepseek",
+  "policy": "None — derived, not passed",
+  "same_seat_as": "E1 (identical config), so the two batches' ledgers are comparable",
+  "store_and_ablation_kept": "the experience store and the arm's ablation both stay on, which is the object of the measurement",
+  "why_policy_is_none": "`MemoryPolicy` answers from `ctx.model_payload()` and is itself a decision maker; `run_group` refuses `policy=\"memory\"` beside a model planner precisely because two decision makers make a row's source unnameable. `run_episodic_pairs` derives the policy from the seat, so the incoherent batch cannot be expressed."
+ },
+ "shape": {
+  "arms": [
+   "full",
+   "wo_episodic_memory"
+  ],
+  "episodes": 16,
+  "episodes_arithmetic": "4 pairs x 2 arms x 2 roles = 16 episodes, one store per pair-arm",
+  "pairs": 4,
+  "pairs_are": "the frozen set's own four (EM_PAIRS); `--pairs` is not narrowed",
+  "perceive": "privileged",
+  "repeats": 1,
+  "roles_per_arm": [
+   "writer",
+   "reader"
+  ],
+  "why_privileged": "the Memory group's question is whether the reader uses what the writer left. Rendering a camera would add a second, unmeasured difference between the arms, so perception is held fixed and the reader is the only thing that varies."
+ },
+ "spec": "Continuous-Decision-Embodied-Agent-SPEC-v0.3.md",
+ "the_confound_stated_up_front": {
+  "consequence": "a within-pair trajectory difference is NOT attributable to memory alone, and this table is not comparable with a rule-seat table as if it were the same experiment",
+  "recorded_in_the_artefact": "`planner`, `policy`, `model_config` and a `seat_note` are in `pairs_run.json`, `pairs_measured.json` AND `episodic_memory_MEM_1.json`, so a reader of the published table cannot mistake the two seats",
+  "what": "on a model seat the two arms differ in memory AND in the draw",
+  "what_it_does_not_establish": [
+   "that a model reader uses memory *more* than a rule reader — the two seats differ in far more than memory, so no such comparison is licensed",
+   "any rate: n=4 pairs is an existence proof for the instruments, not a sample (the same `unit_note` MEM-1 already carries on the rule seat)"
+  ],
+  "why": "a model planner is stochastic; the rule seat's reader is a deterministic policy, so there the arms differ only in memory"
+ },
+ "why_this_batch_exists": [
+  "§11's Memory group (M1–M4) is defined by MEM-1 over the episodic **pair** protocol: a writer episode leaves residue, a reader episode queries it, and the two arms differ in whether retrieval happens.",
+  "That protocol's only entry point hard-coded `planner_kind=\"rule\"`, so every M1–M4 reading this project has is a rule-policy reading. On a model decision source the group had **no** reading — a structural gap, not a measurement that was skipped, and the reason v0.3's §13.2 row 2 reads 'partially met'.",
+  "P6-b added the seat. This batch is what runs on it."
+ ],
+ "written_by": "work/v03/p6c_write_prereg.py (no number in this file is hand-typed: the per-episode cost, the projection and the bound are all read off E1's ledgers with batch_spend)"
+}

@@ -77,6 +77,25 @@ MUTATIONS = [
      '        return ("seat not recorded in this directory\'s pairs_run.json; it predates the seat "',
      '        return ("rule seat: guessed"  # noqa\n'
      '            "seat not recorded in this directory\'s pairs_run.json; it predates the seat "'),
+    ("drop the stop rule's boundary check (halt mid-pair instead)",
+     RUNS,
+     "        if stop_at_requests is not None and spent >= stop_at_requests:",
+     "        if False:"),
+    ("read the bound with the per-episode ledgers only (the E1 mistake)",
+     RUNS,
+     '            spent = sum(batch_spend(os.path.join(out_root, r["pair_id"], r["arm"], role))[\n'
+     '                "http_requests"] for r in manifest for role in EM_ROLES)',
+     '            spent = sum(batch_spend(os.path.join(out_root, r["pair_id"], r["arm"], role))[\n'
+     '                "per_episode_ledgers"]["http_requests"] for r in manifest\n'
+     '                for role in EM_ROLES)'),
+    ("stop recording which pairs did not run",
+     RUNS,
+     '                "halted_before_pair": halted_at,',
+     '                "halted_before_pair": None,'),
+    ("let the CLI drop the bound it was given",
+     CLI,
+     "                                      stop_at_requests=args.stop_at_requests)",
+     "                                      stop_at_requests=None)"),
 ]
 
 

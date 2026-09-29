@@ -825,7 +825,8 @@ def cmd_em_pairs(args) -> int:
     try:
         artifact = run_episodic_pairs(args.run, pairs=only, arms=tuple(args.arms),
                                       planner_kind=args.planner,
-                                      model_config=args.model_config)
+                                      model_config=args.model_config,
+                                      stop_at_requests=args.stop_at_requests)
     except ValueError as exc:
         # Refused here, before any run directory holds an episode — which is why the seat is
         # checked against the policy at this seam rather than left to run_group: a batch that
@@ -837,6 +838,15 @@ def cmd_em_pairs(args) -> int:
           f"{len(artifact['batches'])} pair-arm stores into {args.run}")
     print(f"seat: planner={artifact['planner']} policy={artifact['policy']} "
           f"model_config={artifact['model_config']} perceive={artifact['perceive']}")
+    sr = artifact.get("stop_rule") or {}
+    if sr.get("bound_requests") is not None:
+        print(f"stop rule: bound {sr['bound_requests']} requests, spent "
+              f"{sr.get('spent_requests_when_stopped')}"
+              + (f", HALTED BEFORE {sr['halted_before_pair']}"
+                 if sr.get("halted_before_pair") else ", completed within bound"))
+    if sr.get("halted_before_pair"):
+        print(f"  pairs ran    : {artifact.get('pairs_ran')}")
+        print(f"  pairs declared: {artifact.get('pairs_declared')}")
     print_pairs(args.run)
     return EXIT_OK
 
@@ -1084,6 +1094,12 @@ def main(argv=None):
     em.add_argument("--model-config", default=None, metavar="PATH",
                     help="the decision seat's config; required with --planner deepseek, so the "
                          "artifact can name who decided")
+    em.add_argument("--stop-at-requests", type=int, default=None, metavar="N",
+                    help="halt before starting another pair once the run root's two-ledger spend "
+                         "reaches N requests. A pre-registration's bound is only real if the thing "
+                         "that spends enforces it, so the check is here rather than in a driver; it "
+                         "is read with the two-ledger reader, because on E1 reading only the "
+                         "per-episode ledgers undercounted the batch by 356 requests")
     em.add_argument("--dump", action="store_true",
                     help=f"write the set manifest to {EM_FROZEN_PATH}")
     em.add_argument("--amend", action="store_true",

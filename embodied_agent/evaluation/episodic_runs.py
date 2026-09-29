@@ -33,7 +33,7 @@ from typing import Any, Optional
 from ..core.v02 import ablation as ablation_record
 from .episodic_tasks import (EM_ARMS, EM_CONTROL_ARM, EM_FROZEN_PATH, EM_PAIRS,
                              EM_SET_NAME, EM_TREATMENT_ARM)
-from .run import run_group
+from .run import batch_spend, run_group
 
 #: The order a pair's two episodes go into one store, and the only order it can go in. The reader's
 #: claim to test is *one writer's* residue: run it first and every recall is empty, run it twice and
@@ -44,7 +44,8 @@ EM_ROLES = ("writer", "reader")
 # --------------------------------------------------------------------- run ----
 def run_episodic_pairs(out_root: str, *, pairs: Optional[list[dict]] = None,
                        arms: tuple[str, ...] = EM_ARMS, frames: bool = False,
-                       planner_kind: str = "rule", model_config: Optional[str] = None) -> dict:
+                       planner_kind: str = "rule", model_config: Optional[str] = None,
+                       stop_at_requests: Optional[int] = None) -> dict:
     """Every pair, every arm, writer-then-reader into one store per pair per arm.
 
     `frames=False` is the default and the honest setting for this channel: a privileged batch renders
@@ -72,6 +73,14 @@ def run_episodic_pairs(out_root: str, *, pairs: Optional[list[dict]] = None,
 
     `planner_kind="fixture"` is refused: it is a test double, and a `pairs_run.json` naming it
     would be indistinguishable in kind from one naming a real seat.
+
+    **`stop_at_requests` is checked between pairs, and the check lives here rather than in a
+    driver.** The bound a pre-registration declares is only real if the thing that spends enforces
+    it, and a check bolted on outside would be reporting a bound it had no power to keep. It is
+    checked at a pair boundary because a pair is the protocol's unit — a half-run pair is a writer
+    with no reader, and the reader is the whole object of the measurement. On a halt the artifact
+    records which pairs ran and names the bound, so a partial batch says so rather than looking
+    like a small complete one.
     """
     from ..episodic.store import ExperienceStore
 
@@ -89,7 +98,12 @@ def run_episodic_pairs(out_root: str, *, pairs: Optional[list[dict]] = None,
 
     os.makedirs(out_root, exist_ok=True)
     manifest: list[dict] = []
+    halted_at: Optional[str] = None
+    spent = 0
     for pair in (pairs if pairs is not None else EM_PAIRS):
+        if stop_at_requests is not None and spent >= stop_at_requests:
+            halted_at = pair["pair_id"]
+            break
         for arm in arms:
             arm_root = os.path.join(out_root, pair["pair_id"], arm)
             store_path = os.path.join(arm_root, "store.jsonl")
@@ -111,9 +125,23 @@ def run_episodic_pairs(out_root: str, *, pairs: Optional[list[dict]] = None,
                 row["batches"][role] = {"case_id": case_id, "root": stats["root"],
                                         "run_id": stats["run_id"], "rows": stats["rows"]}
             manifest.append(row)
+        if stop_at_requests is not None:
+            # measured with the two-ledger reader, not the per-episode one: on E1 that difference
+            # was 356 requests across a whole batch, and a bound checked against the smaller
+            # number is a bound checked against the wrong number.
+            spent = sum(batch_spend(os.path.join(out_root, r["pair_id"], r["arm"], role))[
+                "http_requests"] for r in manifest for role in EM_ROLES)
     artifact = {"kind": "episodic_pairs_run", "root": out_root, "set": EM_SET_NAME,
                 "arms": list(arms), "policy": policy, "planner": planner_kind,
                 "model_config": model_config, "perceive": "privileged", "repeats": 1,
+                "pairs_ran": [r["pair_id"] for r in manifest],
+                "pairs_declared": [p["pair_id"] for p in (pairs if pairs is not None else EM_PAIRS)],
+                "stop_rule": {"bound_requests": stop_at_requests,
+                              "spent_requests_when_stopped": spent if stop_at_requests is not None
+                              else None,
+                              "halted_before_pair": halted_at,
+                              "note": "checked at a pair boundary; a pair is the protocol's unit, "
+                                      "so a half-run pair would be a writer with no reader"},
                 "batches": manifest}
     with open(os.path.join(out_root, "pairs_run.json"), "w", encoding="utf-8") as f:
         json.dump(artifact, f, ensure_ascii=False, indent=1, sort_keys=True, default=str)
