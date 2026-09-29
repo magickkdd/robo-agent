@@ -67,18 +67,34 @@ git -c user.name="$NAME" -c user.email="$EMAIL" filter-branch -f --index-filter 
   "$FILTER" --prune-empty --tag-name-filter cat -- --all 2>&1 | tail -3
 
 echo
-echo "=== 4. what the public copy now weighs ==="
+echo "=== 4. drop filter-branch's backup refs, or the push sends the old blobs ==="
+# `git filter-branch` keeps every pre-rewrite commit alive under `refs/original/`. Without
+# dropping them the pack still contains all 127.6 MB of run artefacts, and the first push attempt
+# died on `HTTP 408 curl 22` — a server-side timeout while receiving a pack that should have been
+# a few megabytes. This is the step whose absence makes the rewrite look like it worked: the file
+# count said 402 while `.git` was still 43 MB.
+for ref in $(git for-each-ref --format='%(refname)' refs/original/); do
+  git update-ref -d "$ref"
+done
+rm -rf .git/refs/original
+git reflog expire --expire=now --all
+git gc --prune=now --quiet
+echo "  refs/original removed, reflog expired, objects pruned"
+
+echo
+echo "=== 5. what the public copy now weighs ==="
 echo "  tracked files : $(git ls-files | wc -l)"
 BYTES=$(git ls-files -z | xargs -0 du -cb 2>/dev/null | tail -1 | cut -f1)
 echo "  tracked bytes : ${BYTES:-?}"
 echo "  .git size     : $(du -sh .git | cut -f1)"
 echo "  commits       : $(git log --oneline | wc -l)"
 echo "  tags          : $(git tag | tr '\n' ' ')"
-echo "  residual artefact paths in history: $(git log --all --name-only --pretty=format: \
-  | grep -E "^(runs|whatever|outputs)/" | sort -u | wc -l)"
+echo "  artefact paths anywhere in history: $(git log --all --name-only --pretty=format: \
+  | grep -cE '^(runs|whatever|outputs)/')"
+
 
 echo
-echo "=== 5. re-create the two tags on the rewritten commits ==="
+echo "=== 6. re-create the two tags on the rewritten commits ==="
 # tag-name-filter cat already carried them across; this reports rather than re-creates
 for t in v0.2 continuous-decision-v0.2; do
   if git rev-parse -q --verify "refs/tags/$t" >/dev/null; then
@@ -89,7 +105,7 @@ for t in v0.2 continuous-decision-v0.2; do
 done
 
 echo
-echo "=== 6. secret re-scan on exactly what will be pushed ==="
+echo "=== 7. secret re-scan on exactly what will be pushed ==="
 cd "$WORK/repo"
 python3 - <<'PY'
 import re, subprocess
@@ -117,7 +133,7 @@ else:
 PY
 
 echo
-echo "=== 7. push, straight to github.com (no proxy), token for this command only ==="
+echo "=== 8. push, straight to github.com (no proxy), token for this command only ==="
 if [ ! -f "$TOKEN_FILE" ]; then
   echo "  no token file at $TOKEN_FILE — stopping before the push"
   exit 1
@@ -127,18 +143,35 @@ TOKEN=$(cat "$TOKEN_FILE")
 AUTH=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
 unset TOKEN
 cd "$WORK/repo"
+set +e
 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 \
   git -c user.name="$NAME" -c user.email="$EMAIL" \
       -c "http.extraHeader=Authorization: Basic $AUTH" \
-      push --quiet "$TARGET" "HEAD:refs/heads/main" 2>&1 | tail -5
-rc=$?
+      push "$TARGET" "HEAD:refs/heads/main" 2>&1 | tail -8
+rc=${PIPESTATUS[0]}
+unset AUTH
+set -e
+echo "  push rc=$rc"
+
+if [ "$rc" != "0" ]; then
+  echo "  push FAILED — the token file is kept so the push can be retried"
+  echo "  (it is 0600, outside the repository, and must be removed once this lands)"
+  exit 1
+fi
+
+echo
+echo "=== 9. push the two tags ==="
+# still inside the window where the token file exists; removing it before this would leave the
+# tags unpushed with no credential to push them with
+GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 \
+  git -c "http.extraHeader=Authorization: Basic $AUTH" \
+      push "$TARGET" "refs/tags/v0.2" "refs/tags/continuous-decision-v0.2" 2>&1 | tail -4
 unset AUTH
 rm -f "$TOKEN_FILE"
-echo "  push rc=$rc"
 echo "  token file removed: $([ -f "$TOKEN_FILE" ] && echo NO || echo yes)"
 
 echo
-echo "=== 8. verify what landed ==="
-GIT_CONFIG_GLOBAL=/dev/null git ls-remote --heads "$TARGET" 2>&1 | head -3
+echo "=== 10. verify what landed ==="
+GIT_CONFIG_GLOBAL=/dev/null git ls-remote --heads --tags "$TARGET" 2>&1 | head -6
 echo "  local repo untouched? origin = $(cd "$REPO" && git remote get-url origin)"
 echo "  local HEAD = $(cd "$REPO" && git rev-parse --short HEAD)  ($(cd "$REPO" && git status --porcelain | wc -l) uncommitted changes)"
