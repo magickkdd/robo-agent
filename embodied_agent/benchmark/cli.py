@@ -96,6 +96,49 @@ def cmd_tasks(args) -> int:
     return EXIT_OK
 
 
+def _arm_kwargs(args):
+    """`(--ablation, --experience-store)` for the text channel, or every refusal at once.
+
+    A CLI answer has to name every reason together: an operator who fixes the first and re-runs
+    into the second learns nothing about how the gate works. The unknown-condition check comes
+    from the same registry the desktop entry uses, so "registered here" and "registered there"
+    cannot drift.
+    """
+    from ..core.v02 import ABLATION_CONDITIONS, ablation as ablation_record
+    from ..episodic.store import ExperienceStore
+    from .planned_runtime import TEXT_EXPERIENCED_ARM_MODULES, text_arm_coherence
+
+    arm_name = getattr(args, "ablation", None)
+    store_path = getattr(args, "experience_store", None) or None
+    if not arm_name and not store_path:
+        return None, None
+
+    problems = []
+    if arm_name and arm_name not in ABLATION_CONDITIONS:
+        problems.append(f"unknown ablation condition {arm_name!r}; registered: "
+                        f"{sorted(ABLATION_CONDITIONS)}")
+    elif arm_name:
+        off = list(ABLATION_CONDITIONS[arm_name])
+        if not store_path and "episodic_memory" in off:
+            problems.append(
+                f"--ablation {arm_name} needs --experience-store: the arm switches §5.4's module "
+                f"off *an installed arm*, and a loop built with no store at all takes a different "
+                f"code path that merely happens to behave the same")
+        problems += text_arm_coherence(ablation_record(arm_name),
+                                       installed=TEXT_EXPERIENCED_ARM_MODULES)
+    if problems:
+        raise SystemExit("config error:\n  " + "\n  ".join(problems))
+    arm = ablation_record(arm_name) if arm_name else None
+    store = None
+    if store_path:
+        try:
+            store = ExperienceStore.load(store_path)
+        except ValueError as e:
+            raise SystemExit(f"config error:\n  --experience-store {store_path!r} cannot be "
+                             f"read: {e}")
+    return arm, store
+
+
 def cmd_run(args) -> int:
     from .runner import (BST_SPEC, BatchHalt, freeze_run_root, load_model_config,
                          planner_from_config, run_batch, run_slot, slot_summary_counts)
@@ -120,9 +163,20 @@ def cmd_run(args) -> int:
 
     planner, identity = planner_from_config(args.model_config)
     cfg = load_model_config(args.model_config)
+
+    # §5.4's arm door (SPEC-v0.3 §6 E5). Resolved here, before a run root is sealed, so a
+    # refusal leaves nothing behind and a batch cannot be half-armed: the store is loaded by
+    # the same reader the desktop and MuJoCo entry points use, and a memory arm without one is
+    # refused here rather than at the first episode.
+    ablation, experience_store = _arm_kwargs(args)
+
     print(json.dumps({"bst_spec": BST_SPEC, "segment": segment, "slots": len(slots),
                       "token_cap": token_cap, "run_root": os.path.abspath(args.run_root),
                       "data_dir": data_dir, "budgets": budgets.model_dump(mode="json"),
+                      "arm": {"condition": (getattr(ablation, "condition", None)
+                                            if ablation is not None else None),
+                              "experience_store": getattr(experience_store, "path", None),
+                              "memory_task_kind": args.memory_task_kind or "(the slot's task_type)"},
                       "model": {k: identity[k] for k in
                                 ("provider", "model", "base_url_host", "temperature",
                                  "max_tokens", "max_tokens_cap", "timeout_s", "max_retries",
@@ -145,24 +199,33 @@ def cmd_run(args) -> int:
         print(f"{headers} exists: provenance not rewritten (pass --refreeze to do so)",
               flush=True)
 
-    if args.single:
+    if args.single is not None:
+        # `is not None`, not truthiness: `--single 0` is a real slot (the first one) and
+        # `if args.single:` treated it as "no slot given" and ran the WHOLE segment. Measured
+        # by being bitten: an E5 probe meant to run two slots ran all twelve of `dev_train`
+        # twice, on the model seat, before anyone noticed. A flag whose value 0 means "off" is
+        # a flag that silently does something else.
         one = [s for s in slots if int(s["slot_index"]) == args.single]
         if not one:
             print(f"config error: --single {args.single} is not a slot of {segment}",
                   file=sys.stderr)
             return EXIT_CONFIG_ERROR
         summary = run_slot(one[0], planner=planner, run_root=args.run_root, data_dir=data_dir,
-                           budgets=budgets, max_episode_tokens=args.max_episode_tokens)
+                           budgets=budgets, max_episode_tokens=args.max_episode_tokens,
+                           ablation=ablation, experience_store=experience_store,
+                           memory_task_kind=args.memory_task_kind)
         print(json.dumps({k: summary.get(k) for k in
                           ("episode_id", "instruction", "tokens", "wall_time_s",
-                           "evaluation", "outcome")}, indent=1, default=str))
+                           "evaluation", "outcome", "episodic")}, indent=1, default=str))
         return EXIT_OK if summary.get("outcome") != "infrastructure_error" else EXIT_INFRA_ERROR
 
     try:
         progress = run_batch(slots, planner=planner, identity=identity, run_root=args.run_root,
                              data_dir=data_dir, segment=segment, token_cap=token_cap or 1 << 62,
                              budgets=budgets, max_episode_tokens=args.max_episode_tokens,
-                             resume=not args.fresh, quiet=args.quiet)
+                             resume=not args.fresh, quiet=args.quiet,
+                             ablation=ablation, experience_store=experience_store,
+                             memory_task_kind=args.memory_task_kind)
     except BatchHalt as e:
         print(f"halted: {e}", file=sys.stderr)
         return EXIT_INFRA_ERROR
@@ -217,6 +280,17 @@ def main(argv=None) -> int:
                     help="ignore progress.json and start the segment over")
     rn.add_argument("--refreeze", action="store_true",
                     help="rewrite the sealed headers (a new provenance record, not an edit)")
+    rn.add_argument("--ablation", default=None, metavar="CONDITION",
+                    help="a §9 condition this text loop can actually show (SPEC-v0.3 §6 E5). "
+                         "Absent means the frozen v0.1 loop, which installs no episodic module "
+                         "and files no memory_* record")
+    rn.add_argument("--experience-store", default=None, metavar="PATH",
+                    help="the JSONL file §5.4's memory reads and appends. A missing file is a "
+                         "cold start, which is a measured condition; a memory arm without one "
+                         "is refused here rather than measured and reported as a memory")
+    rn.add_argument("--memory-task-kind", default="", metavar="KIND",
+                    help="§5.4's task-kind term. Left empty it is each slot's own task_type "
+                         "from the frozen manifest, which is the text backend's task family")
     rn.add_argument("--quiet", action="store_true")
     rn.set_defaults(fn=cmd_run)
 

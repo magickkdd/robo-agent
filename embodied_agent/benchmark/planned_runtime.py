@@ -54,6 +54,8 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from ..core.v02 import Ablation
+from ..episodic.arm import EpisodicMixin
+from ..episodic.retrieval import DEFAULT_LIMIT
 from ..planning.arm import PlanningMixin
 from ..planning.task_planner import TaskPlanner
 from ..planning.view import V02DecisionContext
@@ -64,8 +66,17 @@ from .runtime_alfred import AlfredRuntime
 from .state import TextVerifier
 
 #: the capabilities this loop can actually switch off: the three `PlanningMixin` gates.
-# A §9 condition naming anything else claims a difference this channel cannot show.
+#: A §9 condition naming anything else claims a difference this channel cannot show.
+#:
+#: This is the loop **without** §5.4. `AlfredPlannedRuntime` keeps it as its class attribute
+#: `installed_modules` and the gate below reads `type(self).installed_modules` rather than this
+#: module-level name, for the reason H-58 gave on the MuJoCo channel: a loop that widens its
+#: own gate by declaring a wider set would otherwise be checked against a constant it can no
+#: longer override. So the constant says what the *bare* loop installs, and the experienced
+#: subclass below declares the wider set that is actually true of it.
 TEXT_ARM_MODULES = ("planning", "working_memory", "replanning")
+#: the same loop with §5.4 connected, which is one more thing it can switch off
+TEXT_EXPERIENCED_ARM_MODULES = TEXT_ARM_MODULES + ("episodic_memory",)
 
 
 class V02TextDecisionContext(V02DecisionContext, TextDecisionContext):
@@ -110,6 +121,13 @@ def text_arm_coherence(ablation: Optional[Ablation],
     about the record, not about the concept: `wo_vlm` is a coherent experiment on a camera channel
     and an unmeasurable one here, and the difference is whether the episode's own events would
     change.
+
+    `installed` is a parameter rather than this module's `TEXT_ARM_MODULES` so a caller can ask
+    the question about the loop it actually has. That is not a convenience: after E5 the text
+    channel has two loops, one of which installs `episodic_memory`, and a gate that always
+    answered about the narrower one would refuse a `wo_episodic_memory` row on a loop that can
+    show it — which is the same defect H-58 fixed on the MuJoCo channel, where the check became
+    `type(self).installed_modules` for exactly this reason.
     """
     if ablation is None:
         return []
@@ -141,10 +159,13 @@ class AlfredPlannedRuntime(PlanningMixin, AlfredRuntime):
     task_planner_derivation: Any = derive_text
     #: `AlfredRuntime` files no arm claim of its own (it is the v0.1 loop), so the arm makes it
     files_ablation_claim = True
+    #: what this loop can switch off, read by the gate through `type(self)` so the subclass
+    #: below can widen it truthfully (see `TEXT_ARM_MODULES`)
+    installed_modules = TEXT_ARM_MODULES
 
     def __init__(self, *args, ablation: Optional[Ablation] = None,
                  task_planner: Optional[TaskPlanner] = None, **kw):
-        clash = text_arm_coherence(ablation)
+        clash = text_arm_coherence(ablation, installed=type(self).installed_modules)
         if clash:
             raise ValueError("; ".join(clash))
         super().__init__(*args, task_planner=task_planner, **kw)
@@ -178,5 +199,51 @@ class AlfredPlannedRuntime(PlanningMixin, AlfredRuntime):
                 f"not §9's full system")
 
 
-__all__ = ["AlfredPlannedRuntime", "TEXT_ARM_MODULES", "TextV02Verifier",
+class AlfredExperiencedRuntime(EpisodicMixin, AlfredPlannedRuntime):
+    """`AlfredPlannedRuntime` with an experience store connected to the round (§5.4).
+
+    The same shape as `MujocoExperiencedRuntime`, and the same reason for it: bases declared
+    once here so which loop ran is answerable from a class name, and the mixin first so its
+    `_offer_memories` / `_record_feedback` / `_begin_episode` are the implementations the loop
+    calls. Everything below the memory seam is the identical planned loop, which is what makes
+    a `full` vs `wo_episodic_memory` difference on this channel attributable to the module and
+    nothing else — the reason SPEC-v0.3 §6 E5 calls this "the same family as H-58".
+
+    What the desktop and MuJoCo channels each needed a vocabulary decision that this one does
+    not: §5.4's query is built from `world.targets` (regions), `world.entities` and the goal
+    assignments (kinds), plus a `task_kind` term the caller names because the loop cannot invent
+    a set name from an utterance. On ALFWorld the snapshot *is* the public response, so its
+    regions and entities are exactly the ones the verifier already reports — the same fields
+    `TextV02Verifier` reads. The `task_kind` is the text backend's own task family (the
+    `task_type` in the frozen slot list), so two games of the same family share a memory and two
+    families do not.
+
+    The store is connected by the caller (`run_slot`, from `--experience-store`); the gate
+    refuses a memory-arm claim on the bare loop, and the runner refuses "memory arm claimed, no
+    store connected" before a directory exists — the two refusals between them close the loop
+    that would measure a cold start and report it as a memory.
+    """
+
+    installed_modules = TEXT_EXPERIENCED_ARM_MODULES
+
+    def __init__(self, *args, experience_store: Optional[Any] = None,
+                 memory_task_kind: str = "", memory_limit: int = DEFAULT_LIMIT, **kw):
+        super().__init__(*args, **kw)
+        self.experience_store = experience_store
+        self.memory_task_kind = memory_task_kind
+        self.memory_limit = int(memory_limit)
+
+    def _ablation_note(self) -> str:
+        return (f"planning arm + §5.4 episodic memory on the ALFWorld text channel: modules off "
+                f"{list(self.ablation.modules_off) or 'none'}; an experience store at "
+                f"{getattr(self.experience_store, 'path', None)} is connected to the round "
+                f"({len(self.experience_store) if self.experience_store is not None else 0} "
+                f"row(s) at episode start, task kind {self.memory_task_kind!r}); the snapshot is "
+                f"the public response, so no vision model was consulted, and this row is the "
+                f"planning and memory contrast at {self.ablation.condition!r} on a text backend, "
+                f"not §9's full system")
+
+
+__all__ = ["AlfredPlannedRuntime", "AlfredExperiencedRuntime", "TEXT_ARM_MODULES",
+           "TEXT_EXPERIENCED_ARM_MODULES", "TextV02Verifier",
            "V02TextDecisionContext", "text_arm_coherence"]

@@ -111,14 +111,32 @@ def episode_id_for(slot: dict) -> str:
 
 def run_slot(slot: dict, *, planner: AlfredTextPlanner, run_root: str, data_dir: str,
              budgets=None, max_episode_tokens: int = BST_EPISODE_TOKENS,
-             quiet: bool = False) -> dict:
-    """One (task, repeat) slot, end to end, artifacts sealed on every exit path."""
+             quiet: bool = False, ablation=None, experience_store=None,
+             memory_task_kind: str = "") -> dict:
+    """One (task, repeat) slot, end to end, artifacts sealed on every exit path.
+
+    `ablation` and `experience_store` are the §5.4 arm door (SPEC-v0.3 §6 E5). They are optional
+    and default to the frozen v0.1 behaviour, so every batch that did not ask for an arm runs
+    exactly the loop it ran before: `ablation=None` selects `AlfredRuntime`, which has no
+    episodic module and files no `memory_*` record. Asking for the memory arm without a store is
+    refused before a directory exists, for the reason the MuJoCo and desktop runners share — a
+    loop built with no store at all takes a different code path that merely behaves the same, and
+    reporting that as a memory arm would be a duplicate filed under a new word.
+    """
     episode_id = episode_id_for(slot)
     ep_dir = os.path.join(run_root, "episodes", episode_id)
     _isolate_prior_attempt(run_root, ep_dir)
     os.makedirs(ep_dir, exist_ok=True)
     budgets = budgets or bst_budgets()
     started = time.time()
+
+    if ablation is not None and getattr(ablation, "condition", None) == "wo_episodic_memory" \
+            and experience_store is None:
+        raise ValueError(
+            "arm 'wo_episodic_memory' needs an experience store: the contrast is a module "
+            "switched off on a loop that has one, and a loop built with no store at all takes a "
+            "different code path that merely happens to behave the same")
+
     backend = AlfredTextBackend(slot["gamefile"], max_env_actions=int(budgets.max_skill_calls),
                                 command_timeout_s=BST_COMMAND_TIMEOUT_S, data_dir=data_dir)
     calls_path = os.path.join(ep_dir, "model_calls.jsonl")
@@ -147,9 +165,27 @@ def run_slot(slot: dict, *, planner: AlfredTextPlanner, run_root: str, data_dir:
         goal = goal_from_instruction(instruction, state_version=0)
         task = TaskInput(task_id=slot["task_id"], utterance=instruction, language="en",
                          declared_constraints=[])
-        runtime = AlfredRuntime(backend, ep_dir, budgets, episode_id,
-                                config=VerifyConfig(), store=store,
-                                max_episode_tokens=max_episode_tokens)
+        if ablation is None:
+            runtime = AlfredRuntime(backend, ep_dir, budgets, episode_id,
+                                    config=VerifyConfig(), store=store,
+                                    max_episode_tokens=max_episode_tokens)
+        else:
+            # The arm loop, with §5.4 connected when a store was handed in. The kind term is the
+            # text backend's own task family from the frozen slot list, because the loop cannot
+            # read a set name out of an instruction and inventing one would be this module's
+            # opinion about the task rather than the experiment's fact about the schedule.
+            from .planned_runtime import AlfredExperiencedRuntime, AlfredPlannedRuntime
+
+            kind = memory_task_kind or str(slot.get("task_type") or "")
+            if experience_store is not None:
+                runtime = AlfredExperiencedRuntime(
+                    backend, ep_dir, budgets, episode_id, config=VerifyConfig(), store=store,
+                    max_episode_tokens=max_episode_tokens, ablation=ablation,
+                    experience_store=experience_store, memory_task_kind=kind)
+            else:
+                runtime = AlfredPlannedRuntime(
+                    backend, ep_dir, budgets, episode_id, config=VerifyConfig(), store=store,
+                    max_episode_tokens=max_episode_tokens, ablation=ablation)
         source = LLMDecisionSource(planner, log=log_call)
         where = "episode"
         result = runtime.run_episode(task, goal, source, mode="BST")
@@ -204,6 +240,32 @@ def run_slot(slot: dict, *, planner: AlfredTextPlanner, run_root: str, data_dir:
                           "evaluation": os.path.join(ep_dir, "evaluation.jsonl")},
             "wall_time_s": round(time.time() - started, 2),
             "completed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+
+        # §5.4's write, filed through the same `write_experience` the desktop and MuJoCo
+        # runners call, so the online row and an offline re-read of this archive come from one
+        # extractor on one summary. Only an episode with a terminal record contributes a row:
+        # `outcome_of` collapses an empty `result` into `failure`, and a crash is the channel's
+        # event rather than an outcome the agent earned — writing that row would be a claim no
+        # record supports.
+        writer = getattr(runtime, "write_experience", None)
+        if writer is not None and result is not None:
+            before = list(experience_store.ids()) if experience_store is not None else []
+            experience = writer(summary, run_ref=ep_dir)
+            summary["episodic"] = {
+                "arm": (ablation.condition if ablation else None),
+                "store_path": getattr(experience_store, "path", None),
+                "store_size_before": len(before),
+                "experiences_before": before,
+                "retrievals": getattr(runtime, "retrievals", 0),
+                "rows_retrieved": getattr(runtime, "retrieved_rows", 0),
+                "rows_used": getattr(runtime, "used_rows", 0),
+                "written_experience_id": (experience.experience_id if experience else None),
+                "store_size_after": (len(experience_store.ids()) if experience_store else 0),
+                "store_fingerprint": (experience_store.fingerprint()
+                                      if experience_store else None),
+                "memory_events": {key: sum(1 for e in store.read_all() if e["type"] == key)
+                                  for key in ("memory_retrieval", "memory_use", "memory_write")},
+            }
     except BackendError as e:
         # an environment that will not start, or will not state a task, is
         # infrastructure: not a model failure and not a task outcome. The slot stays
@@ -325,8 +387,15 @@ def identity_drift(summary: dict, configured_model: str) -> list[str]:
 def run_batch(slots: list[dict], *, planner: AlfredTextPlanner, identity: dict,
               run_root: str, data_dir: str, segment: str, token_cap: int,
               budgets=None, max_episode_tokens: int = BST_EPISODE_TOKENS,
-              resume: bool = True, quiet: bool = False) -> dict:
-    """The frozen order, one process, one slot at a time (SPEC-BST 5.5: 并发 1)."""
+              resume: bool = True, quiet: bool = False,
+              ablation=None, experience_store=None, memory_task_kind: str = "") -> dict:
+    """The frozen order, one process, one slot at a time (SPEC-BST 5.5: 并发 1).
+
+    `ablation` / `experience_store` / `memory_task_kind` are the §5.4 arm door and default to
+    the frozen v0.1 behaviour, so a batch that names no arm runs the loop it always ran. The
+    arm is recorded in the progress ledger beside the slot, because a run root that cannot say
+    which loop produced its episodes is a run root whose `memory_*` rows mean nothing.
+    """
     os.makedirs(run_root, exist_ok=True)
     progress_path = os.path.join(run_root, "progress.json")
     progress = _read_json(progress_path) if os.path.exists(progress_path) else {
@@ -392,14 +461,18 @@ def run_batch(slots: list[dict], *, planner: AlfredTextPlanner, identity: dict,
                               "slot starts, so the overage it reports is real, not estimated"}
             break
         summary = run_slot(slot, planner=planner, run_root=run_root, data_dir=data_dir,
-                           budgets=budgets, max_episode_tokens=max_episode_tokens, quiet=quiet)
+                           budgets=budgets, max_episode_tokens=max_episode_tokens, quiet=quiet,
+                           ablation=ablation, experience_store=experience_store,
+                           memory_task_kind=memory_task_kind)
         if summary.get("outcome") == "infrastructure_error" and slot["slot_index"] not in replacements:
             # one replacement for an infrastructure failure, recorded as a replacement
             # rather than as a fresh sample (§6.4). A second failure leaves the slot open.
             retry = dict(slot, _replacement_of=slot["slot_index"])
             summary = run_slot(retry, planner=planner, run_root=run_root, data_dir=data_dir,
                                budgets=budgets, max_episode_tokens=max_episode_tokens,
-                               quiet=quiet)
+                               quiet=quiet, ablation=ablation,
+                               experience_store=experience_store,
+                               memory_task_kind=memory_task_kind)
             summary["replacement_of"] = slot["slot_index"]
         summary["resumable_complete"] = bool((summary.get("evaluation") or {}).get("termination_reason"))
         row = {k: summary.get(k) for k in ("slot_index", "task_id", "task_type", "repeat",
@@ -409,6 +482,10 @@ def run_batch(slots: list[dict], *, planner: AlfredTextPlanner, identity: dict,
         row["termination_reason"] = ((summary.get("evaluation") or {})
                                      .get("termination_reason"))
         row["official_won"] = (summary.get("evaluation") or {}).get("official_won")
+        # the arm, on the slot row: a run root that cannot say which loop produced its
+        # episodes is a run root whose `memory_*` rows mean nothing
+        row["arm"] = ((getattr(ablation, "condition", None) if ablation is not None else None))
+        row["episodic"] = summary.get("episodic")
         progress["slots"].append(row)
         progress["slots"].sort(key=lambda r: r["slot_index"])
         tokens_so_far += int(row["tokens"].get("total") or 0)
