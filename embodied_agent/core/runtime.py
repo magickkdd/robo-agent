@@ -170,10 +170,27 @@ class Runtime:
     def observe(self) -> WorldState:
         """One measurement, one unique ref, one monotonic version step. A new
         version is not a claim that the world changed; `diff_states` says that
-        (SPEC 5.1)."""
+        (SPEC 5.1).
+
+        The version is claimed before the measurement and **given back if the measurement
+        did not happen**. That is not tidiness: a camera capture can fail (a refused look, a
+        dead request, a renderer fault) while a privileged read of simulator state cannot,
+        and a counter that keeps the number of a measurement nobody made leaves the two
+        ledgers permanently one apart. The camera arm's `_capture_world` exists to catch
+        exactly that — "two ledgers: the tracker stamped v12 for the snapshot the loop asked
+        for as v13" — so the honest repair is on this side of the comparison: an observation
+        that was not taken gets no version, and the guard keeps its full strength against a
+        tracker that really has diverged. Refs are safe to reuse for the same reason — a
+        measurement that never happened never spent the number.
+        """
         self._obs_seq += 1
         self.state_version = self._obs_seq
-        w = self._capture_world(self.state_version, f"obs_{self._obs_seq:04d}")
+        try:
+            w = self._capture_world(self.state_version, f"obs_{self._obs_seq:04d}")
+        except BaseException:
+            self._obs_seq -= 1
+            self.state_version = self._obs_seq
+            raise
         self.world = w
         rec = ObservationRecord(
             observation_ref=w.observation_ref, state_version=w.state_version, sim_time=w.sim_time,

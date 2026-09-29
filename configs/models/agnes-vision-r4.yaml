@@ -1,0 +1,50 @@
+schema_version: "1"
+# E2 的视觉席（SPEC-v0.3 §6 E2 / §9 P3'，用户 2026-09-29 裁定）。
+# **与 `agnes-vision.yaml` 逐字只差 `max_tokens` 与 `max_retries` 两行**：那份文件的字节属于
+# E2 探针批（manifest 里记着它的 `config_sha256`），所以按它自己第 2-6 行立下的规矩另立
+# 新文件、不就地改。不臆造端点：provider / base_url / model / capabilities 全部照抄。
+#
+# 为什么是这一份被试（这是三份测量换来的一个决定，不是挑一个"能看图的"名字）：
+#   同一段生产提示（`observe.prompt_sha256()` = 8668a4af2d320e68…，system 1032 + user 678
+#   字符）与同一张渲染帧，各发一次：
+#     sensenova-6.8-flash-lite @ 1,200 / 4,096 / 16,384 -> finish_reason 全是 `length`，
+#       reasoning_tokens 各自吃满 1200 / 4096 / 16384，raw_chars 三次都是 **0**
+#     agnes-2.5-flash @ 4,096 -> finish_reason `stop`、**无推理 token**、raw_chars 1098 的
+#       合法 JSON、completion 477（含 475 image token）、墙钟 4.2 s
+#   ⇒ 把预算调大这条路走不通（sensenova 三档全死），而 agnes 在**它自己配置的 1200 之下**
+#     就答得完。E2 探针批（1 集 x 2 repeats，23 次请求）里 22 次 `finish_reason=stop`、
+#     raw_chars 627–1319，tokens 真数 prompt 29,736 / completion 8,254。
+#   产物：/home/czx/embodied-agent-batches/v03/p0_seat_probes/ 与
+#        /home/czx/embodied-agent-batches/v03/e2_probe/
+#
+# 为什么不留 sensenova 那一把 key 轮换：它看不了这段提示（上面三档），所以它能轮换的只有
+# **E1 的文本席**（sensenova 的文本路径已实测可答，见 `seat_diagnosis_sensenova-vision.json`
+# 文本 @1200 -> raw_chars 14）。E2 固定在本文件这把 key 上，两支柱共用 LLM_API_KEY 额度——
+# 这一句是排期上的事实，不是一个已经付过的代价。
+#
+# `max_retries` 2 -> 4（与 `bst_text_agnes.yaml` 同一处置，理由也同源）：这个免费端点的限流是
+# 突发性质的，探针批 23 次请求里 2 次死于 429（每集各一次，`ok=false` 行留在
+# `model_calls.jsonl` 里，`http_requests_this_call=3`、tokens 0 —— 429 没有生成发生，所以
+# 0 是对的）。退避是 `sleep(1.5 * attempt)`，即 1.5+3+4.5+6 = 15 s 跨 5 次尝试。
+# 停批规则按 SPEC §8.2：连续 3 次请求死于 429/额度类即停批、存断点、落账。
+provider: agnes
+api_key_env: LLM_API_KEY   # 只记录变量名；密钥本身只在环境变量/仓库内 .env（SPEC 7）
+base_url: https://api.agnes-ai.cn/v1
+model: agnes-2.5-flash
+
+capabilities: [text, vision]
+
+# prompt 版本与 agnes-vision.yaml / agnes.yaml / deepseek.yaml 逐项相同：换了被试没换题。
+prompts:
+  goal: s2-goal-v1
+  decision: s2-decide-v1
+  plan: s2-plan-v1
+temperature: 0.2
+# E2 探针批 12 次成功请求的 completion 在 267–537 之间，1200 有两倍以上余量；这份配置
+# 逐字沿用 `agnes-vision.yaml` 的 1200，不因为"跑得动"就往上抬——上限不是余量的意思。
+max_tokens: 1200
+timeout_s: 60
+max_retries: 4   # 与 agnes-vision.yaml 的唯一另一处差异，理由见上
+feedback_depth: 3
+# 单价未知就留空：`api_cost_estimate` / `cost_estimate_usd` 保持 null，只报请求数与 tokens
+# （SPEC 7.1：不编价格）。这份配置上 `pricing_configured=False` 是一句被印出来的读数。
