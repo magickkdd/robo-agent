@@ -1,0 +1,56 @@
+{
+  "amends": "configs/experiment/v03_e2_preregistration.json (committed b918f55, before the probe batch; the file declared `formal_scale` as 'DECIDED FROM THE PROBE READINGS' and is not edited by this one)",
+  "artefact_directory": "/home/czx/embodied-agent-batches/v03/e2",
+  "cell_filled": "formal_scale",
+  "cost": {
+    "as_a_share_of_E1_upper_bound": 0.0187,
+    "looks_per_vlm_episode_observed": 11,
+    "projected_prompt_tokens": 59472,
+    "projected_requests_for_the_vlm_half": 71,
+    "requests_per_vlm_episode": 17.8,
+    "the_other_two_channels": 0,
+    "unit_price": {
+      "pricing_configured": false,
+      "usd": null,
+      "why": "free tier, no price configured; per-call tokens and latency are reported instead (SPEC §7.1)"
+    }
+  },
+  "decided_by": {
+    "D2": "user 2026-09-29: the probe batch decides the scale"
+  },
+  "kind": "pre-registration addendum 1 (E2 formal scale)",
+  "probe_measurements": {
+    "artefact": "/home/czx/embodied-agent-batches/v03/e2_probe",
+    "completion_tokens": 8254,
+    "episodes": 2,
+    "http_requests": 34,
+    "ledger_failed": 2,
+    "ledger_ok": 21,
+    "ledger_rows": 23,
+    "note": "the ledger field is `http_requests_this_call`; `http_requests_total` is a cumulative counter and summing it is the mistake that stopped E1 twice this phase (see configs/experiment/v03_e1_preregistration_amendment_1.json)",
+    "perception_records": 20,
+    "prompt_tokens": 29736,
+    "requests_per_answered_look": 1.619
+  },
+  "scale": {
+    "arm_differs_by_channel": "on purpose, and it is arm_coherence working rather than a confound: a `full` claim on stub is refused because the module that owns the `perception` record is off, and each episode's own `ablation` record names the condition, so the three cells cannot be pooled into one 'vlm vs not' claim",
+    "channels": {
+      "privileged": "full",
+      "stub": "wo_vlm",
+      "vlm": "full"
+    },
+    "episodes": 12,
+    "repeats_per_case": 2,
+    "task_sets": {
+      "long_horizon": [
+        "lh_c1_shared_pair_restore",
+        "lh_c3_capacity_and_shift"
+      ]
+    },
+    "vlm_episodes": 4,
+    "why_these_cases": "two lh cases of different shape: a shared-pair restore (a disrupted state the loop must re-establish) and a capacity/shift case (a constraint the loop must respect). §8 B5's missing row is about whether a vision reading helps at all, which is a question about two shapes rather than one.",
+    "why_these_channels": "vlm is the arm under test and closes §8 B5's `full`-on-VLM row; stub is §9's limited semantic baseline at zero cost and is what makes a vlm difference attributable to the vision model rather than to having a camera; privileged is the control shape with no camera and no request"
+  },
+  "spec": "Continuous-Decision-Embodied-Agent-SPEC-v0.3.md §6 E2 / §8.1",
+  "what_constrains_this_batch": "not the budget. The seat's burst 429 is the live risk: the probe lost 1 of 23 requests to it, and configs/models/agnes-vision-r4.yaml already carries max_retries 4 for that reason. The stop rule is SPEC §8.2: three consecutive 429/quota deaths stop the batch with a checkpoint."
+}
