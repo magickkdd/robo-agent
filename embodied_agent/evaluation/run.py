@@ -37,7 +37,7 @@ import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from ..adapters.deepseek import DeepSeekPlanner, FixturePlanner
+from ..adapters.deepseek import DeepSeekAdapter, DeepSeekPlanner, FixturePlanner, LLMError
 from ..core.contracts import GoalSpec, SkillCall, TaskInput
 from ..core.events import EpisodeStore, git_state, write_manifest
 from ..core.fault_injection import EnvironmentController
@@ -324,7 +324,7 @@ def run_one_episode(case: TaskCase, repeat: int, mode: str, resolution: GoalReso
                     perceive: str = "privileged", ablation=None, adapter=None,
                     views: tuple[str, ...] | None = None,
                     default_view: str = "main", policy: str | None = None,
-                    experience_store=None, skill_memory=None, propose: str = "rule",
+               experience_store=None, skill_memory=None, propose: str = "rule",
                     propose_ask=None, validation_budget: int = 1) -> dict:
     """One episode, start to finish, with its artifacts.
 
@@ -611,6 +611,21 @@ def _row_of(summary: dict) -> dict:
     return {**summary, "outcome": (summary.get("result") or {}).get("terminal_status", "unknown")}
 
 
+def _api_key_env_of(model_config: str | None) -> str:
+    """The NAME of the env var a model config declares, for a refusal to quote.
+
+    Read with the same loader the adapter uses, so the sentence cannot name a different
+    variable than the one that failed. The value is never touched (SPEC 7)."""
+    import yaml
+
+    try:
+        with open(model_config, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError):
+        return "(unreadable config; the adapter's own default applies)"
+    return str(cfg.get("api_key_env", "DEEPSEEK_API_KEY"))
+
+
 def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats: int = 1,
               out_root: str = "runs", case_ids: list[str] | None = None,
               limit: int | None = None, frames: bool = True,
@@ -618,8 +633,8 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
               prereg_path: str | None = None, perceive: str = "privileged",
               ablation=None, views: tuple[str, ...] | None = None,
               default_view: str = "main", policy: str | None = None,
-              experience_store=None, skill_memory=None, propose: str = "rule",
-              propose_ask=None, validation_budget: int = 1) -> dict:
+               experience_store=None, skill_memory=None, propose: str = "rule",
+               propose_ask=None, validation_budget: int = 1, adapter=None) -> dict:
     """Run `cases x modes x repeats` with the modes interleaved.
 
     Interleaving is a measurement decision: a provider that changes behaviour
@@ -702,6 +717,37 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
     elif planner_kind == "deepseek":
         planner = DeepSeekPlanner.from_env(model_config)
 
+    # A camera channel needs an adapter whether or not the *decision* seat has one. Before
+    # this, `--perceive vlm` was reachable only together with `--planner deepseek`, because the
+    # adapter came along inside the planner — which made the cheapest `full`-on-VLM contrast
+    # (swap the perception channel, keep the rule policy) impossible to even ask for, and left
+    # the gate below answering `channel_readiness` with `adapter=None` on every other path.
+    #
+    # It is built *after* that gate on purpose. The gate's question is answered by the config
+    # file alone — does it declare `vision` — while building the adapter also needs a loadable
+    # key, and a config that declares vision without a key behind it is a different refusal
+    # with a different sentence. Reading the YAML first means each failure is named by the
+    # thing that actually failed. The planner's own adapter is reused when it has one, so a
+    # batch that put the model in both seats reports one `config_sha256` rather than two
+    # constructions of one file.
+    def _camera_adapter():
+        nonlocal adapter
+        if adapter is not None or perceive != "vlm" or not model_config:
+            return adapter
+        adapter = getattr(planner, "adapter", None)
+        if adapter is not None:
+            return adapter
+        try:
+            adapter = DeepSeekAdapter.from_config(model_config)
+        except LLMError as e:
+            raise InfraError(
+                f"--perceive vlm with --model-config {model_config!r} cannot be built: {e}. "
+                f"Export {_api_key_env_of(model_config)} (that is the NAME the config declares; "
+                f"its value is never recorded, and this process reads it from the environment or "
+                f"from the repo-local .env) and the gate above will still pass on the same config, "
+                f"because it only ever read the file") from None
+        return adapter
+
     # The arm is resolved before a run directory exists, for the same reason the
     # pre-registration is: a refusal must not leave a half-written batch behind, and a batch
     # that ran under an arm nobody declared is not an arm, it is a contaminated comparison.
@@ -746,10 +792,17 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
         if perceive not in PERCEIVE_CHANNELS:
             raise InfraError(f"unknown perception channel {perceive!r}; declared: "
                              f"{list(PERCEIVE_CHANNELS)}")
-        not_ready = channel_readiness(perceive)
+        not_ready = channel_readiness(perceive, adapter, config_path=model_config)
         if not_ready:
             raise InfraError("; ".join(not_ready))
-        arm = ablation if ablation is not None else ablation_record("wo_vlm")
+        _camera_adapter()
+        # The default arm follows the channel, exactly as `cli._perception_kwargs` has always
+        # done it: a camera channel that consults a vision model is `full`, and defaulting it to
+        # `wo_vlm` instead made the next line refuse a request for an arm the caller never named
+        # ("channel 'vlm' cannot carry arm 'wo_vlm'") — a refusal that describes the code's
+        # default rather than the operator's command.
+        arm = (ablation if ablation is not None
+               else ablation_record("full" if perceive == "vlm" else "wo_vlm"))
         clash = arm_coherence(arm, perceive)
         if clash:
             raise InfraError(f"channel {perceive!r} cannot carry arm {arm.condition!r}: "
@@ -960,7 +1013,7 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
                 try:
                     summary = run_one_episode(case, repeat, mode, resolution, planner, root,
                                               set_name, frames=frames, perceive=perceive,
-                                              ablation=arm, views=views,
+                                              ablation=arm, views=views, adapter=adapter,
                                               default_view=default_view, policy=policy,
                                               experience_store=experience_store,
                                               skill_memory=skill_memory, propose=propose,

@@ -85,6 +85,45 @@ def strip_env_quotes(value: str) -> str:
 REASONING_EFFORTS = ("low", "medium", "high", "none")
 
 
+def vision_capability(config_path) -> tuple[bool, str]:
+    """Does the config in the model seat say this endpoint can be *shown* a picture?
+
+    Read off the raw YAML rather than off an adapter, because an adapter is the wrong place
+    to ask. `chat_vision` is a method `DeepSeekAdapter` has structurally, so
+    `callable(adapter.chat_vision)` is true of every endpoint in this repo including the
+    text-only ones, and `perception/grounding.py:channel_readiness` asks a still weaker
+    question — whether an adapter exists at all. Whether a given host accepts an image part
+    is a fact about a provider, and a fact this repo does not invent (SPEC 7): it is written
+    in a config, and a config that has not written it down cannot drive the camera arm.
+
+    Absent file is a refusal, not a default. `DeepSeekPlanner.from_env` answers a missing
+    path by falling back to `deepseek.yaml`, which on a camera channel would put a provider
+    nobody asked for behind a vision request.
+
+    Moved here from `benchmark_mujoco/runner.py` (which re-exports it) so the main CLI can
+    ask the same question without importing a MuJoCo bench: two answers to "can this config
+    see" is how the main CLI came to refuse `--perceive vlm` with a sentence that named
+    `--model-config` as the fix while never consulting it.
+    """
+    import yaml
+
+    path = os.path.abspath(config_path or "")
+    if not os.path.exists(path):
+        return False, f"no model config at {path}"
+    with open(path, encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+    caps = cfg.get("capabilities")
+    if isinstance(caps, str):
+        caps = [c.strip() for c in caps.split(",")]
+    if not isinstance(caps, list):
+        return False, (f"{os.path.basename(path)} declares no `capabilities`; a text-only "
+                       f"endpoint cannot be assumed to see")
+    words = [str(c).strip().lower() for c in caps]
+    if "vision" not in words:
+        return False, f"{os.path.basename(path)} declares capabilities={words}"
+    return True, f"{os.path.basename(path)} declares {words}"
+
+
 # --------------------------------------------------------------- HTTP client --
 
 class DeepSeekAdapter:
@@ -130,6 +169,56 @@ class DeepSeekAdapter:
             self.opener = urllib.request.build_opener()
         self.proxy_kind = ("direct" if proxy == "__direct__"
                            else "configured" if proxy else "from_environment")
+
+    # ---------- construction ----------
+    @classmethod
+    def from_config(cls, model_config_path: str | None) -> "DeepSeekAdapter":
+        """The one place a `configs/models/*.yaml` becomes an adapter.
+
+        Split out of `DeepSeekPlanner.from_env` for the camera channel, which needs the
+        adapter and not the planner: `--perceive vlm` with `--planner rule` must still be
+        able to reach a vision endpoint, and until this existed the only way to build an
+        adapter was to build a planner around it. Two copies of this reading would be two
+        places where `max_tokens` or `capabilities` could be honoured on one path and not
+        the other, which is the defect this round found (`cli.py` and `run.py` each called
+        `channel_readiness` with no adapter, so `--perceive vlm` was refused whatever
+        `--model-config` said, while the refusal sentence named `--model-config` as the fix).
+
+        `model_config_path` is required rather than defaulted: `from_env`'s default of
+        `deepseek.yaml` is a v0.1 pre-registration default, and a camera arm that silently
+        inherited it would put a provider nobody asked for behind a vision request.
+        """
+        import yaml
+
+        cfg = {}
+        if model_config_path and os.path.exists(model_config_path):
+            with open(model_config_path, encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+        key_env = cfg.get("api_key_env", "DEEPSEEK_API_KEY")
+        api_key = os.environ.get(key_env, "")
+        if not api_key:
+            env_file = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+            if os.path.exists(env_file):
+                with open(env_file, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith(f"{key_env}="):
+                            api_key = strip_env_quotes(line.split("=", 1)[1].strip())
+                            break
+        return cls(
+            api_key=api_key,
+            model=os.environ.get("DEEPSEEK_MODEL", cfg.get("model", "deepseek-chat")),
+            base_url=os.environ.get("DEEPSEEK_BASE_URL",
+                                    cfg.get("base_url", "https://api.deepseek.com")),
+            temperature=float(cfg.get("temperature", 0.2)),
+            max_tokens=int(cfg.get("max_tokens", 1200)),
+            timeout_s=float(cfg.get("timeout_s", 60)),
+            max_retries=int(cfg.get("max_retries", 2)),
+            proxy=cfg.get("proxy", "__direct__"),
+            pricing_usd_per_mtok=cfg.get("pricing_usd_per_mtok"),
+            provider=str(cfg.get("provider", "deepseek")),
+            reasoning_effort=cfg.get("reasoning_effort"),
+        )
 
     @property
     def sampling(self) -> dict:
@@ -703,8 +792,6 @@ class DeepSeekPlanner:
         meta["clarification_request"] = (raw or {}).get("clarification_request")
         return plan, meta
 
-    # ---------- construction ----------
-    @classmethod
     def from_env(cls, model_config_path: str | None = None) -> "DeepSeekPlanner":
         """configs/models/*.yaml holds the *name* of the env var holding the key;
         the key itself never enters configs, snapshots, prompts or logs (SPEC 7)."""
@@ -716,33 +803,9 @@ class DeepSeekPlanner:
         if os.path.exists(cfg_path):
             with open(cfg_path, encoding="utf-8") as f:
                 cfg = yaml.safe_load(f) or {}
-        key_env = cfg.get("api_key_env", "DEEPSEEK_API_KEY")
-        api_key = os.environ.get(key_env, "")
-        if not api_key:
-            env_file = os.path.join(repo_root, ".env")
-            if os.path.exists(env_file):
-                with open(env_file, encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith(f"{key_env}="):
-                            api_key = strip_env_quotes(line.split("=", 1)[1].strip())
-                            break
         prompts = cfg.get("prompts") or {}
         return cls(
-            DeepSeekAdapter(
-                api_key=api_key,
-                model=os.environ.get("DEEPSEEK_MODEL", cfg.get("model", "deepseek-chat")),
-                base_url=os.environ.get("DEEPSEEK_BASE_URL",
-                                        cfg.get("base_url", "https://api.deepseek.com")),
-                temperature=float(cfg.get("temperature", 0.2)),
-                max_tokens=int(cfg.get("max_tokens", 1200)),
-                timeout_s=float(cfg.get("timeout_s", 60)),
-                max_retries=int(cfg.get("max_retries", 2)),
-                proxy=cfg.get("proxy", "__direct__"),
-                pricing_usd_per_mtok=cfg.get("pricing_usd_per_mtok"),
-                provider=str(cfg.get("provider", "deepseek")),
-                reasoning_effort=cfg.get("reasoning_effort"),
-            ),
+            DeepSeekAdapter.from_config(cfg_path),
             goal_prompt=prompts.get("goal", "s2-goal-v1"),
             decision_prompt=prompts.get("decision", "s2-decide-v1"),
             plan_prompt=prompts.get("plan", "s2-plan-v1"),

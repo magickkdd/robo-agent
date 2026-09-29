@@ -322,9 +322,15 @@ def _perception_kwargs(args) -> tuple[dict, list[str]]:
         return {}, [f"unknown ablation condition {condition!r}; registered: "
                     f"{sorted(ABLATION_CONDITIONS)}"]
     arm = ablation_record(condition)
+    model_config = getattr(args, "model_config", None)
     refusals = [f"--perceive {args.perceive} cannot carry --ablation {condition}: " + r
                 for r in arm_coherence(arm, args.perceive)]
-    refusals += channel_readiness(args.perceive)
+    # `config_path=model_config` is the fix for a gate that was asked a question it could not
+    # answer: called with one argument this call had `adapter=None` for every run, so
+    # `--perceive vlm` was refused whatever `--model-config` said, while the sentence it
+    # returned told the operator to pass one. The config is consulted now, and the sentence
+    # names the config that was actually read.
+    refusals += channel_readiness(args.perceive, config_path=model_config)
     # §13 P5: the store and the library are now runnable on a camera channel — the perceiver
     # `build_arm` used to build privately is available as `build_perceiver`, and both stacked
     # builders take one. What the entry still refuses is the two ways a joined batch could report
@@ -339,7 +345,6 @@ def _perception_kwargs(args) -> tuple[dict, list[str]]:
         return {}, refusals
     kw["ablation"] = arm
     return kw, []
-
 
 def cmd_run(args) -> int:
     from .evaluation.run import goal_logger, resolve_goal, run_one_episode

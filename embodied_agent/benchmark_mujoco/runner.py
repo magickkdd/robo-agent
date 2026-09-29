@@ -431,37 +431,21 @@ PERCEIVE_CHANNELS = ("privileged", "stub", "vlm")
 
 
 def vision_capability(config_path: Optional[str]) -> tuple[bool, str]:
-    """Does the config in the model seat say this endpoint can be *shown* a picture?
+    """This bench's name for the question, now answered in one place.
 
-    Read off the raw YAML rather than off an adapter, because an adapter is the wrong place
-    to ask. `chat_vision` is a method `DeepSeekAdapter` has structurally, so
-    `callable(adapter.chat_vision)` is true of every endpoint in this repo including the
-    text-only ones, and `perception/grounding.py:channel_readiness` asks a still weaker
-    question — whether an adapter exists at all. Whether a given host accepts an image part
-    is a fact about a provider, and a fact this repo does not invent (SPEC 7): it is written
-    in a config, and a config that has not written it down cannot drive the camera arm.
+    The body moved to `adapters.deepseek.vision_capability` when the main CLI had to ask it
+    too: `cli.py` and `run.py` each called `channel_readiness` with no adapter, so
+    `--perceive vlm` was refused whatever `--model-config` said, while the refusal sentence
+    named `--model-config` as the fix. Re-exported rather than kept as a second copy so the
+    bench and the desktop still have exactly one answer to "can this config see", and so
+    `tests/contract/test_mujoco_channel.py` keeps importing the name it was written against.
 
-    Absent file is a refusal, not a default. `DeepSeekPlanner.from_env` answers a missing
-    path by falling back to `deepseek.yaml`, which on this channel would put a provider
-    nobody asked for behind a vision request.
+    Its reasoning, unchanged: read off the raw YAML rather than off an adapter, because
+    `chat_vision` is a method every endpoint in this repo has structurally.
     """
-    import yaml
+    from ..adapters.deepseek import vision_capability as _impl
 
-    path = os.path.abspath(config_path or "")
-    if not os.path.exists(path):
-        return False, f"no model config at {path}"
-    with open(path, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
-    caps = cfg.get("capabilities")
-    if isinstance(caps, str):
-        caps = [c.strip() for c in caps.split(",")]
-    if not isinstance(caps, list):
-        return False, (f"{os.path.basename(path)} declares no `capabilities`; a text-only "
-                       f"endpoint cannot be assumed to see")
-    words = [str(c).strip().lower() for c in caps]
-    if "vision" not in words:
-        return False, f"{os.path.basename(path)} declares capabilities={words}"
-    return True, f"{os.path.basename(path)} declares {words}"
+    return _impl(config_path)
 
 
 def _percept_arm(*, perceive: str, backend: Any, ep_dir: str, budgets: Any,

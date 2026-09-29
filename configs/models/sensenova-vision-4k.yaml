@@ -1,0 +1,44 @@
+schema_version: "1"
+# E2 的视觉席（SPEC-v0.3 §14 D1 修正，用户 2026-09-28 裁定"新建"）。
+# **与 `sensenova-vision.yaml` 逐字只差 `max_tokens` 一行**：该文件的字节属于附录 H 已跑完的
+# 批次（每份 manifest 里都记着它的 `config_sha256`），所以按它自己第 2-4 行立下的规矩另立新文件，
+# 不就地改。不臆造端点：provider / base_url / model / capabilities 全部照抄被量过的那一份。
+#
+# 为什么需要这个文件（本轮实测，产物与读数都在
+# /home/czx/embodied-agent-batches/v03/p0_seat_probes/）：
+#   席位探针 `seat_probe_sensenova-vision_vision.json`
+#     max_tokens=1200 -> HTTP 200，finish_reason=**length**，raw_chars **0**，
+#     content_field_present **false**，usage.completion_tokens 1200 且
+#     completion_tokens_details.reasoning_tokens **1200**（推理把预算吃满，正文一个字符没吐）。
+#     这正是 SPEC-v0.3 §6 E1 里点名要量的那个死法："finish_reason=length 配 0 字符正文"。
+#   诊断 `seat_diagnosis_sensenova-vision.json`（两次计费调用，逐格如下）
+#     文本 @1200 -> stop，raw_chars 14（`{"ok": true}`），reasoning 14
+#     视觉 @4096 -> stop，raw_chars **31**（`{"shape": "cube", "ok": true}`），
+#                  usage completion 213 / reasoning_tokens 199，prompt 428
+#   ⇒ 端点与这个 id 都能看图（诊断 A 类：不是路由级缺席，是**预算与推理长度**的冲突）。
+#   帧：runs/gui/episodes/smoke_clean.B.r0/frame_001_pick.png，sha256 前缀 0c052e85d91ba44a。
+#
+# 风险要说清楚：4096 是**上界**，不是每帧的用量。同一批帧里推理跑得短的请求只用掉其中一小部分
+# （上表 213），跑得长的会一直用满到 4096。因此 E2 的 Cost 组里 completion tokens 的离散度
+# 本身是一条读数，报告里不得用均值掩盖它；而"零正文率"在 1200 那份配置下不为 0，
+# 在这份配置下**应当**为 0，若不为 0 那是新事实，不许解释成能力。
+provider: sensenova
+api_key_env: SENSENOVA_API_KEY   # 只记录变量名；密钥本身只在环境变量/仓库内 .env（SPEC 7）
+base_url: https://token.sensenova.cn/v1
+model: sensenova-6.8-flash-lite
+
+capabilities: [text, vision]
+
+# prompt 版本与 agnes-vision.yaml / deepseek.yaml / sensenova-vision.yaml 逐项相同：
+# 换了被试没换题，两边才可比。
+prompts:
+  goal: s2-goal-v1
+  decision: s2-decide-v1
+  plan: s2-plan-v1
+temperature: 0.2
+max_tokens: 4096   # 与 sensenova-vision.yaml 的唯一差异，理由见文件头
+timeout_s: 90
+max_retries: 2
+feedback_depth: 3
+# 单价未知就留空：`api_cost_estimate` / `cost_estimate_usd` 保持 null，只报请求数与 tokens
+# （SPEC 7.1：不编价格）。这张配置上 `pricing_configured=False` 是一句被印出来的读数，不是缺口。

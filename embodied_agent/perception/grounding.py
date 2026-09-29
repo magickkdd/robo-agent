@@ -260,7 +260,7 @@ def arm_coherence(ablation, channel: str) -> list[str]:
     return reasons
 
 
-def channel_readiness(channel: str, adapter=None) -> list[str]:
+def channel_readiness(channel: str, adapter=None, config_path=None) -> list[str]:
     """Why this channel cannot run *here*, as reasons rather than an exception.
 
     `arm_coherence` answers "does this arm's claim match this channel's behaviour"; this
@@ -270,9 +270,33 @@ def channel_readiness(channel: str, adapter=None) -> list[str]:
 
     The refusal is stated once, here, so `cli`, `run_group` and `build_arm` cannot drift into
     three different explanations of the same absence — and so the sentence that says "no vision
-    model is configured" is never the place a run quietly becomes a stub run."""
+    model is configured" is never the place a run quietly becomes a stub run.
+
+    `config_path` is the question this gate was written about and could not ask. It was called
+    with one argument from `cli.py` and from `run_group`, so `adapter` was always `None`, so
+    `--perceive vlm` was refused *whatever* `--model-config` said — while the refusal sentence
+    told the operator to pass one. A sentence that names a fix which does not work is worse
+    than no sentence: it sends the reader to a knob that turns out to be disconnected. So the
+    config is now consulted when one is given, through `adapters.deepseek.vision_capability`,
+    which reads the `capabilities:` line rather than asking an adapter — `chat_vision` is a
+    method every endpoint in this repo has structurally, so `callable(adapter.chat_vision)`
+    would say yes to a text-only model. A caller holding only an adapter (the camera builders)
+    keeps the weaker check, because that is all they were ever given."""
     reasons: list[str] = []
-    if channel == "vlm" and adapter is None:
+    if channel != "vlm":
+        return reasons
+    if config_path:
+        from ..adapters.deepseek import vision_capability
+
+        able, why = vision_capability(config_path)
+        if not able:
+            reasons.append(
+                f"the vlm channel is not runnable with this model config: {why}. "
+                f"Falling back to the deterministic stub would report the same episode under "
+                f"the name `full`, which is the one substitution this gate exists to prevent. "
+                f"The first real request also needs its budget stated before it is spent (SPEC 7)")
+        return reasons
+    if adapter is None:
         reasons.append(
             "the vlm channel is not runnable here: no vision model is configured "
             "(no `--model-config` naming a config with a vision-capable model was passed, "
