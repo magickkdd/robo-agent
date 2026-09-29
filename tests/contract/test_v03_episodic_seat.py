@@ -324,21 +324,27 @@ PAIR_B = {"pair_id": "p2", "condition": "c", "writer": "w", "reader": "r"}
 def _budgeted_ledger(out_root, per_episode_requests):
     """A stub that writes ledgers whose cost the reader can actually see."""
     def fake_run_group(set_name, **kw):
-        root = os.path.join(kw["out_root"], "episodes", "e1")
-        os.makedirs(root, exist_ok=True)
-        with open(os.path.join(root, "model_calls.jsonl"), "w", encoding="utf-8") as f:
+        # `out_root` IS the run root the driver handed us, and the episode lives at
+        # `<run root>/episodes/<id>`. The stub must report that same path back, because the stop
+        # rule reads the ledgers at the root each batch *reported* — a stub that invented its own
+        # root is what made the first version of the check read an empty tree.
+        root = kw["out_root"]
+        os.makedirs(os.path.join(root, "episodes", "e1"), exist_ok=True)
+        with open(os.path.join(root, "episodes", "e1", "model_calls.jsonl"), "w",
+                  encoding="utf-8") as f:
             for _ in range(per_episode_requests):
                 f.write(json.dumps({"http_requests_this_call": 1, "latency_s": 0.1,
                                     "usage": {"prompt_tokens": 1, "completion_tokens": 1}}) + "\n")
-        g = os.path.join(kw["out_root"], "goal_resolutions")
+        g = os.path.join(root, "goal_resolutions")
         os.makedirs(g, exist_ok=True)
         with open(os.path.join(g, "goal_calls.jsonl"), "w", encoding="utf-8") as f:
             f.write(json.dumps({"http_requests_this_call": 1, "latency_s": 0.1,
                                 "usage": {"prompt_tokens": 1, "completion_tokens": 1}}) + "\n")
-        with open(os.path.join(root, "episode_summary.json"), "w", encoding="utf-8") as f:
+        with open(os.path.join(root, "episodes", "e1", "episode_summary.json"), "w",
+                  encoding="utf-8") as f:
             json.dump({"episode_id": "e1"}, f)
-        open(os.path.join(root, "events.jsonl"), "w", encoding="utf-8").close()
-        return {"root": os.path.dirname(root), "run_id": "r", "rows": 1}
+        open(os.path.join(root, "episodes", "e1", "events.jsonl"), "w").close()
+        return {"root": root, "run_id": "r", "rows": 1}
     return fake_run_group
 
 
@@ -422,3 +428,283 @@ def test_a_batch_inside_its_bound_says_so(tmp_path, capsys, monkeypatch):
     assert rc == 0
     assert "completed within bound" in out
     assert "HALTED" not in out
+
+
+def test_a_bound_that_reads_nothing_refuses_rather_than_passing(tmp_path, monkeypatch):
+    """The most dangerous shape this project produced: a bound check that measures zero and
+    reports "within bound".
+
+    The first version globbed the directory it had *asked* for, while `run_group` writes a
+    timestamped subdirectory beneath it. The glob found an empty tree, summed 0, and the batch
+    printed `spent 0, completed within bound` — a clean pass over a check that had read nothing.
+    The MEM-1 batch it guarded was in fact within bound, so nothing was saved; that was luck of
+    the projection, not the check working. A zero reading is now a refusal.
+    """
+    def writes_nothing_measurable(set_name, **kw):
+        # a run root with no episodes/ and no goal ledger: exactly what the wrong depth sees
+        os.makedirs(kw["out_root"], exist_ok=True)
+        return {"root": kw["out_root"], "run_id": "r", "rows": 0}
+
+    monkeypatch.setattr(episodic_runs, "run_group", writes_nothing_measurable)
+    with pytest.raises(RuntimeError, match="not where it is looking"):
+        run_episodic_pairs(os.path.join(str(tmp_path), "pairs"), pairs=[PAIR_A],
+                           arms=("full",), stop_at_requests=100)
+
+
+def test_no_bound_means_no_zero_refusal(tmp_path, monkeypatch):
+    # the refusal is about a check that cannot see, not about a run that spends nothing
+    monkeypatch.setattr(episodic_runs, "run_group", _budgeted_ledger(str(tmp_path), 0))
+    out = os.path.join(str(tmp_path), "pairs")
+    artifact = run_episodic_pairs(out, pairs=[PAIR_A], arms=("full",))
+    assert artifact["pairs_ran"] == ["p1"]
+
+
+# ------------------------------------ a manifest row is not a run: the 429-lost episodes ----
+# On the MEM-1 model-seat batch, `em_p1`/`em_p2`'s control-arm reader exhausted all five attempts
+# on HTTP 429 and wrote a run root with a goal ledger and no episode. The manifest row existed
+# (the arm's loop was entered), so "which pairs ran" counted it, and `measure` raised a bare
+# ValueError and lost **all four** pairs. Two fixes, both tested here.
+def _ledger_with(root, rows_spec):
+    """rows_spec: list of (pair_id, arm, {role: wrote_episode or None})"""
+    batches = []
+    for pair_id, arm, roles in rows_spec:
+        entry = {"pair_id": pair_id, "arm": arm, "condition": "c", "batches": {}}
+        for role, wrote in roles.items():
+            r = os.path.join(root, pair_id, arm, role, "run_1")
+            if wrote is True:
+                os.makedirs(os.path.join(r, "episodes", "e1"), exist_ok=True)
+                with open(os.path.join(r, "episodes", "e1", "episode_summary.json"), "w",
+                          encoding="utf-8") as f:
+                    json.dump({"episode_id": "e1"}, f)
+                open(os.path.join(r, "episodes", "e1", "events.jsonl"), "w").close()
+            else:
+                os.makedirs(os.path.join(r, "goal_resolutions"), exist_ok=True)
+                if wrote == "silent":
+                    # the run root exists, produced no episode, and recorded no reason: the v0.2
+                    # corruption case, as opposed to `wrote=False`'s recorded 429
+                    pass
+                else:
+                    with open(os.path.join(r, "goal_resolutions", "goal_calls.jsonl"), "w",
+                              encoding="utf-8") as f:
+                        f.write(json.dumps({
+                            "error": "LLMError: request failed after 5 attempts: "
+                                     "HTTP Error 429",
+                            "http_requests_this_call": 5, "transport_attempts": 5}) + "\n")
+            entry["batches"][role] = {"case_id": "c", "root": r, "rows": 0}
+        batches.append(entry)
+    os.makedirs(root, exist_ok=True)
+    with open(os.path.join(root, "pairs_run.json"), "w", encoding="utf-8") as f:
+        json.dump({"kind": "episodic_pairs_run", "root": root, "planner": "deepseek",
+                   "policy": None, "model_config": "cfg.yaml", "batches": batches}, f)
+    return root
+
+
+def test_a_pair_arm_whose_role_never_ran_does_not_count_as_ran(tmp_path, monkeypatch):
+    rows = [("em_p1", "full", {"writer": True, "reader": True}),
+            ("em_p1", "wo_episodic_memory", {"writer": True, "reader": False})]
+    root = _ledger_with(str(tmp_path), rows)
+    monkeypatch.setattr(episodic_runs, "EM_PAIRS", [{"pair_id": "em_p1", "condition": "c"}])
+    out = measure_episodic_pairs(root)
+    assert out["pairs"] == []
+    assert out["absent"][0]["pair_id"] == "em_p1"
+    assert out["absent"][0]["arms_missing"] == ["wo_episodic_memory"]
+
+
+def test_the_absence_names_the_role_and_its_error(tmp_path, monkeypatch):
+    # "expected one episode, found 0" leaves the reader with nothing to act on. The error is in
+    # that role's own goal ledger, because a role with no episode has no errors.jsonl to point at.
+    rows = [("em_p1", "full", {"writer": True, "reader": True}),
+            ("em_p1", "wo_episodic_memory", {"writer": True, "reader": False})]
+    root = _ledger_with(str(tmp_path), rows)
+    monkeypatch.setattr(episodic_runs, "EM_PAIRS", [{"pair_id": "em_p1", "condition": "c"}])
+    out = measure_episodic_pairs(root)
+    why = out["absent"][0]["why"][0]
+    assert why["roles_missing"] == ["reader"]
+    assert "429" in why["role_errors"]["reader"]["error"]
+    assert why["role_errors"]["reader"]["http_requests_this_call"] == 5
+
+
+def test_mem1_keeps_the_pairs_that_ran_and_names_the_ones_that_did_not(tmp_path, monkeypatch):
+    from embodied_agent.evaluation import episodic_metrics
+    # The real pair set, and a ledger holding only `em_p1` — whose control reader produced no
+    # episode. The other three have no manifest row, so they are absent without ever being
+    # scored; `em_p1` has a row but half-ran, and that is the case this test is about.
+    rows = [("em_p1", "full", {"writer": True, "reader": True}),
+            ("em_p1", "wo_episodic_memory", {"writer": True, "reader": False})]
+    root = _ledger_with(str(tmp_path), rows)
+    monkeypatch.setattr(episodic_metrics, "score_pair",
+                        lambda *a, **k: pytest.fail("scored a pair that did not run"))
+    out = episodic_metrics.measure(root)
+    assert out["pairs_ran"] == []
+    assert {a["pair_id"] for a in out["absent"]} == {"em_p1", "em_p2", "em_p3", "em_p4"}
+    p1 = next(a for a in out["absent"] if a["pair_id"] == "em_p1")
+    assert p1["arms_missing"] == ["wo_episodic_memory"]
+    assert p1["why"][0]["roles_missing"] == ["reader"]
+    p2 = next(a for a in out["absent"] if a["pair_id"] == "em_p2")
+    assert p2["arms_missing"] == ["full", "wo_episodic_memory"]
+    assert p2["why"][0]["reason"] == "no manifest row for this pair-arm"
+
+
+# ------------------------------- the policy-trace rows have no writer on a model seat ----
+# `M2.followed_round_share` read 0/15 on the MEM-1 model-seat batch, which reads as "the model
+# never used memory". Measured: 16/16 rule-seat episode summaries carry a `policy` block (100
+# trace entries, 14 `memory_followed` true); 0/14 model-seat summaries do. A zero here is a
+# fabricated negative — the most dangerous shape a metric can take, because 0 reads as evidence.
+def test_the_policy_trace_rows_are_five_not_two(tmp_path):
+    from embodied_agent.evaluation import episodic_metrics as em
+    assert set(em._POLICY_TRACE_ROWS) == {
+        "M2.followed_round_share", "M2.followed_where_control_chose_the_same",
+        "M3.declines_per_refuted_round", "M4.refuted_and_still_governing",
+        "M4.uncheckable_and_governing",
+    }
+
+
+def test_every_policy_trace_row_really_reads_the_trace():
+    # the set is maintained by hand, so it is checked against the definitions: a row added to the
+    # tuple that reads something else would suppress a measurement for no reason, and a row that
+    # reads the trace but is missing from the tuple publishes a fabricated zero
+    from embodied_agent.evaluation import episodic_metrics as em
+    reading_trace = {m for m, d in em.METRIC_DEFINITIONS.items()
+                     if "policy.trace" in (d.get("truth") or "")
+                     or "policy trace" in (d.get("truth") or "")}
+    assert reading_trace == set(em._POLICY_TRACE_ROWS), (
+        f"definitions say {sorted(reading_trace)} read the trace; the tuple says "
+        f"{sorted(em._POLICY_TRACE_ROWS)}")
+
+
+def test_the_rule_seat_keeps_its_policy_trace_rows(tmp_path, monkeypatch):
+    # the suppression is seat-conditional: on the rule seat the policy runs and the rows are real
+    from embodied_agent.evaluation import episodic_metrics as em
+    root = _fake_ledger(os.path.join(str(tmp_path), "rule"), "rule", "memory")
+    monkeypatch.setattr(em, "EM_PAIRS", [])
+    out = em.measure(root)
+    assert out["planner"] == "rule"
+    for metric in em._POLICY_TRACE_ROWS:
+        assert metric not in out["pooled"] or out["pooled"][metric].get("measured") is not False, (
+            f"{metric} was suppressed on the rule seat, where the policy does write the trace")
+
+
+def _cell(n=3, d=15):
+    return {"metric": "m", "numerator": n, "denominator": d, "value": round(n / d, 4),
+            "wilson_95": [0.1, 0.4], "measured": True, "not_measured_reason": None}
+
+
+def _suppression_fixture():
+    """A scored row and a pooled dict holding every policy-trace row, all as measured zeros.
+
+    The two get **independent** cell objects, because in a real run they are separate cells: when
+    the row's cells and the pooled cells were the same objects, the suppression ran twice over one
+    cell and `suppressed_as` came out as `None / None` instead of what it was counting.
+    """
+    from embodied_agent.evaluation import episodic_metrics as em
+    row_metrics = {m: _cell() for m in em._POLICY_TRACE_ROWS}
+    row_metrics["M2.trajectory_changed_and_completed"] = _cell(0, 2)
+    pooled = {m: _cell() for m in em._POLICY_TRACE_ROWS}
+    pooled["M2.trajectory_changed_and_completed"] = _cell(0, 2)
+    return [{"pair_id": "em_p3", "metrics": row_metrics}], pooled
+
+
+def test_a_model_seat_suppresses_every_policy_trace_row():
+    from embodied_agent.evaluation import episodic_metrics as em
+    scored, pooled = _suppression_fixture()
+    em._suppress_policy_trace_rows(scored, pooled, "deepseek")
+    for metric in em._POLICY_TRACE_ROWS:
+        for cell in (pooled[metric], scored[0]["metrics"][metric]):
+            assert cell["measured"] is False, metric
+            assert cell["value"] is None, metric
+            assert cell["numerator"] is None and cell["denominator"] is None, metric
+            assert cell["wilson_95"] is None, metric
+            assert cell["not_measured_reason"] == em._POLICY_TRACE_ABSENT, metric
+            # the number it would have been is kept, not erased: a suppressed cell should still
+            # show what it was counting, or a reader cannot tell a real 0 from a seat limit
+            assert cell["suppressed_as"] == "3 / 15", metric
+
+
+def test_the_seat_agnostic_rows_survive_the_suppression():
+    from embodied_agent.evaluation import episodic_metrics as em
+    scored, pooled = _suppression_fixture()
+    em._suppress_policy_trace_rows(scored, pooled, "deepseek")
+    assert pooled["M2.trajectory_changed_and_completed"]["measured"] is True
+    assert pooled["M2.trajectory_changed_and_completed"]["value"] == 0.0
+
+
+def test_the_rule_seat_suppresses_nothing():
+    from embodied_agent.evaluation import episodic_metrics as em
+    scored, pooled = _suppression_fixture()
+    em._suppress_policy_trace_rows(scored, pooled, "rule")
+    for metric in em._POLICY_TRACE_ROWS:
+        assert pooled[metric]["measured"] is True, metric
+        assert pooled[metric]["value"] == round(3 / 15, 4), metric
+
+
+def test_an_unrecorded_seat_is_not_assumed_to_be_a_model_seat():
+    # `None` means the ledger predates the seat fields. Suppressing on `None` would silently
+    # blank an older rule-seat batch's rows; measuring on a model seat would publish zeros.
+    from embodied_agent.evaluation import episodic_metrics as em
+    scored, pooled = _suppression_fixture()
+    em._suppress_policy_trace_rows(scored, pooled, None)
+    for metric in em._POLICY_TRACE_ROWS:
+        assert pooled[metric]["measured"] is True, metric
+
+
+def test_a_model_seat_row_names_the_absence_instead_of_scoring_zero():
+    # the reason must survive to the published table, so a reader knows the row is seat-limited
+    # rather than pair-limited
+    from embodied_agent.evaluation import episodic_metrics as em
+    note = em._POLICY_TRACE_ABSENT
+    assert "fabricated negative" in note
+    assert "M2.trajectory_changed_and_completed" in note
+    assert "0/14" in note
+
+
+# --------------------- a recorded failure is not corruption; a silent one still is ----
+# v0.2's contract refuses a ledger that names a missing episode
+# (`test_a_ledger_that_names_an_episode_that_is_not_on_disk_fails_rather_than_scoring_nothing`),
+# and that refusal is kept. The MEM-1 model-seat batch is the case it is *not* about: two control
+# readers exhausted five attempts on HTTP 429 and wrote a run root holding a goal ledger that
+# names the error, with no episode. Those are honestly "did not run"; refusing would have meant no
+# Memory-group table at all. So the distinction is three-way, and all three arms are tested.
+def test_a_silent_missing_episode_is_still_a_refusal(tmp_path):
+    from embodied_agent.evaluation import episodic_metrics
+    rows = [("em_p1", "full", {"writer": True, "reader": True}),
+            ("em_p1", "wo_episodic_memory", {"writer": True, "reader": "silent"})]
+    root = _ledger_with(str(tmp_path), rows)
+    with pytest.raises(ValueError, match="corrupt ledger"):
+        episodic_metrics.measure(root)
+
+
+def test_a_recorded_failure_is_absent_not_a_refusal(tmp_path, monkeypatch):
+    from embodied_agent.evaluation import episodic_metrics
+    rows = [("em_p1", "full", {"writer": True, "reader": True}),
+            ("em_p1", "wo_episodic_memory", {"writer": True, "reader": False})]
+    root = _ledger_with(str(tmp_path), rows)
+    monkeypatch.setattr(episodic_metrics, "score_pair",
+                        lambda *a, **k: pytest.fail("scored a pair with a failed role"))
+    out = episodic_metrics.measure(root)
+    assert out["absent"][0]["why"][0]["role_errors"]["reader"]["error"]
+
+
+def test_a_root_that_does_not_exist_is_deferred_to_the_reader(tmp_path):
+    """Deferring is not trusting: `read_pair` refuses with the path named, so a production caller
+    still fails loudly. A caller that replaced the reader is trusted to supply the episode."""
+    from embodied_agent.evaluation import episodic_runs as er
+    state, _detail = er._role_state({"root": os.path.join(str(tmp_path), "never-created")})
+    assert state == er.DEFER
+    row = {"batches": {"writer": {"root": os.path.join(str(tmp_path), "never")},
+                       "reader": {"root": os.path.join(str(tmp_path), "never")}}}
+    assert er.pair_arm_ran(row) is True, "deferring must not shrink the denominator"
+
+
+def test_the_three_role_states_are_told_apart(tmp_path):
+    from embodied_agent.evaluation import episodic_runs as er
+    rows = [("em_p1", "full", {"writer": True, "reader": "silent"}),
+            ("em_p1", "wo_episodic_memory", {"writer": True, "reader": False})]
+    root = _ledger_with(str(tmp_path), rows)
+    ledger = json.load(open(os.path.join(root, "pairs_run.json"), encoding="utf-8"))
+    by = {(r["arm"], role): r["batches"][role]["root"]
+          for r in ledger["batches"] for role in r["batches"]}
+    assert er._role_state({"root": by[("full", "writer")]})[0] == "ran"
+    state, detail = er._role_state({"root": by[("wo_episodic_memory", "reader")]})
+    assert state == "failed" and "429" in detail["error"]
+    state, detail = er._role_state({"root": by[("full", "reader")]})
+    assert state == "ran" and detail.get("corrupt") is True

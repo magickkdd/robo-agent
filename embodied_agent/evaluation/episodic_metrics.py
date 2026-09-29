@@ -74,7 +74,8 @@ import json
 import os
 from typing import Any, Optional
 
-from .episodic_runs import read_pair
+from .episodic_runs import (check_unreconciled, pair_arm_ran, read_pair,
+                            why_pair_arm_missing)
 from .episodic_tasks import EM_ARMS, EM_CONTROL_ARM, EM_PAIRS, EM_TREATMENT_ARM, pair_claims
 from .report import wilson_interval
 
@@ -168,7 +169,8 @@ METRIC_DEFINITIONS: dict[str, dict[str, str]] = {
         "numerator": "followed rounds where the control arm's round of the same index chose the same "
                      "object",
         "denominator": "followed rounds",
-        "truth": "both arms' traces at one round index",
+        "truth": "both arms' `episode_summary.policy.trace` at one round index (`memory_followed` "
+                 "and the chosen object), so this row is trace-limited like the row above it",
         "forbidden": "subtracting this from M2.followed_round_share to get a 'real' reuse rate: the "
                      "difference is not reuse either, it is divergence, and the behavioural row above "
                      "is the one that decides whether divergence helped",
@@ -225,7 +227,8 @@ METRIC_DEFINITIONS: dict[str, dict[str, str]] = {
         "numerator": "rounds whose chosen object is in `memory_order`",
         "denominator": "that reader's decision rounds",
         "truth": "the pair's declared `claims_the_reader_can_check` (empty) from the frozen set, and "
-                 "the trace for the choice; the blindness itself is `arm.py::_memory_query`, which "
+                 "`episode_summary.policy.trace`'s `memory_order` for the choice; the blindness "
+                 "itself is `arm.py::_memory_query`, which "
                  "builds `measured` out of this episode's own plan rows",
         "forbidden": "reading the value as 'stale': the set says these claims cannot be tested here, "
                      "not that they are false. The claim being made is that an untestable memory "
@@ -258,6 +261,41 @@ _NOT_MEASURED = {
         "nonzero denominator is a different sentence — the guard saw refuted rows and passed no "
         "object over — and is published as a measured zero"),
 }
+
+#: The rows that read `episode_summary.policy.trace`. Measured on the MEM-1 model-seat batch:
+#: 16/16 rule-seat episode summaries carry a `policy` block with 100 trace entries (14 of them
+#: `memory_followed` true), and **0/14** model-seat summaries do. `MemoryPolicy` is the reader only
+#: on the rule seat — a model seat runs the model planner as the decision maker — so nothing writes
+#: that trace and none of these fields has a writer.
+#:
+#: There are four, not two, and the first two are not the obvious ones: `M3.declines_per_refuted_round`
+#: reads `memory_declined` and `M4.refuted_and_still_governing` reads `memory_order`, both from the
+#: same trace. Publishing those as zeros would have been the same fabricated negative wearing a
+#: different row's name.
+#:
+#: This is the most dangerous shape a metric can take here, because a zero reads as *evidence*
+#: while an absent instrument does not. `0/15` beside "the model followed memory" says the model
+#: never used it; the truth is that nothing was in a position to record whether it did. The
+#: seat-agnostic rows are the behavioural and retrieval ones — `M2.trajectory_changed_and_completed`,
+#: `M2.outcome_improvement`, `M3.treatment_worse_or_costlier`, and all of `M1` — which read executed
+#: actions, final state and the runtime's own retrieval records, and so exist whoever decided.
+#: `M2.trajectory_changed_and_completed`'s own definition already forbids the self-report from
+#: standing in for it.
+_POLICY_TRACE_ROWS = ("M2.followed_round_share", "M2.followed_where_control_chose_the_same",
+                     "M3.declines_per_refuted_round", "M4.refuted_and_still_governing",
+                     "M4.uncheckable_and_governing")
+
+_POLICY_TRACE_ABSENT = (
+    "this row reads `episode_summary.policy.trace`, which is filed from `MemoryPolicy`'s own "
+    "per-round record. On a model seat the decision maker is the model planner, so no policy ran "
+    "and no trace was written: measured on the MEM-1 model-seat batch, 16/16 rule-seat episode "
+    "summaries carry a `policy` block (100 trace entries, 14 `memory_followed` true) and 0/14 "
+    "model-seat summaries do. A 0 here would be a fabricated negative — it would read as 'the "
+    "model never used memory' when the truth is 'nothing was in a position to record it'. The "
+    "seat-agnostic rows to read instead are M2.trajectory_changed_and_completed, "
+    "M2.outcome_improvement, M3.treatment_worse_or_costlier and all of M1: they read executed "
+    "actions, final state and the runtime's own retrieval records, so they exist whoever decided"
+)
 
 
 # ------------------------------------------------------------------ counting ----
@@ -447,23 +485,72 @@ def score_pair(root: str, pair: dict, claim: dict) -> dict:
                             "declines": reader["declines"]}}
 
 
+def _suppress_policy_trace_rows(scored: list[dict], pooled: dict, seat: Optional[str]) -> None:
+    """On a seat that ran no policy, the trace-reading rows are marked not-measured.
+
+    Extracted from `measure` so it can be tested directly. The first version lived inline, and
+    the mutation check reported three VACUOUS results against it: the tests asserted that the
+    row-set was right and that the reason string was well formed, but nothing ever ran the
+    suppression and looked at the result. A guard whose effect is never observed is a guard
+    nobody has checked.
+
+    The cell is kept in place, with its reason, rather than dropped: a missing key renders as the
+    generic "not produced by any pair that ran", which would lose the only sentence telling a
+    reader this row is seat-limited rather than pair-limited.
+    """
+    if seat is None or seat == "rule":
+        return
+
+    def suppress(cell):
+        cell["suppressed_as"] = f"{cell['numerator']} / {cell['denominator']}"
+        cell["value"] = None
+        cell["numerator"] = None
+        cell["denominator"] = None
+        cell["wilson_95"] = None
+        cell["measured"] = False
+        cell["not_measured_reason"] = _POLICY_TRACE_ABSENT
+        return cell
+
+    for row in scored:
+        for metric in _POLICY_TRACE_ROWS:
+            cell = (row.get("metrics") or {}).get(metric)
+            if cell is not None:
+                suppress(cell)
+    for metric in _POLICY_TRACE_ROWS:
+        if metric in pooled:
+            suppress(pooled[metric])
+
+
 # ------------------------------------------------------------------- measure ----
 def measure(root: str) -> dict:
     """Every declared pair that ran in both arms, pooled and per pair, plus what did not run."""
     claims = {c["pair_id"]: dict(c, reader_task_kind=_task_kind_of(root)) for c in pair_claims()}
     with open(os.path.join(root, "pairs_run.json"), encoding="utf-8") as f:
         ledger = json.load(f)
-    ran = {(row["pair_id"], row["arm"]) for row in ledger["batches"]}
+    # A run root that exists, produced no episode and recorded no error is a corrupt ledger, not a
+    # failed run. v0.2's contract says refuse rather than quietly shrink the denominator; this
+    # narrows that refusal to the silent case, because a role that recorded a 429 is not corrupt.
+    check_unreconciled(root)
+    # a manifest row is not a run — see `episodic_runs.pair_arm_ran`. Without this, one pair whose
+    # control reader never started took the whole table with it: on the MEM-1 model-seat batch two
+    # goal parses exhausted five attempts on HTTP 429, and `measure` raised instead of reporting
+    # the two pairs that ran.
+    rows_by_key = {(row["pair_id"], row["arm"]): row for row in ledger["batches"]}
+    ran = {k for k, row in rows_by_key.items() if pair_arm_ran(row)}
     scored, absent = [], []
     pooled: dict[str, list[int]] = {}
     for pair in EM_PAIRS:
         missing = [arm for arm in EM_ARMS if (pair["pair_id"], arm) not in ran]
         if missing:
-            absent.append({"pair_id": pair["pair_id"], "arms_missing": missing})
+            absent.append({"pair_id": pair["pair_id"], "arms_missing": missing,
+                           "why": [why_pair_arm_missing(rows_by_key.get((pair["pair_id"], arm)))
+                                   for arm in missing]})
             continue
         row = score_pair(root, pair, claims[pair["pair_id"]])
         _merge(pooled, row["counts"])
         scored.append(row)
+    pooled_rendered = _render(pooled)
+    _suppress_policy_trace_rows(scored, pooled_rendered, _seat(root).get("planner"))
     result = {"kind": "episodic_memory_metrics", "metric_version": METRIC_VERSION,
               "root": root, "set": "em", "arms": list(EM_ARMS),
               "planner": _seat(root).get("planner"), "policy": _seat(root).get("policy"),
@@ -476,7 +563,7 @@ def measure(root: str) -> dict:
                             "instruments, not a sample (§13's RQ3 asks whether the mechanism can be "
                             "measured at all; a rate over four pairs estimates nothing)"),
               "pairs_ran": [row["pair_id"] for row in scored], "absent": absent,
-              "pooled": _render(pooled), "by_pair": {row["pair_id"]: row for row in scored},
+              "pooled": pooled_rendered, "by_pair": {row["pair_id"]: row for row in scored},
               "definitions": METRIC_DEFINITIONS,
               "spec_rows": {label: list(ids) for label, ids in SPEC_ROWS},
               "not_measured": {k: _NOT_MEASURED[k] for k in sorted(_NOT_MEASURED)},

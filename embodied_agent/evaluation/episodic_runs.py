@@ -126,11 +126,20 @@ def run_episodic_pairs(out_root: str, *, pairs: Optional[list[dict]] = None,
                                         "run_id": stats["run_id"], "rows": stats["rows"]}
             manifest.append(row)
         if stop_at_requests is not None:
-            # measured with the two-ledger reader, not the per-episode one: on E1 that difference
-            # was 356 requests across a whole batch, and a bound checked against the smaller
-            # number is a bound checked against the wrong number.
-            spent = sum(batch_spend(os.path.join(out_root, r["pair_id"], r["arm"], role))[
-                "http_requests"] for r in manifest for role in EM_ROLES)
+            # The run root each batch *reported* is the authoritative path, not the one this
+            # function passed in: `run_group` creates a timestamped subdirectory beneath it. The
+            # first version of this check globbed the directory it had asked for, found an empty
+            # tree, and reported `spent 0, completed within bound` — a bound check that measured
+            # nothing and called it a pass, which is the most dangerous shape this project has
+            # produced. A zero reading now counts as a failure of the check, not as good news.
+            spent = sum(batch_spend(b["root"])["http_requests"]
+                        for r in manifest for b in r["batches"].values())
+            if spent <= 0:
+                raise RuntimeError(
+                    f"the stop rule read {spent} requests under {out_root} after "
+                    f"{len(manifest)} pair-arms: the ledgers are not where it is looking, so a "
+                    f"'within bound' verdict from this check would be meaningless. Refusing to "
+                    f"continue rather than reporting a bound it did not measure.")
     artifact = {"kind": "episodic_pairs_run", "root": out_root, "set": EM_SET_NAME,
                 "arms": list(arms), "policy": policy, "planner": planner_kind,
                 "model_config": model_config, "perceive": "privileged", "repeats": 1,
@@ -154,6 +163,118 @@ def _episode_dir(batch: dict) -> str:
     if len(hits) != 1:
         raise ValueError(f"{batch['case_id']}: expected one episode under {batch['root']}, "
                          f"found {len(hits)}")
+    return hits[0]
+
+
+#: Returned by `_role_state` when the root path does not exist at all. Deferring is the honest
+#: answer: the metric cannot say anything about a path that was never created, and the reader
+#: (`read_pair` → `_episode_dir`) already refuses with the path named. So production still fails
+#: loudly; only a caller that has replaced the reader is trusted to supply the episode.
+DEFER = "defer"
+
+
+def _recorded_failure(root: str) -> Optional[dict]:
+    """The error this role's own goal ledger recorded, if it recorded one."""
+    path = os.path.join(root, "goal_resolutions", "goal_calls.jsonl")
+    if not os.path.exists(path):
+        return None
+    for line in open(path, encoding="utf-8"):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if row.get("error"):
+            return {"error": row.get("error"),
+                    "http_requests_this_call": row.get("http_requests_this_call"),
+                    "transport_attempts": row.get("transport_attempts")}
+    return None
+
+
+def _role_state(batch: Optional[dict]) -> tuple[str, Optional[dict]]:
+    """Did this role run, fail demonstrably, or is its state unknown?
+
+    Three answers, and the middle one is the point. A manifest row is created when the arm's loop
+    is entered, so a row and a run are different claims; on the MEM-1 model-seat batch two control
+    readers exhausted five attempts on HTTP 429 and wrote a run root with a goal ledger and no
+    episode.
+
+    * **ran** — an episode directory exists.
+    * **failed** — the root exists, there is no episode, and the goal ledger names an error. The
+      pair-arm is absent and the error travels with it.
+    * **defer** — the root path does not exist, so the metric has nothing to reconcile against.
+
+    And a fourth case that is *not* a role state but a refusal: the root exists, produced no
+    episode, and recorded no reason. That is a corrupt ledger, not a failed run, and v0.2's
+    contract is right that it must not be quietly averaged over the pairs that happened to
+    survive — `check_unreconciled` raises on it. Collapsing that into "absent" is how corruption
+    becomes a plausible-looking rate.
+    """
+    if not batch or not batch.get("root"):
+        return DEFER, None
+    root = batch["root"]
+    if len(glob.glob(os.path.join(root, "episodes", "*"))) == 1:
+        return "ran", None
+    if not os.path.exists(root):
+        return DEFER, None
+    failure = _recorded_failure(root)
+    if failure is not None:
+        return "failed", failure
+    return "ran", {"corrupt": True}
+
+
+def check_unreconciled(root: str) -> None:
+    """Refuse a ledger that names a run root which exists, produced no episode and said nothing.
+
+    v0.2's contract: "`absent` is a claim about the ledger, so the ledger and the disk have to be
+    reconciled by a refusal, not by a rate computed over the pairs that happened to survive." That
+    is kept, and narrowed to the case it was written for — a *silent* missing episode. A role
+    that recorded why it produced nothing is not a reconciliation failure, and the MEM-1 batch is
+    the case in point.
+    """
+    with open(os.path.join(root, "pairs_run.json"), encoding="utf-8") as f:
+        ledger = json.load(f)
+    for row in ledger.get("batches", []):
+        for role in EM_ROLES:
+            batch = row.get("batches", {}).get(role)
+            state, detail = _role_state(batch)
+            if detail and detail.get("corrupt"):
+                raise ValueError(
+                    f"{row.get('pair_id')}/{row.get('arm')}/{role}: the ledger names a run root "
+                    f"that exists but holds no episode and no recorded error "
+                    f"({batch.get('root')}). That is a corrupt ledger, not a failed run: a run "
+                    f"that failed records why in its goal ledger. Refusing rather than reporting "
+                    f"this pair as 'did not run', which would quietly shrink the denominator.")
+
+
+def pair_arm_ran(row: dict) -> bool:
+    """A pair-arm counts as run unless one of its roles *demonstrably* failed.
+
+    `defer` counts as run: a root path that does not exist is not evidence of anything, and the
+    reader is the thing that will say so — in production with the path named, in a test with a
+    reader the caller supplied. Only a recorded failure removes a pair-arm from the denominator.
+    """
+    return all(_role_state(row.get("batches", {}).get(role))[0] != "failed"
+               for role in EM_ROLES)
+
+
+def why_pair_arm_missing(row: Optional[dict]) -> dict:
+    """Name the roles that did not run, and the error each one recorded, if any."""
+    out: dict = {"roles_missing": []}
+    if not row:
+        out["reason"] = "no manifest row for this pair-arm"
+        return out
+    for role in EM_ROLES:
+        state, detail = _role_state(row.get("batches", {}).get(role))
+        if state == "ran" and not (detail or {}).get("corrupt"):
+            continue
+        out["roles_missing"].append(role)
+        if (detail or {}).get("corrupt"):
+            out.setdefault("role_errors", {})[role] = "no error recorded in the goal ledger"
+        else:
+            out.setdefault("role_errors", {})[role] = detail or "no error recorded in the goal ledger"
+    return out
     return hits[0]
 
 
@@ -423,7 +544,13 @@ def measure_episodic_pairs(root: str, *, pairs: Optional[list[dict]] = None) -> 
     """
     with open(os.path.join(root, "pairs_run.json"), encoding="utf-8") as f:
         ledger = json.load(f)
-    ran = {(row["pair_id"], row["arm"]) for row in ledger["batches"]}
+    # a corrupt ledger is a refusal, not a smaller table — see `check_unreconciled`
+    check_unreconciled(root)
+    rows_by_key = {(row["pair_id"], row["arm"]): row for row in ledger["batches"]}
+    # A manifest row is not a run: a pair-arm whose role produced no episode is absent, and the
+    # reason is named. Counting rows instead would measure a pair whose control reader never
+    # started as if it had, and would raise on it rather than report it.
+    ran = {k for k, row in rows_by_key.items() if pair_arm_ran(row)}
     wanted = pairs if pairs is not None else EM_PAIRS
     out = {"kind": "episodic_pairs_measured", "root": root, "set": EM_SET_NAME,
            "frozen_manifest": EM_FROZEN_PATH,
@@ -438,7 +565,12 @@ def measure_episodic_pairs(root: str, *, pairs: Optional[list[dict]] = None) -> 
     for pair in wanted:
         missing = [arm for arm in EM_ARMS if (pair["pair_id"], arm) not in ran]
         if missing:
-            out["absent"].append({"pair_id": pair["pair_id"], "arms_missing": missing})
+            out["absent"].append({
+                "pair_id": pair["pair_id"],
+                "arms_missing": missing,
+                "why": [why_pair_arm_missing(rows_by_key.get((pair["pair_id"], arm)))
+                        for arm in missing],
+            })
             continue
         verdict = compare_pair(root, pair)
         treated, control = verdict["treatment"]["reader"], verdict["control"]["reader"]
