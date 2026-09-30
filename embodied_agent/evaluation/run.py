@@ -747,6 +747,21 @@ def _infra_row(case: TaskCase, repeat: int, mode: str, where: str, error: str,
             "result": {"terminal_status": "failed", "failure_type": None}}
 
 
+def _record_infra(root: str, row: dict) -> None:
+    """Every row that never reached an episode summary gets its cause in the batch's one
+    errors ledger, whichever path produced it (v0.4 R1: E2's c3 rows prove the in-episode
+    path already did this; E1's sixteen goal_resolution errors prove the other two paths
+    did not — and which path a dead episode takes is not a fact a reader can see, so
+    coverage cannot be left to chance). The row keeps its identity and its final outcome:
+    a `goal_resolution_error` is a different answer to "why is there no result" than an
+    `infrastructure_error`, and the ledger is where that question is asked."""
+    _append_jsonl(os.path.join(root, "errors.jsonl"),
+                  {**row["infrastructure_error"],
+                   "episode_id": row["episode_id"], "case_id": row["case_id"],
+                   "mode": row["mode"], "repeat": row["repeat"],
+                   "outcome": row["outcome"]})
+
+
 def _row_of(summary: dict) -> dict:
     return {**summary, "outcome": (summary.get("result") or {}).get("terminal_status", "unknown")}
 
@@ -1149,6 +1164,7 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
                     rows.append(_infra_row(case, repeat, mode, "goal_resolution",
                                            f"{type(e).__name__}: {e}", 0.0, set_name,
                                            perceive=perceive))
+                    _record_infra(root, rows[-1])
                 # the table is the report's input, so the rows a crash produced
                 # have to be in it as much as the rows an episode produced
                 _write_rows(rows, root)
@@ -1163,6 +1179,7 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
                     row["goal_resolution"] = {"artifact": resolution.artifact,
                                               "counters": resolution.counters}
                     rows.append(row)
+                    _record_infra(root, row)
                 _write_rows(rows, root)
                 continue
             for mode in modes:
@@ -1182,9 +1199,7 @@ def run_group(set_name: str, *, modes=MODES, planner_kind: str = "rule", repeats
                                            f"{type(e).__name__}: {e}", time.time() - t0,
                                            set_name, perceive=perceive))
                     rows[-1]["infrastructure_error"]["traceback_tail"] = traceback.format_exc()[-2000:]
-                    _append_jsonl(os.path.join(root, "errors.jsonl"), rows[-1]["infrastructure_error"]
-                                  | {"episode_id": rows[-1]["episode_id"],
-                                     "case_id": case.task_id, "mode": mode, "repeat": repeat})
+                    _record_infra(root, rows[-1])
                 _write_rows(rows, root)
     stats = {"run_id": run_id, "root": root, "planned": len(rows), "rows": len(rows),
              "planner": planner_kind, "offline": _batch_is_offline(planner_kind, perceive),

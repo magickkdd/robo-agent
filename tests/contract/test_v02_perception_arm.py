@@ -921,7 +921,10 @@ def test_the_grounding_map_is_a_declared_function_of_the_case(case, gmap):
     assert set(gmap.by_colour.values()) == {o["entity_id"] for o in case.objects}
     assert gmap.sha256() == GroundingMap.from_objects(case.objects).sha256()
     assert gmap.sha256() != GroundingMap(dict(by_colour, teal="obj_teal_1")).sha256()
-    with pytest.raises(ValueError, match="declared for both"):
+    # v0.4 R3 narrowed the duplicate-colour refusal: with no declared shapes to split
+    # the colour the bridge still refuses, under the new sentence (evolution recorded
+    # in the v0.4 phase log; the old wording was pinned here since the c3-era refusal)
+    with pytest.raises(ValueError, match="cannot be grounded"):
         GroundingMap.from_objects([{"entity_id": "a_1", "attributes": {"color": "red"}},
                                    {"entity_id": "b_1", "attributes": {"color": "RED"}}])
 

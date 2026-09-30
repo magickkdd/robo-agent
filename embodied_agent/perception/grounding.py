@@ -18,9 +18,13 @@ single table to grade. Three rules, all of them consequences of the same worry:
    task's own object list (`case.objects`: `entity_id` plus its declared `color`), which is
    the public half of the case — `TaskCase.public_payload` withholds the scoring block and
    the injected events, not the inventory. Nothing here looks at where a body is, at what the
-   goal assigns it, or at anything the evaluator knows. A colour word is the whole key, and
-   colours never repeat inside a frozen case (checked over all 47 cases in P1-b), which is
-   why the map refuses a duplicate rather than picking one.
+   goal assigns it, or at anything the evaluator knows. The key is the colour word, plus —
+   since v0.4 R3 — the frame's own measured shape, but only where the declaration itself
+   repeats a colour (all 47 clean/protocol and 8 episodic frozen cases are colour-unique,
+   checked in P1-b; the long-horizon table has two cases that are not, and their duplicated
+   colours carry distinct declared shapes, which is what lets the bridge stay a function).
+   A `(colour, shape)` the declaration cannot split is still refused rather than picking
+   one.
 2. **Only a body the frame named can be grounded, and only once.** Two detections claiming
    `red` in one frame is conflicting evidence about an unmoved table, so *neither* gets a
    task name; a colour the declaration does not carry (`seen:teal`, or the shape-only
@@ -65,6 +69,16 @@ from .frames import VIEWS
 GROUNDED = "grounded"
 UNGROUNDED = "ungrounded"
 CONFLICTING = "conflicting"
+#: the two keys a bridge can bind through, and the attribute that records which one
+#: spoke for this entity — "colour" when the word alone was a function of the
+#: declaration, "colour_shape" when two declared bodies share the colour and the frame's
+#: own measured shape split them (v0.4 R3; `lh_c3`'s two yellows are a cube and a cuboid).
+GROUNDING_KEY = "grounding_key"
+KEY_COLOUR = "colour"
+KEY_COLOUR_SHAPE = "colour_shape"
+#: what a shape word must not be, for it to split an ambiguous colour: the reader
+#: writes one of these when it measured nothing, and "nothing" cannot be a key.
+NO_SHAPES = ("", "unknown", "none")
 #: the frame's own name, kept beside the task's so a binding can be walked back
 SEEN_AS = "seen_as"
 GROUNDING = "grounding"
@@ -85,62 +99,138 @@ def colour_of(entity_id: str) -> str:
 class GroundingMap:
     """`declared colour word -> task entity id`, with the declaration it came from.
 
-    Immutable and hashable by content: the digest goes into the run's manifest, so a
-    re-labelled declaration is a different experiment even when the pictures are identical."""
+    Since v0.4 R3 the key is `(colour, shape)` wherever the colour word alone is not a
+    function of the declaration: two bodies may share a colour (`lh_c3`'s two yellows)
+    and the frame's own measured `attributes["shape"]` then splits them. Three rules:
 
-    def __init__(self, by_colour: dict[str, str], *, source: str = "task declaration"):
+    1. a colour declared once binds through the colour word alone — shape is never
+       consulted, so every colour-unique case (all 47 clean/protocol and 8 episodic
+       frozen cases) binds byte-identically to the pre-R3 bridge and keeps its digest;
+    2. a colour declared twice binds through `(colour, shape)`, and only when the
+       declaration's shapes actually differ — a detection whose shape is unknown or
+       mismatched stays ungrounded rather than silently picking a winner;
+    3. a `(colour, shape)` that two declared bodies share is still refused, as is a
+       duplicated colour with no declared shapes to split it: the refusal narrows, it
+       does not disappear.
+
+    Immutable and hashable by content: the digest goes into the run's manifest, so a
+    re-labelled declaration is a different experiment even when the pictures are
+    identical. A colour-unique map hashes exactly as before; only a map that needs the
+    second key hashes differently."""
+
+    def __init__(self, by_colour: dict[str, str], *, by_colour_shape: dict[tuple[str, str], str] | None = None,
+                 source: str = "task declaration"):
+        composite = {k: v for k, v in (by_colour_shape or {}).items()}
         dupes = {}
         for colour, entity_id in by_colour.items():
             dupes.setdefault(entity_id, []).append(colour)
+        for (_, _), entity_id in composite.items():
+            dupes.setdefault(entity_id, []).append("(colour, shape)")
         reverse = {}
         for entity_id, colours in sorted(dupes.items()):
             if len(colours) > 1:
                 raise ValueError(
-                    f"{entity_id} is declared under {len(colours)} colour words "
+                    f"{entity_id} is declared under {len(colours)} keys "
                     f"{colours}: a name bridge with two spellings of one body is not a "
                     f"function and would ground a detection to whichever was looked up")
             reverse[entity_id] = colours[0]
+        overlap = set(by_colour) & {c for (c, _s) in composite}
+        if overlap:
+            raise ValueError(
+                f"colour {sorted(overlap)[0]!r} appears both as a unique key and inside "
+                f"a (colour, shape) key: one colour cannot be both unambiguous and in "
+                f"need of splitting")
         self.by_colour = dict(sorted(by_colour.items()))
+        self.by_colour_shape = dict(sorted(composite.items()))
         self.by_entity = dict(sorted(reverse.items()))
         self.source = source
 
     @classmethod
     def from_objects(cls, objects: Sequence[dict], **kw) -> "GroundingMap":
         """The declaration half of a case: the objects it ships with, not where they are."""
-        table: dict[str, str] = {}
+        by_colour: dict[str, str] = {}
+        by_shape: dict[str, list[tuple[str, str]]] = {}
         for d in objects:
             colour = str((d.get("attributes") or {}).get("color") or "").strip().lower()
             entity_id = str(d.get("entity_id") or "")
+            shape = str(d.get("shape") or (d.get("attributes") or {}).get("shape") or "").strip().lower()
             if not colour or not entity_id:
                 continue
-            if colour in table:
+            by_shape.setdefault(colour, []).append((shape, entity_id))
+        composite: dict[tuple[str, str], str] = {}
+        for colour, shape_id_pairs in by_shape.items():
+            if len(shape_id_pairs) == 1:
+                by_colour[colour] = shape_id_pairs[0][1]
+                continue
+            # one colour word, several declared bodies: the frame's measured shape is
+            # the only remaining key, so the declaration must actually carry one
+            shapes = [s for s, _ in shape_id_pairs]
+            if any(s in NO_SHAPES for s in shapes):
                 raise ValueError(
-                    f"colour {colour!r} is declared for both {table[colour]} and {entity_id}: "
-                    f"a frame names bodies by colour, so this declaration cannot be grounded "
-                    f"by that name (P1-b verified colour uniqueness over all 47 frozen cases)")
-            table[colour] = entity_id
-        return cls(table, **kw)
+                    f"colour {colour!r} is declared for {[e for _, e in shape_id_pairs]} "
+                    f"and at least one declaration carries no shape: a frame names bodies "
+                    f"by colour and shape, so this declaration cannot be grounded")
+            if len(set(shapes)) != len(shapes):
+                raise ValueError(
+                    f"colour {colour!r} is declared twice with shape "
+                    f"{shapes[0]!r} ({[e for _, e in shape_id_pairs]}): a frame names "
+                    f"bodies by colour and shape, so this declaration cannot be grounded "
+                    f"by either (P1-b verified colour uniqueness over all 47 frozen "
+                    f"clean/protocol cases; v0.4 R3 added the shape key for the "
+                    f"long-horizon cases that need it)")
+            for shape, entity_id in shape_id_pairs:
+                composite[(colour, shape)] = entity_id
+        return cls(by_colour, by_colour_shape=composite, **kw)
 
-    def bind(self, colour: str) -> Optional[str]:
-        return self.by_colour.get(str(colour or "").strip().lower())
+    def _lookup(self, colour: str, shape: str | None) -> tuple[Optional[str], str]:
+        """The shared binding rule: a unique colour wins whatever the shape says (rule
+        1 — a misread shape must not override the bridge), then the composite key, then
+        nothing. Returns the target, or None beside the key that failed."""
+        colour = str(colour or "").strip().lower()
+        if colour in self.by_colour:
+            return self.by_colour[colour], KEY_COLOUR
+        shape = str(shape or "").strip().lower()
+        if shape not in NO_SHAPES:
+            target = self.by_colour_shape.get((colour, shape))
+            if target is not None:
+                return target, KEY_COLOUR_SHAPE
+        return None, (KEY_COLOUR_SHAPE if colour in
+                      {c for (c, _s) in self.by_colour_shape} else KEY_COLOUR)
+
+    def bind(self, colour: str, shape: str | None = None) -> Optional[str]:
+        return self._lookup(colour, shape)[0]
 
     def colour(self, entity_id: str) -> Optional[str]:
         return self.by_entity.get(entity_id)
 
     def sha256(self) -> str:
         payload = "|".join(f"{c}={e}" for c, e in sorted(self.by_colour.items()))
+        if self.by_colour_shape:
+            payload += "||" + "|".join(f"{c}+{s}={e}"
+                                       for (c, s), e in sorted(self.by_colour_shape.items()))
         return hashlib.sha256(f"{self.source}|{payload}".encode("utf-8")).hexdigest()
 
     def summary(self) -> dict[str, Any]:
         return {"source": self.source, "bound": dict(self.by_colour),
+                "bound_by_colour_shape": {f"{c}/{s}": e for (c, s), e in
+                                          sorted(self.by_colour_shape.items())},
+                "key_of": self.key_of(),
                 "map_sha256": self.sha256()}
+
+    def key_of(self) -> dict[str, str]:
+        """Which key binds each declared body — the sentence a manifest needs to say
+        "this batch's bridge used the shape key" without a reader reverse-engineering it."""
+        out = {e: KEY_COLOUR for e in self.by_colour.values()}
+        out.update({e: KEY_COLOUR_SHAPE for e in self.by_colour_shape.values()})
+        return dict(sorted(out.items()))
 
 
 def _rename(entity: EntityState, gmap: GroundingMap,
             claimed: dict[str, list[str]]) -> EntityState:
     colour = str(entity.attributes.get("color") or "").strip().lower() or colour_of(
         entity.entity_id)
-    target = gmap.bind(colour)
+    shape = str(entity.attributes.get("shape") or "").strip().lower()
+    target, key = gmap._lookup(colour, shape)
     attributes = dict(entity.attributes)
     attributes[SEEN_AS] = entity.entity_id
     if target is None:
@@ -153,6 +243,7 @@ def _rename(entity: EntityState, gmap: GroundingMap,
         attributes["conflicting_detections"] = ",".join(claimed[target])
         return entity.model_copy(update={"attributes": attributes})
     attributes[GROUNDING] = GROUNDED
+    attributes[GROUNDING_KEY] = key
     return entity.model_copy(update={"entity_id": target, "attributes": attributes})
 
 
@@ -160,7 +251,7 @@ def _claimed_targets(entities: Iterable[EntityState], gmap: GroundingMap) -> dic
     out: dict[str, list[str]] = {}
     for e in entities:
         colour = str(e.attributes.get("color") or "").strip().lower() or colour_of(e.entity_id)
-        target = gmap.bind(colour)
+        target = gmap.bind(colour, str(e.attributes.get("shape") or ""))
         if target:
             out.setdefault(target, []).append(e.entity_id)
     return out
@@ -194,6 +285,10 @@ def ground_state(state: WorldState, gmap: GroundingMap, *,
                  for o in state.occupancy]
     rows: list[NotSeen] = []
     for eid, _visible, occluded_by in not_seen:
+        # a not-seen row carries the frame's name only — no measured shape travels with
+        # it — so an ambiguous colour keeps its frame name here rather than splitting on
+        # nothing (v0.4 R3: the composite key needs the frame's own shape word, and this
+        # row never had one)
         target = gmap.bind(colour_of(str(eid)))
         if target and len(claimed.get(target, [])) <= 1:
             eid = target
