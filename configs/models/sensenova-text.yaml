@@ -1,0 +1,12 @@
+# sensenova 文本席（v0.4 E1' 的块界故障切换席；新文件、不就地改）。
+# 端点与型号照抄被量过的 sensenova-vision.yaml（`/tmp/mw117/sn_probe.py` 的实测
+# 与 v0.4 P2/D6' 两次探针）：provider / base_url / model / api_key_env 一字不改，
+# capabilities 只写被证明的这一项，max_tokens 取探针验证过的 2048 档。
+# 密钥只从环境变量读（SPEC 7）：配置里只有变量名，值在 gitignored 的 .env。
+schema_version: "1"
+provider: sensenova
+api_key_env: SENSENOVA_API_KEY
+base_url: https://token.sensenova.cn/v1
+model: sensenova-6.8-flash-lite
+capabilities: [text]
+max_tokens: 2048

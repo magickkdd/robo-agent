@@ -90,13 +90,24 @@ def probe_minimal(config_path: str) -> dict:
                 "error_type": type(e).__name__, "error": str(e)[:200]}
 
 
-def probe_grade(config_path: str, ceilings: list[int]) -> dict:
+def probe_grade(config_path: str, ceilings: list[int], target_tokens: int = 0) -> dict:
     ad = _adapter(config_path)
+    rounds = 40
+    if target_tokens:
+        # the P0' lesson scaled up: a trivial prompt underestimates by an order of
+        # magnitude, so the retest sizes the payload from a MEASURED per-round prompt
+        # (45,855 tokens, the em-family decide round on the model seat) instead of
+        # guessing. GRADE_USER at 40 rounds measured 2,975 prompt tokens => ~74/round.
+        rounds = max(40, round(target_tokens / 74))
+    user = (
+        f"Below are {rounds} rounds of a hypothetical episode log. Read them, then reply "
+        f'with exactly {{"ok": true, "rounds_seen": {rounds}}} and nothing else.\n\n'
+        + "\n".join(f"round {i:05d}: {GRADE_BLOCK}" for i in range(rounds)))
     tiers = []
     for ceiling in ceilings:
         t0 = time.time()
         try:
-            raw, meta = ad.chat(TEXT_SYSTEM, GRADE_USER, max_tokens=ceiling)
+            raw, meta = ad.chat(TEXT_SYSTEM, user, max_tokens=ceiling)
             tiers.append({"max_tokens": ceiling, "ok": len(raw or "") > 0,
                           "raw_chars": len(raw or ""),
                           "finish_reason": meta.get("finish_reason"),
@@ -109,10 +120,12 @@ def probe_grade(config_path: str, ceilings: list[int]) -> dict:
                           "wall_s": round(time.time() - t0, 2),
                           "error_type": type(e).__name__, "error": str(e)[:200]})
         time.sleep(2.0)
-    qualified = any(t["ok"] for t in tiers)
-    return {"qualified": qualified, "tiers": tiers,
-            "criterion": "qualified = some tier returns a non-empty body on a "
-                         "decision-grade prompt (v0.4 phase log, P2 判据先行)"}
+    qualified = any(t["ok"] and t.get("finish_reason") == "stop" for t in tiers)
+    return {"qualified": qualified, "target_prompt_tokens": target_tokens or 2975,
+            "payload_rounds": rounds, "tiers": tiers,
+            "criterion": "qualified = some tier returns a NON-EMPTY body with "
+                         "finish_reason=stop on the target-sized decision prompt "
+                         "(v0.4 phase log, D6' 重测判据)"}
 
 
 def probe_window(config_path: str, n: int) -> dict:
@@ -140,6 +153,9 @@ def main() -> int:
     ap.add_argument("config")
     ap.add_argument("--grade", action="store_true",
                     help="decision-grade prompt at graded max_tokens ceilings")
+    ap.add_argument("--target-tokens", type=int, default=0,
+                    help="size the grade payload to ~this many prompt tokens "
+                         "(measured-basis sizing, not guesswork)")
     ap.add_argument("--ceilings", default="1200,4096,16384")
     ap.add_argument("--window", type=int, default=0, help="N rapid minimal requests")
     ap.add_argument("--out", default=None, help="write the JSON reading here")
@@ -151,7 +167,8 @@ def main() -> int:
                "minimal": probe_minimal(args.config)}
     if args.grade:
         reading["grade"] = probe_grade(args.config,
-                                       [int(x) for x in args.ceilings.split(",")])
+                                       [int(x) for x in args.ceilings.split(",")],
+                                       target_tokens=args.target_tokens)
     if args.window:
         reading["window"] = probe_window(args.config, args.window)
     blob = json.dumps(reading, ensure_ascii=False, indent=1)

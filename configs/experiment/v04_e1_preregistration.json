@@ -1,0 +1,73 @@
+{
+ "acceptance": [
+  "60 model-seat episodes across 5 blocks x 12, each block's manifest naming its seat; blocks 1-5 all complete or stop under the pre-registered rules with the stop event logged",
+  "L2 delivered: per-seat and pooled dependency-edge trigger counts, trigger rate with Wilson interval over the block-level denominators; if two-digit triggers are NOT reached, the reading says so and delivers the interval, never a rate dressed as a conclusion",
+  "L6 delivered: replanning effectiveness on the model seat at the block-level denominators AND on the rule seat's 60 zero-cost episodes at the same episode denominator, side by side, same denominator per seat",
+  "L2's rule-seat status restated (v0.3: structurally n/m) with whatever the 60 rule episodes show",
+  "every non-success row in the errors ledger (v0.4 R1), every block manifest carrying its perception channel and model identity (v0.4 R2)",
+  "the two-ledger spend reported with http_requests and http_requests_successful side by side (batch_spend)",
+  "seat identity per block in the state file; the pooled reading stratifies by seat wherever seats differ"
+ ],
+ "artefact_directory": "/home/czx/embodied-agent-batches/v04/e1",
+ "block_plan": {
+  "checkpoint": "a kill loses at most the block in flight; a restart resumes at the next unfinished block, re-running no paid episode",
+  "blocks": 5,
+  "episodes_per_block": 12,
+  "repeats_per_block": 2,
+  "seat_fallback": "blocks run on the primary seat; if the stop rule trips at a block boundary, the NEXT block may switch to the failover seat (recorded per block, reading stratified). The switch exists to preserve the denominator under quota pressure, not to halve wall clock: blocks are sequential because the experience store is batch-level state"
+ },
+ "command_shape": [
+  "python -m embodied_agent.cli evaluate",
+  "--set long_horizon",
+  "--planner deepseek",
+  "--modes B",
+  "--repeats 2",
+  "--out-root /home/czx/embodied-agent-batches/v04/e1/long_horizon_full",
+  "--perceive privileged",
+  "--ablation full",
+  "--experience-store <cell>/store.jsonl",
+  "--skill-memory <cell>/library.jsonl",
+  "--model-config configs/models/bst_text_agnes.yaml",
+  "--frozen",
+  "--no-frames"
+ ],
+ "cost": {
+  "basis": "v0.3 E1 measured 31.1 requests per lh episode all-in (v0.4 phase log P2-E, batch_spend over the lh cells)",
+  "pricing_configured": false,
+  "projection": {
+   "episodes": 60,
+   "requests": 1866
+  },
+  "requests_bound": 2340,
+  "rule_seat_half": "0 requests: the L6 cross-seat counterpart is a rule-planner run of the same set x arm x repeats, paid in wall clock only",
+  "stop_rule": "3 consecutive 429/quota deaths -> stop at the block boundary, checkpoint, log; bound hit -> stop, no 'a little more'; a resumed block re-runs no paid episode"
+ },
+ "credentials": "never recorded; a config names the env var, not the key (SPEC 7)",
+ "design": {
+  "arm": "full",
+  "cases": "the frozen long_horizon set's 6 cases",
+  "episodes": 60,
+  "perceive": "privileged",
+  "planner": "deepseek (bst_text_agnes.yaml), the seat that carried E1's 2,936 requests",
+  "repeats": 10,
+  "set": "long_horizon",
+  "store": "per-cell experience store and skill library, fresh files, shared across blocks in set order (the same growth one continuous 60-episode run would produce)"
+ },
+ "experiment": "E1' (v0.4) — L2/L6 denominators raised to conclusion-grade scale (RQ9, SPEC v0.4 §7 E1')",
+ "failover_seat": {
+  "config": "configs/models/sensenova-text.yaml",
+  "health": "D6' retest 2026-09-30: finish_reason=stop with a non-empty body at all three ceilings on a 45,129-token prompt (synthetic-simple content; its real-workload health is whatever its first assigned block shows, and the reading stratifies by seat)",
+  "role": "block-boundary failover only, after a quota-stop"
+ },
+ "preconditions": [
+  "v0.4 P1 fixes committed (9aaf44d); E2' and MEM-1' readings on disk (d8b614c, 7a9ed0c)",
+  "the three gates rc=0 immediately before the first request",
+  "schema_fingerprint() equals the frozen file (no refreeze)"
+ ],
+ "primary_seat": {
+  "config": "configs/models/bst_text_agnes.yaml",
+  "health": "v0.4 P2 probes A and D: healthy; 1 refusal in a 10-request window"
+ },
+ "scale_rationale": "D5' (user, 2026-09-30): 60 episodes targets two-digit L2 triggers at the observed 2/12 trigger rate (expected ~10); 24 was the smaller option and was declined; L2's denominator is TRIGGER SETS, not episodes, so the reading must name both",
+ "seat_plan_note": "the two-seat rotation discussed at D5' was narrowed to failover-only before the first request: alternating seats would split the ~10 expected L2 triggers into per-seat halves and defeat the scale objective the batch exists for. The narrowing is recorded here rather than discovered in the report."
+}
