@@ -267,3 +267,22 @@ agnes 席；全部免费层，无单价，无美元列）。
 
 E1' 预登记：`configs/experiment/v04_e1_preregistration.json`（60 集、5 块 × 2 repeats、
 上界 2,340、rule 席同格 60 集零花费对照）。
+
+---
+
+## P4（三）：E1' 的 rule 席半边读数（2026-09-30，零花费，L6 跨席同分母）
+
+**60 集（lh 全集 × arm full × repeats 10，rule 规划器、特权态）**：**50/60 success、
+10/60 failed**——失败**全部**是 `lh_c6_two_disruptions` 的 INVALID_DECISION，10 次重复
+**确定性**失败：rule 规划器过不了 c6 的任务结构。与接地无关（特权态不走接地图），
+也与模型无关（这一半就是 rule 对照）。其余五格 case 10/10 全胜。
+
+- **L6 的 rule 席分母就此成立**：60 集、50 成功——与模型席 60 集（跑批中）同分母对照。
+- **一条顺带的干净负结果**：c6 在 rule 席上 0/10。v0.3 的 full 格 12 集里 c6 只出现 2 次
+  （当时 2 failed 之一），repeats=10 把它从"个案"变成"确定性失败"——rule 规划器对
+  双扰动任务结构的无能第一次有了确定的分母。c6 也是重复颜色 case，但它在这一格的失败
+  与颜色无关，不得读成 R3 的读数。
+- **身份**：manifest `dirty: true`——批于 13:37 落 manifest 时工作树里有未提交的
+  `work/v04/mem1_join.py`（当时正写 MEM-1 并表仪器）；`dirty_diff_sha256` 已把
+  这份差钉住，产品代码零改动。13:44 起的模型席批 manifest `dirty: false`（5ca1495b）。
+  不重跑：零花费批、身份可完整复原。
