@@ -90,6 +90,24 @@ def read_latest_run(out_root: str) -> dict:
             "quota_deaths": quota_deaths, "goal_429_rows": goal_errs}
 
 
+def cell_spend(cell: str) -> dict:
+    """The cell's two-ledger spend, summed over its run roots. batch_spend expects a RUN
+    root (episodes/ directly under it); passing the cell — one level too high — silently
+    reads nothing and reports 0. That bug shipped in the first version of this driver:
+    the running total displayed 0 for the whole batch and the bound guard never armed
+    (the quota stop rule is what actually stopped the batch). Fixed here; the v0.4 phase
+    log P4-四 records the incident and the recomputed totals."""
+    total = {"http_requests": 0, "prompt_tokens": 0, "completion_tokens": 0}
+    for rd in sorted(glob.glob(os.path.join(cell, "*"))):
+        if not os.path.isdir(os.path.join(rd, "episodes")):
+            continue
+        s = batch_spend(rd)
+        total["http_requests"] += s["http_requests"]
+        total["prompt_tokens"] += s["prompt_tokens"]
+        total["completion_tokens"] += s["completion_tokens"]
+    return total
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bound", type=int, default=BOUND)
@@ -122,7 +140,7 @@ def main() -> int:
         run = run_block(block_index, seat, repeats=args.repeats, out_root=cell,
                         store=store, lib=lib)
         summary = read_latest_run(cell)
-        spend = batch_spend(cell)
+        spend = cell_spend(cell)
         state["blocks"].append({
             "block": block_index, "seat": seat, "run": run, "summary": summary,
             "cumulative_requests": spend["http_requests"],
