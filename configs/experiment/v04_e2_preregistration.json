@@ -1,0 +1,65 @@
+{
+ "acceptance": [
+  "each of the three cells runs its full matched denominator: 2 cases x 2 repeats = 4 episodes, all producing an outcome (success/failed/needs_clarification), none infrastructure_error",
+  "every non-success row appears in the batch root's errors.jsonl with episode_id/case_id/mode/repeat/where/error/outcome (v0.4 R1; the ledger a reader is pointed at answers 'why no result')",
+  "each cell's manifest carries perception.channel equal to the requested channel and the pre-registered model identity (v0.4 R2, pinned property)",
+  "the vlm and stub cells run lh_c3 to completion on the fixed grounding bridge: the (colour, shape) key that v0.4 R3 added, verified over the frozen long-horizon table by the suite test every frozen case is groundable under the composite key",
+  "the two-ledger spend is reported with http_requests (made) and http_requests_successful (returned) side by side (batch_spend)",
+  "RQ8's answer names the per-cell success counts on the matched denominator 4, side by side with v0.3's E2 row (0/2 matched) and never merged with it; 0 is a legal answer"
+ ],
+ "artefact_directory": "/home/czx/embodied-agent-batches/v04/e2",
+ "bridge_identity_change": "v0.4 R3 changed the grounding bridge: colour-unique cases keep byte-identical digests, but any map that needs the (colour, shape) key hashes differently, and grounded entities carry a grounding_key attribute. This is a declared identity change (SPEC v0.4 §2.5): these rows are comparable to v0.3's E2 rows only side by side, never pooled",
+ "command_shape": [
+  "python -m embodied_agent.cli evaluate",
+  "--set long_horizon",
+  "--planner rule",
+  "--modes B",
+  "--repeats 2",
+  "--out-root /home/czx/embodied-agent-batches/v04/e2/<cell>",
+  "--perceive <privileged|stub|vlm>",
+  "--ablation <full|wo_vlm>",
+  "--experience-store <cell>/store.jsonl",
+  "--skill-memory <cell>/lib.jsonl",
+  "--model-config configs/models/agnes-vision-r4.yaml",
+  "--frozen"
+ ],
+ "credentials": "never recorded; a config names the env var, not the key (SPEC 7)",
+ "decided_by": {
+  "D1": "vision seat carried over from v0.3's E2: configs/models/agnes-vision-r4.yaml (v0.4 probe B healthy, 2026-09-30)",
+  "D2": "no separate probe batch: --perceive vlm reachability was proven in v0.3 P3' and the blocker this rerun exists for was fixed and contract-tested in v0.4 P1",
+  "D3": "agnes is the seated provider (probe readings); sensenova stays an unseated short-payload spare (v0.4 phase log P2, D6')"
+ },
+ "entry_point": "python -m embodied_agent.cli evaluate",
+ "experiment": "E2' (v0.4) — full-on-VLM rerun on the fixed grounding bridge, RQ8 (SPEC v0.4 §7 E2')",
+ "formal_scale": {
+  "cases": ["lh_c1_shared_pair_restore", "lh_c3_capacity_and_shift"],
+  "cells": 3,
+  "cells_detail": {
+   "privileged": "perceive privileged, arm full, zero-cost control",
+   "stub": "perceive stub, arm wo_vlm, zero-cost limited-semantic baseline",
+   "vlm": "perceive vlm, arm full, the channel under test"
+  },
+  "episodes": 12,
+  "repeats": 2,
+  "v03_comparison": "v0.3 E2 was the same 3 cells x 2 cases x 2 repeats, but c3 died at declaration binding on the two non-privileged channels (4 infrastructure_error rows, cause in the ledger): the matched denominator there was 2, here it is 4 per cell"
+ },
+ "preconditions": [
+  "v0.4 P1 fixes committed (9aaf44d): R1 ledger coverage, R2 manifest property, R3 composite grounding key",
+  "suite test 'every frozen case is groundable under the composite key' green at run time (freeze --check 2f1c74f52e91 unchanged)",
+  "schema_fingerprint() equals configs/experiment/v02_schema_freeze.json item by item (no refreeze)",
+  "the three gates rc=0 immediately before the first request"
+ ],
+ "pricing_configured": false,
+ "schema_freeze": "core/v02.py untouched by v0.4 P1; the 15 event types and 7 ablation conditions of v0.2 schema_version 4 still hold",
+ "seat": {
+  "config": "configs/models/agnes-vision-r4.yaml",
+  "health_probe": "v0.4 P2 probe B: minimal request ok, 0.5 s (2026-09-30)",
+  "model": "agnes-2.5-flash"
+ },
+ "spend_bound": {
+  "requests": 400,
+  "basis": "v0.3 E2 formal measured 73 requests over 12 episodes with c3 dead on two channels; with all channels running, 150-250 estimated; x1.25 head-room (v0.4 phase log P2-E)",
+  "stop_rule": "3 consecutive 429/quota errors -> stop the batch, save the checkpoint, log it; bound hit -> stop, no 'a little more'",
+  "stop_rule_source": "v0.3 SPEC §8 verbatim"
+ }
+}
