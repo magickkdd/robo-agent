@@ -208,3 +208,24 @@ vlm 格 132 请求、prompt 137,299、completion 37,931；privileged/stub 零请
 "两对在读数层面各缺一个对照集"。增补已改写为：**跑 em_p1/em_p2 的
 wo_episodic_memory reader（连带 writer，对照臂无库、对 v0.3 存储无副作用），
 上界 100 请求**，四对读数按引用并表，已付费集不重跑。
+
+---
+
+## P4（二）：MEM-1' 读数（2026-09-30，SPEC §7 MEM-1'，增补 `v04_mem1_amendment_1.json`）
+
+**48 / 100 请求，4 集全部 success，一次停止规则未触发**：
+em_p1/em_p2 的对照臂（wo_episodic_memory）writer+reader 在模型席上补齐——
+- `em_p1_write_two` success 5 轮 7 请求；`em_p1_read_three` success 8 轮 18 请求
+- `em_p2_write_two` success 5 轮 6 请求；`em_p2_read_three` success 8 轮 17 请求
+- 身份：planner deepseek、model agnes-2.5-flash、dirty=False、manifest 感知键 privileged（R2 逐格相符）
+
+至此**四对 × 两臂的 16 个槽位全部有集**（v0.3 根 14 + v0.4 根 2 的对照补集）。
+对照臂零库设计使 v0.3 的两个库未受触碰（arm_coherence 由各自 pairs_run.json 记录）。
+
+**待 P5 的并表**：四对 M1–M4 的重印需要一台跨根读数仪器（v0.3 根的 full 臂 + p3/p4
+两臂，v0.4 根的 p1/p2 对照臂，按引用并表不重跑）——预写死的读法不变：n=4 上与随机
+不可分即交付 Wilson 区间不交付结论。这不在本轮：它属于 P5 报告仪器，且 D5' 未决
+不影响它。
+
+**v0.4 至此花费合计**：探针 15 + E2' 132 + MEM-1' 48 = **195 请求**（两免费端点的
+agnes 席；全部免费层，无单价，无美元列）。
