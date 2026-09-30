@@ -12,14 +12,22 @@
 v0.3 以「§13 七条完成定义全部达成（P6-h 回产物核验）+ §15 第一半达成（路 A）」收口并发布。
 它留给下一阶段的账，在报告里分三类：
 
-1. **三道产品残留**（§18.4，编号沿用）：
-   - **#18**：`infrastructure_error` 的两集（E2 的 c3）在 `run_summary` 里有、在 `errors.jsonl`
-     里没有——"这一集为什么没有结果"**无法回答**。报告原话：*它比颜色那条更值得先修*。
-   - **#19**：三个批次 manifest 都没有 `perceive` 键，通道身份只能从每集摘要反查——而 manifest
-     恰恰是"这批跑的是什么"该被记录的地方。
+1. **三道产品残留**（§18.4，编号沿用）——**注意：P1 开工前的盘上重判改写了其中两条的事实
+   基础**（证据与复现入口记在 v0.4 阶段日志"三处盘上重判"一节，v0.3 报告 §19 一并更正）：
+   - **#18**（重判后）：c3 的死因**在**账本里（vlm/stub 两格的 `errors.jsonl` 各有两行指名
+     c3，mtime = 批次当时）——残留 18 的前提不成立。但代码洞真实：`_infra_row` 三个装配点
+     只有集内崩溃路写账本（c3 恰好死在这条路上），`resolve_goal` 异常路与 `resolution.error`
+     路不写——E1 的 16 行 `goal_resolution_error` 全部不在任何 errors.jsonl 里（E1 十二格
+     没有一个账本文件）。**改动照做，动机更正为覆盖补全**：一个非成功结局有没有原因，不应当
+     取决于它死在哪条路上。
+   - **#19**（重判后）：**仪器致盲，不是产品缺陷**。manifest 自 `230f4dc` 起就带
+     `perception.channel`（E2 三格逐格可验）；P6 的仪器按 `perceive` 找键、把 `perception`
+     整块滤掉了。**不新增别名键**（一份身份两个名字是两处可以不一致的地方）；处置 = 更正记录
+     + 契约测试把"批次 manifest 记录感知通道"钉成永久性质。
    - **#20**：颜色拒绝在 stub 与 vlm **两格**都发生，成因在共用接地图（`GroundingMap`），
-     不在 vlm 适配器；修它需要一条不依赖颜色的命名通道，或把该性质在 `long_horizon` 冻结集上
-     验证并写进冻结集的前提。
+     不在 vlm 适配器；拒绝真实杀掉了 c3 的四集非特权 episodes（§18.2 第 1、3 点的倒置
+     已由 §19 更正：重复颜色在 c3 不在 c1，原交付文本是对的）。修法 = 不依赖颜色的命名通道，
+     并把该性质在 `long_horizon` 冻结集上验证、写进冻结集的前提。
 2. **三个小分母读数**（§17）：`L2.dependency_edge_violation 1.0 (2/2)`、
    `L6.replanning_effectiveness 0.5789 (11/19)`、`wo_replanning 9/12 vs full 8/12`——三个都
    与随机不可分（p=0.50 / 0.65 / 1.00），§17.4 留下的原话是*重跑并把每格的集数提到能看见效应
@@ -48,9 +56,9 @@ v0.3 以「§13 七条完成定义全部达成（P6-h 回产物核验）+ §15 �
    R3 是给既有接地图补一把键——三处都是 v0.3 §18.3 已指名的既有面，不是新面。
 2. **不动冻结的契约**。15 类事件、7 条消融注册表、`schema_version 4`、
    `core/v02.py` 的 `schema_fingerprint()` 与 `configs/experiment/v02_schema_freeze.json`
-   **逐项相等**的判据在 v0.4 全程成立。R1/R2/R3 的落点（`evaluation/run.py`、
-   `core/events.py` 的 manifest 写侧、`perception/grounding.py`）**都不在** `core/v02.py`——
-   P0 的第一件事就是当众验证这条边界，违反即停工重设计。
+   **逐项相等**的判据在 v0.4 全程成立。R1/R3 的落点（`evaluation/run.py`、
+   `perception/grounding.py`）与 R2 的性质钉住测试**都不在** `core/v02.py`（R2 经 P1 重判
+   为零产品改动）——P0 的第一件事就是当众验证这条边界，违反即停工重设计。
 3. **三道门全程 rc=0**：`freeze --check` → `2f1c74f52e91`、`prereg --check` → `23abe58ff333…`、
    `em-pairs --check` → `7df449ed2f4d`。P0 与每个提交前各跑一次。
 4. **v0.3 报告保持封存**。残留 18/19/20 在 v0.3 报告里保持"未修"的原文——修复发生在 v0.4 的
@@ -91,12 +99,14 @@ v0.2 §3 八条 + v0.3 §4 四条（9–12）全部沿用。本阶段新增三�
 
 ## 5. 三道修复的验收定义
 
-### R1（残留 #18）：错误账本全覆盖
+### R1（残留 #18，动机按 P1 重判更正）：错误账本全覆盖
 
-- **现状（P0' 已核实）**：`evaluation/run.py` 有三处 `_infra_row` 装配点——
+- **现状（P1 开工时当场核实）**：`evaluation/run.py` 有三处 `_infra_row` 装配点——
   `resolve_goal` 异常路（~1149）、`resolution.error` 路（~1159）、集内崩溃路（~1181）。
-  只有第三处把 `infrastructure_error` 追加进 `errors.jsonl`（~1185）。c3 的两集死在第一条路
-  （`GroundingMap` 的 ValueError 从 `resolve_goal` 里抛出），所以有行、有 outcome、没原因。
+  只有第三处把 `infrastructure_error` 追加进 `errors.jsonl`（~1185）。**E2 的 c3 死的正是
+  第三条路**（`GroundingMap` 的 ValueError 在集起点抛出），所以它有账——残留 18 说"没记"
+  是 P6 仪器的读法错；但前两条路不写账，E1 的 16 行 `goal_resolution_error` 因此全部不在
+  任何 errors.jsonl 里（E1 十二格没有一个账本文件）。
 - **改动形状**：集中一个 `_record_infra(root, row)` 写侧，三处装配点都过它；
   `goal_resolution_error` 行同样入账（它自带 `resolution.error`，但账本应当是
   "为什么没有结果"的唯一提问处，不该让读者在两种 outcome 之间换问题）。账本行至少携带：
@@ -109,16 +119,18 @@ v0.2 §3 八条 + v0.3 §4 四条（9–12）全部沿用。本阶段新增三�
   4. 成功批的 `errors.jsonl` 不存在或为空——账本不为"看起来完整"而造假行。
 - **不修历史**：E2 归档里 c3 的两集保持原样。
 
-### R2（残留 #19）：manifest 记感知通道
+### R2（残留 #19，按 P1 重判改为"更正记录 + 钉住性质"）：manifest 的感知通道
 
-- **现状**：批次 manifest 的唯一写点是 `run.py:1039` 的 `write_manifest(...)`，字段里有
-  `planner`、`offline`、`model`、`scene`……唯独没有 `perceive`；`_batch_is_offline()` 已经
-  在读 `perceive`（P0' 修的"offline 只看决策席"），所以键的原料在作用域里。
-- **改动形状**：manifest 增加顶层 `perceive` 键，至少记 `{"channel": <privileged|stub|vlm>}`；
-  vlm 时附视觉席的 `provider/model`（与 `model` 块同源，不新造身份）。
-- **验收（契约测试承载）**：privileged / stub 两格的 manifest `perceive.channel` 与请求参数
-  一致；不造 vlm 的真实请求（那要花钱）——vlm 形状由 unit 级断言（字段构造函数）承载。
-- **边界**：manifest 不是事件流，这个键**不**进 `core/v02.py` 的事件类型表，fingerprint 不动。
+- **重判后的现状**：批次 manifest 的唯一写点 `run.py:1039` **已经**带 `perception` 键，
+  内含 `channel`（自 `230f4dc` 起就在）；E2 三格逐格可验。残留 19 是仪器致盲：
+  `work/v03/p6g_missing.py` 的键清单写 `perceive`，manifest 的键叫 `perception`。
+- **改动形状**：**零产品改动**。不新增 `perceive` 别名键——一份身份两个名字是两处可以
+  不一致的地方，比缺一个键更糟。
+- **验收（契约测试承载）**：
+  1. `run_group` 产出的 manifest `perception.channel` 与请求的 `perceive` 一致
+     （privileged / stub 两格实测，vlm 形状由 unit 断言承载）——把重判出来的性质钉成永久契约；
+  2. v0.3 报告 §19 更正落盘；`work/v03/p6g_missing.py` **不改**（它是 v0.3 的封存仪器，
+     它的错由本阶段日志与 §19 记录，不靠改历史仪器销账）。
 
 ### R3（残留 #20）：接地图的第二把键——颜色 + 形状
 
@@ -249,7 +261,8 @@ v0.3 §8 五条原文沿用（申报式上界、3×429 停批、格级断点、�
 ## 12. 完成定义（v0.4 的出口，逐条可测）
 
 1. **R1**：契约测试四条绿；任何新批的非成功结局在 `errors.jsonl` 有可指原因行。
-2. **R2**：契约测试绿；新批 manifest 带 `perceive` 键且与请求参数一致。
+2. **R2**：契约测试绿（批次 manifest 的 `perception.channel` 与请求一致，性质钉住）；
+   v0.3 报告 §19 更正落盘；不新增 `perceive` 别名键。
 3. **R3**：契约测试五条绿；`(colour, shape)` 唯一性仪器扫过 lh 冻结集并落 E2' 预登记前提；
    47 case 性质不回退。
 4. **冻结面**：P0 与每个提交前，fingerprint 逐项相等 + 三门 rc=0，全程无一次例外。
