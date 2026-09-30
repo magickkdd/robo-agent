@@ -1,42 +1,34 @@
 {
  "acceptance": [
-  "the two missing pairs complete with the same five acceptance items as the original prereg (pairs_run.json seat fields, memory_retrieval asymmetry, episodic block, MEM-1 JSON with seat_note, two-ledger spend side by side)",
-  "the completed reading table is reprinted over all 4 pairs: M1 retrieval rows, M2 behavioural rows, M3 outcome rows, with per-row denominators",
-  "pre-declared reading rule (SPEC v0.4 §7 MEM-1'): at n=4 pairs, any M2/M3 rate that is not separable from chance is delivered as a Wilson interval with its denominator, never as a conclusion; this rule is applied as written, not re-judged after the run",
-  "any episode that dies leaves a named cause in the batch's errors ledger (v0.4 R1), so 'why is there no result' stays answerable"
+  "the missing control-arm reader episodes of em_p1 and em_p2 complete on the model seat (planner deepseek, configs/models/bst_text_agnes.yaml), so all four pairs have a same-seat control reader",
+  "the completed MEM-1 reading covers all 4 pairs, with per-pair denominators printed; the join is by reference: v0.3 root keeps p1/p2 full-arm and p3/p4 both arms, the v0.4 root adds p1/p2 control arm — no paid episode is re-run",
+  "pre-declared reading rule (SPEC v0.4 §7 MEM-1'): at n=4 pairs, any M2/M3 rate not separable from chance is delivered as a Wilson interval with its denominator, never as a conclusion; applied as written, not re-judged after the run",
+  "any episode that dies leaves a named cause in the errors ledger (v0.4 R1)"
  ],
- "amends": "configs/experiment/v03_mem1_preregistration.json (b918f55-era P6 file; the original is NOT edited — amendment discipline, as with v0.3's E1/E2 addenda)",
+ "amends": "configs/experiment/v03_mem1_preregistration.json (the original is NOT edited — amendment discipline, as with v0.3's E1/E2 addenda)",
  "artefact_directory": "/home/czx/embodied-agent-batches/v04/mem1_model",
- "artefact_rule": "the two v0.3 pairs stay untouched in v03/mem1_model; this batch adds pairs 3-4 in its own directory and the completed table joins them by reference, never by re-running paid pairs",
+ "corrected_scope_note": "written 2026-09-30 after reading the v0.3 archive, replacing a first draft that said 'pairs 3-4 are missing'. The archive says otherwise: pairs_run.json covers ALL FOUR pairs on the model seat, and episodic_memory_MEM_1.json names pairs_ran [em_p3, em_p4] because **em_p1 and em_p2's wo_episodic_memory READER episodes are the missing units** (0 episodes each; every other slot has 1). What P6's report compressed into '2/4 pairs' is: two pairs unusable at the reading level for want of one control episode each.",
  "command_shape": [
   "python -m embodied_agent.cli em-pairs",
   "--run /home/czx/embodied-agent-batches/v04/mem1_model",
   "--planner deepseek",
   "--model-config configs/models/bst_text_agnes.yaml",
-  "--stop-at-requests 250"
+  "--pairs em_p1 em_p2",
+  "--arms wo_episodic_memory",
+  "--stop-at-requests 100"
  ],
  "cost": {
-  "basis": "the original MEM-1 batch spent 216 requests on 2 of 4 pairs (P6 readings) before rate limiting stopped it: ~108 requests per pair on the same seat, same case family",
+  "basis": "the missing units are 2 control-arm reader episodes (the control arm installs no store, so re-running its writer+reader is side-effect-free on the v0.3 stores); at the em family's measured 14.8 requests per episode (v0.4 phase log P2-E), ~60 requests",
   "pricing_configured": false,
-  "projection": {
-   "completion_tokens": 13000,
-   "prompt_tokens": 620000,
-   "requests": 216
-  },
-  "requests_bound": 250,
-  "stop_rule": "3 consecutive 429/quota errors -> stop, checkpoint, log; bound hit -> stop; checkpoint resume re-runs no paid pair"
+  "requests_bound": 100,
+  "stop_rule": "3 consecutive 429/quota errors -> stop, checkpoint, log; bound hit -> stop; the v0.3 stores are untouched by the control arm either way"
  },
  "credentials": "never recorded; a config names the env var, not the key (SPEC 7)",
- "experiment": "MEM-1' (v0.4) — complete the 4/4 pairs P6 could not finish (two pairs missing to rate limiting), RQ10 (SPEC v0.4 §7 MEM-1')",
- "pairs": {
-  "design": "identical to the original prereg: K=4 seed/read pairs, per-pair isolated store, seed-then-read, em case family",
-  "missing": "pairs 3 and 4 of the original 4-pair plan; pairs 1-2 keep their v0.3 readings untouched",
-  "seats": "reader seat = model (bst_text_agnes.yaml), exactly as the original"
- },
+ "experiment": "MEM-1' (v0.4) — complete the model-seat episodic-pair reading over all 4 pairs (RQ10, SPEC v0.4 §7 MEM-1')",
  "preconditions": [
   "v0.4 P1 fixes committed (9aaf44d): every infra death now leaves a ledger cause",
   "the three gates rc=0 immediately before the first request",
   "schema_fingerprint() equals the frozen file (no refreeze)"
  ],
- "seat_health": "v0.4 P2 probe A: agnes text seat healthy, 7.2 s minimal request (2026-09-30); probe D measured 1 refusal in a 10-request window, so the stop rule stays armed"
+ "seat_health": "v0.4 P2 probe A: agnes text seat healthy (2026-09-30); probe D measured 1 refusal in a 10-request window, so the stop rule stays armed"
 }
